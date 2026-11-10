@@ -40,7 +40,7 @@ export default function SettingsPage() {
   // Cloudflare R2 & Supabase credentials settings
   const [r2Bucket, setR2Bucket] = useState("pms-documents");
   const [r2AccountId, setR2AccountId] = useState("cf_acc_9922883311");
-  const [supabaseUrl, setSupabaseUrl] = useState("https://pms-prod-db.supabase.co");
+  const [supabaseUrl, setSupabaseUrl] = useState("https://zekhmpcrbxpkotcuzhso.supabase.co");
   const [firmName, setFirmName] = useState("PMS Professional Services LLP");
   const [firmGstin, setFirmGstin] = useState("06AABFP1234F1Z9");
 
