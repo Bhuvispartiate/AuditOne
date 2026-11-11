@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -23,7 +23,9 @@ import {
   UploadCloud,
   CheckCircle2,
   Calendar,
-  Clock
+  Clock,
+  ListChecks,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,12 +33,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { pmsStore } from "@/lib/data/store";
 import { formatCurrency, formatDate, formatDateTime, formatBytes } from "@/lib/utils";
+import { TaskStatus } from "@/types";
 import { toast } from "sonner";
+import { ProjectTimeline } from "@/components/tasks/project-timeline";
+import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 
 export default function Client360ProfilePage() {
   const params = useParams();
   const [, setRefreshKey] = useState(0);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
   const clientId = params.id as string;
+
+  useEffect(() => {
+    const unsub = pmsStore.subscribe(() => setRefreshKey((k) => k + 1));
+    return unsub;
+  }, []);
 
   const client = pmsStore.getClientById(clientId);
   const allServices = pmsStore.getServices();
@@ -526,16 +538,23 @@ export default function Client360ProfilePage() {
                       <h4 className="font-bold text-sm text-slate-900">{p.project_name}</h4>
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-500">Due {formatDate(p.due_date)}</span>
+                          <span className="text-slate-500">
+                            {formatDate(p.start_date)} → {formatDate(p.due_date)}
+                          </span>
                           <span className="font-bold">{p.progress_percentage}%</span>
                         </div>
                         <div className="w-full bg-slate-200 h-1.5 rounded-full">
                           <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${p.progress_percentage}%` }} />
                         </div>
                       </div>
-                      <div className="pt-2 border-t border-slate-200 flex justify-end">
-                        <Link to={`/projects`}>
-                          <Button variant="outline" size="sm" className="h-7 text-xs border-slate-300">Open Projects</Button>
+                      <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-slate-600">
+                          {(p.tasks || []).length} Task(s)
+                        </span>
+                        <Link to={`/projects/${p.id}`}>
+                          <Button variant="outline" size="sm" className="h-7 text-xs border-slate-300 font-bold">
+                            Open Workspace
+                          </Button>
                         </Link>
                       </div>
                     </div>
@@ -547,31 +566,89 @@ export default function Client360ProfilePage() {
         </TabsContent>
 
         {/* 7. TASKS TAB */}
-        <TabsContent value="tasks">
+        <TabsContent value="tasks" className="space-y-5">
+          {clientTasks.length > 0 && (
+            <ProjectTimeline
+              tasks={clientTasks}
+              onSelectTask={(tid) => {
+                setActiveTaskId(tid);
+                setIsTaskDetailOpen(true);
+              }}
+              title="Client Delivery Timeline (Tasks & Subtasks)"
+            />
+          )}
+
           <Card className="shadow-xs">
             <CardContent className="p-5">
               {clientTasks.length === 0 ? (
                 <p className="text-center py-8 text-xs text-slate-500">No tasks created yet for this client.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {clientTasks.map((t) => (
-                    <div key={t.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-2.5 hover:border-neutral-900 transition-all">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs text-blue-700 font-bold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
-                          {t.task_code}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <Badge variant={t.priority === "Urgent" ? "destructive" : "outline"} className="text-[10px]">{t.priority}</Badge>
-                          <Badge variant={t.status === "Completed" ? "success" : "secondary"} className="text-[10px]">{t.status}</Badge>
+                  {clientTasks.map((t) => {
+                    const subtasks = t.subtasks || [];
+                    const doneSubs = subtasks.filter((s) => s.status === "Completed").length;
+                    return (
+                      <div key={t.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs text-blue-700 font-bold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                            {t.task_code}
+                          </span>
+                          <select
+                            value={t.status}
+                            onChange={(e) => {
+                              pmsStore.updateTaskStatus(t.id, e.target.value as TaskStatus);
+                              toast.success(`Status updated to ${e.target.value}`);
+                            }}
+                            className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-800"
+                          >
+                            <option value="To Do">To Do</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Under Review">Under Review</option>
+                            <option value="Blocked">Blocked</option>
+                            <option value="Completed">Completed</option>
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTaskId(t.id);
+                            setIsTaskDetailOpen(true);
+                          }}
+                          className="text-left block w-full group"
+                        >
+                          <h4 className="font-bold text-sm text-slate-900 group-hover:text-violet-700">{t.title}</h4>
+                        </button>
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                          <span className="inline-flex items-center gap-1">
+                            <ListChecks className="h-3.5 w-3.5 text-violet-600" />
+                            Subtasks: <strong>{doneSubs}/{subtasks.length}</strong>
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <MessageSquare className="h-3.5 w-3.5 text-sky-600" />
+                            Comments: <strong>{t.comments_count || 0}</strong>
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-200 gap-2">
+                          <span>
+                            {formatDate(t.start_date || t.created_at)} → {formatDate(t.due_date)}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setActiveTaskId(t.id);
+                              setIsTaskDetailOpen(true);
+                            }}
+                            className="h-7 text-[11px] font-bold border-slate-300"
+                          >
+                            Subtasks & Comments
+                          </Button>
                         </div>
                       </div>
-                      <h4 className="font-bold text-sm text-slate-900">{t.title}</h4>
-                      <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-200">
-                        <span>Assignee: <strong className="text-slate-800">{t.assigned_employee_name || "Unassigned"}</strong></span>
-                        <span>Due {formatDate(t.due_date)}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -812,6 +889,13 @@ export default function Client360ProfilePage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <TaskDetailDialog
+        taskId={activeTaskId}
+        open={isTaskDetailOpen}
+        onOpenChange={setIsTaskDetailOpen}
+        onUpdated={() => setRefreshKey((k) => k + 1)}
+      />
     </div>
   );
 }

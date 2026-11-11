@@ -9,6 +9,7 @@ import Client360ProfilePage from "@/pages/clients/[id]/page";
 import ServicesPage from "@/pages/services/page";
 import ProjectsPage from "@/pages/projects/page";
 import NewProjectPage from "@/pages/projects/new/page";
+import ProjectDetailPage from "@/pages/projects/[id]/page";
 import TasksPage from "@/pages/tasks/page";
 import WorkflowsPage from "@/pages/workflows/page";
 import FinancePage from "@/pages/finance/page";
@@ -42,6 +43,7 @@ export default function App() {
 
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/new" element={<NewProjectPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
 
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/workflows" element={<WorkflowsPage />} />

@@ -1,18 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   FolderGit2,
   Plus,
   Search,
-  Filter,
   Calendar,
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
-  Building,
-  User,
   ArrowRight,
-  MoreVertical
+  ListChecks,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,11 +16,17 @@ import { pmsStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/utils";
 
 export default function ProjectsPage() {
+  const [, setTick] = useState(0);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
+
+  useEffect(() => {
+    const unsub = pmsStore.subscribe(() => setTick((t) => t + 1));
+    return unsub;
+  }, []);
+
   const projects = pmsStore.getProjects();
-  const departments = pmsStore.getDepartments();
 
   const filteredProjects = projects.filter((p) => {
     const matchesSearch =
@@ -237,11 +237,27 @@ export default function ProjectsPage() {
                       style={{ width: `${p.progress_percentage}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-[#f3f4f6] text-xs text-[#6b7280]">
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                      <span>Due {formatDate(p.due_date)}</span>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs text-[#6b7280] gap-2">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="flex items-center gap-1 font-medium text-[11px]">
+                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                        {formatDate(p.start_date)} → {formatDate(p.due_date)}
+                      </span>
+                      <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-700">
+                        <ListChecks className="h-3.5 w-3.5 text-violet-600" />
+                        {(p.tasks || []).length} Task(s) •{" "}
+                        {(p.tasks || []).reduce((sum, t) => sum + (t.subtasks?.length || 0), 0)} Subtask(s)
+                      </span>
                     </div>
+                    <Link to={`/projects/${p.id}`}>
+                      <Button
+                        size="sm"
+                        className="h-8 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1 shrink-0"
+                      >
+                        <span>Open</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </Link>
                   </div>
                 </div>
               </CardContent>

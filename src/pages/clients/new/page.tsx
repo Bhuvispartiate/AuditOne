@@ -157,61 +157,6 @@ export default function NewClientOnboardingPage() {
 
     const rm = employees.find((e) => e.id === relationshipManagerId);
 
-    const newClient = pmsStore.addClient({
-      client_name: clientName,
-      legal_name: legalName,
-      reference_name: referenceName || undefined,
-      constitution,
-      category,
-      nature_of_income: natureOfIncome,
-      remarks,
-      relationship_manager_id: relationshipManagerId,
-      relationship_manager_name: rm?.full_name,
-      status: clientStatus,
-      contact: {
-        id: `cnt-${Date.now()}`,
-        client_id: "",
-        contact_person: contactPerson || clientName,
-        designation: contactDesignation,
-        mobile_number: mobileNumber,
-        email,
-        is_primary: true
-      },
-      addresses: [
-        {
-          id: `addr-1-${Date.now()}`,
-          client_id: "",
-          address_type: "Registered",
-          street_address: registeredAddress,
-          city,
-          state,
-          pin_code: pinCode,
-          country,
-          is_primary: true
-        },
-        ...(communicationAddress ? [{
-          id: `addr-2-${Date.now()}`,
-          client_id: "",
-          address_type: "Communication" as const,
-          street_address: communicationAddress,
-          city,
-          state,
-          pin_code: pinCode,
-          country,
-          is_primary: false
-        }] : [])
-      ],
-      registration: {
-        id: `reg-${Date.now()}`,
-        client_id: "",
-        pan: pan.toUpperCase(),
-        gstin: gstin ? gstin.toUpperCase() : undefined,
-        cin: cin ? cin.toUpperCase() : undefined,
-        dob_or_doi: dobOrDoi || undefined,
-        additional_registrations: extraRegistrations
-      }
-    });
-
     const retainersToCreate = [...selectedRetainers];
     if (selectedServiceId) {
       const pendingSrv = availableServices.find((s) => s.id === selectedServiceId);
@@ -234,8 +179,66 @@ export default function NewClientOnboardingPage() {
       }
     }
 
-    let createdProjectsCount = 0;
-    let createdTasksCount = 0;
+    const newClient = pmsStore.addClient(
+      {
+        client_name: clientName,
+        legal_name: legalName,
+        reference_name: referenceName || undefined,
+        constitution,
+        category,
+        nature_of_income: natureOfIncome,
+        remarks,
+        relationship_manager_id: relationshipManagerId,
+        relationship_manager_name: rm?.full_name,
+        status: clientStatus,
+        contact: {
+          id: `cnt-${Date.now()}`,
+          client_id: "",
+          contact_person: contactPerson || clientName,
+          designation: contactDesignation,
+          mobile_number: mobileNumber,
+          email,
+          is_primary: true
+        },
+        addresses: [
+          {
+            id: `addr-1-${Date.now()}`,
+            client_id: "",
+            address_type: "Registered",
+            street_address: registeredAddress,
+            city,
+            state,
+            pin_code: pinCode,
+            country,
+            is_primary: true
+          },
+          ...(communicationAddress ? [{
+            id: `addr-2-${Date.now()}`,
+            client_id: "",
+            address_type: "Communication" as const,
+            street_address: communicationAddress,
+            city,
+            state,
+            pin_code: pinCode,
+            country,
+            is_primary: false
+          }] : [])
+        ],
+        registration: {
+          id: `reg-${Date.now()}`,
+          client_id: "",
+          pan: pan.toUpperCase(),
+          gstin: gstin ? gstin.toUpperCase() : undefined,
+          cin: cin ? cin.toUpperCase() : undefined,
+          dob_or_doi: dobOrDoi || undefined,
+          additional_registrations: extraRegistrations
+        }
+      },
+      { skipDefaultProject: retainersToCreate.length > 0 }
+    );
+
+    let createdProjectsCount = retainersToCreate.length === 0 ? 1 : 0;
+    let createdTasksCount = retainersToCreate.length === 0 ? 1 : 0;
 
     retainersToCreate.forEach((ret) => {
       const result = pmsStore.addServiceEngagementCascade({
@@ -264,7 +267,7 @@ export default function NewClientOnboardingPage() {
     toast.success(
       retainersToCreate.length > 0
         ? `Client ${newClient.client_name} (${newClient.client_code}) created with ${retainersToCreate.length} service(s), ${createdProjectsCount} project(s) & ${createdTasksCount} task(s).`
-        : `Client ${newClient.client_name} onboarded successfully with ID ${newClient.client_code}`
+        : `Client ${newClient.client_name} (${newClient.client_code}) created with 1 Project, 1 Task & starter Subtasks.`
     );
     navigate(`/clients/${newClient.id}`);
   };
