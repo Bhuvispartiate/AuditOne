@@ -78,15 +78,9 @@ export default function NewClientOnboardingPage() {
   const [remarks, setRemarks] = useState("");
 
   // Section E — Retainer Services & Subscription Plan
-  const [selectedServiceId, setSelectedServiceId] = useState(
-    availableServices[0]?.id || ""
-  );
-  const [retainerFrequency, setRetainerFrequency] = useState<BillingFrequency>(
-    availableServices[0]?.billing_type === "One-time" ? "One-time" : "Monthly"
-  );
-  const [retainerFee, setRetainerFee] = useState<number>(
-    availableServices[0]?.default_fee ?? 0
-  );
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [retainerFrequency, setRetainerFrequency] = useState<BillingFrequency>("Monthly");
+  const [retainerFee, setRetainerFee] = useState<number>(0);
   const [retainerStartDate, setRetainerStartDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -134,6 +128,8 @@ export default function NewClientOnboardingPage() {
     };
 
     setSelectedRetainers((prev) => [...prev, newItem]);
+    setSelectedServiceId("");
+    setRetainerFee(0);
     toast.success(`Added "${srv.service_name}" to selected retainers.`);
   };
 
@@ -216,10 +212,32 @@ export default function NewClientOnboardingPage() {
       }
     });
 
+    const retainersToCreate = [...selectedRetainers];
+    if (selectedServiceId) {
+      const pendingSrv = availableServices.find((s) => s.id === selectedServiceId);
+      if (pendingSrv) {
+        const dept = departments.find((d) => d.id === retainerDeptId);
+        retainersToCreate.push({
+          id: `ret-pending-${Date.now()}`,
+          service_id: pendingSrv.id,
+          service_code: pendingSrv.service_code,
+          service_name: pendingSrv.service_name,
+          default_gst_rate: pendingSrv.default_gst_rate,
+          billing_frequency: retainerFrequency,
+          agreed_fee: Number(retainerFee || pendingSrv.default_fee || 0),
+          start_date: retainerStartDate,
+          end_date: retainerEndDate,
+          payment_terms: retainerPaymentTerms,
+          department_id: retainerDeptId,
+          department_name: dept?.name || "General",
+        });
+      }
+    }
+
     let createdProjectsCount = 0;
     let createdTasksCount = 0;
 
-    selectedRetainers.forEach((ret) => {
+    retainersToCreate.forEach((ret) => {
       const result = pmsStore.addServiceEngagementCascade({
         client_id: newClient.id,
         client_name: newClient.client_name,
@@ -244,8 +262,8 @@ export default function NewClientOnboardingPage() {
     });
 
     toast.success(
-      selectedRetainers.length > 0
-        ? `Client ${newClient.client_name} (${newClient.client_code}) created with ${selectedRetainers.length} service(s), ${createdProjectsCount} project(s) & ${createdTasksCount} task(s).`
+      retainersToCreate.length > 0
+        ? `Client ${newClient.client_name} (${newClient.client_code}) created with ${retainersToCreate.length} service(s), ${createdProjectsCount} project(s) & ${createdTasksCount} task(s).`
         : `Client ${newClient.client_name} onboarded successfully with ID ${newClient.client_code}`
     );
     navigate(`/clients/${newClient.id}`);
@@ -682,11 +700,14 @@ export default function NewClientOnboardingPage() {
                     {availableServices.length === 0 ? (
                       <option value="">No services added in catalog yet</option>
                     ) : (
-                      availableServices.map((srv) => (
-                        <option key={srv.id} value={srv.id}>
-                          {srv.service_name}
-                        </option>
-                      ))
+                      <>
+                        <option value="">— Select a Service to Subscribe —</option>
+                        {availableServices.map((srv) => (
+                          <option key={srv.id} value={srv.id}>
+                            {srv.service_name}
+                          </option>
+                        ))}
+                      </>
                     )}
                   </select>
                 </div>

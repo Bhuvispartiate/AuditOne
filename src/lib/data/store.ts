@@ -88,7 +88,90 @@ class PMSDataStore {
 
   constructor() {
     this.hydrate();
+    this.backfillMissingProjectsAndTasks();
     void this.syncClientsFromSupabase();
+  }
+
+  /**
+   * Ensures every existing active ServiceEngagement has a linked Project & Task
+   * (backfills engagements created prior to automatic cascade creation).
+   */
+  private backfillMissingProjectsAndTasks() {
+    if (this.engagements.length === 0) return;
+    let changed = false;
+
+    this.engagements.forEach((eng) => {
+      if (eng.status !== "Active") return;
+      const client = this.clients.find((c) => c.id === eng.client_id);
+      const clientName = eng.client_name || client?.client_name || "Client";
+
+      let project = this.projects.find(
+        (p) =>
+          p.service_engagement_id === eng.id ||
+          (p.client_id === eng.client_id && p.service_name === eng.service_name)
+      );
+
+      if (!project) {
+        const nextNum = this.projects.length + 1;
+        const year = new Date().getFullYear();
+        const dueDate =
+          eng.end_date ||
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+        project = {
+          id: generateId("proj"),
+          project_code: `PRJ-${year}-${String(nextNum).padStart(3, "0")}`,
+          project_name: `${clientName} — ${eng.service_name}`,
+          project_type: "Client Project",
+          client_id: eng.client_id,
+          client_name: clientName,
+          service_engagement_id: eng.id,
+          service_name: eng.service_name,
+          department_id: eng.department_id,
+          department_name: eng.department_name || "Practice",
+          project_manager_id: eng.relationship_manager_id || this.currentUser.id,
+          project_manager_name: eng.relationship_manager_name || this.currentUser.full_name,
+          description: `Service delivery project for ${eng.service_name} (${eng.billing_frequency})`,
+          priority: "Medium",
+          start_date: eng.start_date,
+          due_date: dueDate,
+          progress_percentage: 0,
+          status: "In Progress",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        this.projects.unshift(project);
+        changed = true;
+      }
+
+      const hasTask = this.tasks.some((t) => t.project_id === project!.id);
+      if (!hasTask) {
+        const nextTaskNum = this.tasks.length + 1;
+        this.tasks.unshift({
+          id: generateId("tsk"),
+          task_code: `TSK-${String(nextTaskNum).padStart(3, "0")}`,
+          title: `${eng.service_name} — ${eng.billing_frequency} Execution`,
+          project_id: project.id,
+          project_name: project.project_name,
+          assigned_employee_id: eng.relationship_manager_id || this.currentUser.id,
+          assigned_employee_name: eng.relationship_manager_name || this.currentUser.full_name,
+          priority: "Medium",
+          due_date: project.due_date,
+          status: "To Do",
+          description: `Deliverable task for ${clientName} under ${eng.service_code}.`,
+          created_by: this.currentUser.id,
+          created_by_name: this.currentUser.full_name,
+          comments_count: 0,
+          attachments_count: 0,
+          created_at: new Date().toISOString(),
+        });
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      this.persist();
+    }
   }
 
   subscribe(listener: () => void): () => void {
