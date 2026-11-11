@@ -111,24 +111,22 @@ function SubtaskRow({
 
   return (
     <div
-      className={`rounded-2xl border-[1.5px] p-3 transition-all ${
-        isDone
+      className={`rounded-2xl border-[1.5px] p-3 transition-all ${isDone
           ? "border-emerald-300 bg-emerald-50/40"
           : depth > 0
             ? "border-slate-300 bg-white"
             : "border-slate-300 bg-slate-50/60"
-      }`}
+        }`}
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div className="flex items-start gap-2.5 min-w-0 flex-1">
           <button
             type="button"
             onClick={handleToggleDone}
-            className={`mt-0.5 h-5 w-5 rounded-md border-[1.5px] flex items-center justify-center shrink-0 transition-colors ${
-              isDone
+            className={`mt-0.5 h-5 w-5 rounded-md border-[1.5px] flex items-center justify-center shrink-0 transition-colors ${isDone
                 ? "bg-emerald-600 border-emerald-600 text-white"
                 : "bg-white border-slate-400 text-transparent hover:border-neutral-900"
-            }`}
+              }`}
             title={isDone ? "Mark To Do" : "Mark Completed"}
           >
             <CheckSquare className="h-3.5 w-3.5" />
@@ -142,9 +140,8 @@ function SubtaskRow({
               <button
                 type="button"
                 onClick={() => onSelectTask?.(sub.id)}
-                className={`text-left text-xs font-bold hover:text-violet-700 transition-colors ${
-                  isDone ? "line-through text-slate-500" : "text-[#111827]"
-                }`}
+                className={`text-left text-xs font-bold hover:text-violet-700 transition-colors ${isDone ? "line-through text-slate-500" : "text-[#111827]"
+                  }`}
               >
                 {sub.title}
               </button>

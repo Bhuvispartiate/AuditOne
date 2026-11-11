@@ -40,7 +40,7 @@ import {
   TaskStatus,
   WorkflowProjectTaskTemplate,
 } from "@/types";
-import { SubtaskTree, countNestedSubtasks } from "@/components/tasks/subtask-tree";
+import { SubtaskTree } from "@/components/tasks/subtask-tree";
 import { TaskCommentsBox } from "@/components/tasks/task-comments-box";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 import { toast } from "sonner";
@@ -765,7 +765,7 @@ export default function WorkflowKanbanPage() {
                                     Subtasks
                                   </span>
                                   <span>
-                                    {doneSubtasks}/{subtasks.length} Completed
+                                    {doneSubtasks} completed
                                   </span>
                                 </div>
                                 <div className="space-y-1">
@@ -1134,7 +1134,6 @@ export default function WorkflowKanbanPage() {
                 <div className="space-y-4 pt-2">
                   {selectedEntry.tasks.map((task, idx) => {
                     const subs = task.subtasks || [];
-                    const { total: totalNestedSubs, completed: doneNestedSubs } = countNestedSubtasks(subs);
 
                     return (
                       <div
@@ -1176,9 +1175,7 @@ export default function WorkflowKanbanPage() {
                         <div className="space-y-2.5">
                           <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                             <CheckSquare className="h-3.5 w-3.5 text-violet-600" />
-                            <span>
-                              Subtasks ({doneNestedSubs}/{totalNestedSubs})
-                            </span>
+                            <span>Subtasks</span>
                           </div>
 
                           <SubtaskTree

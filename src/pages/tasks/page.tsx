@@ -1,16 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import {
-  CheckSquare,
   Plus,
   Search,
   User,
   Calendar as CalendarIcon,
   ListChecks,
   MessageSquare,
-  LayoutGrid,
-  GanttChart,
   Trash2,
+  GripVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +20,6 @@ import { pmsStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/utils";
 import { TaskStatus, ProjectPriority } from "@/types";
 import { toast } from "sonner";
-import { ProjectTimeline } from "@/components/tasks/project-timeline";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 
 const ALL_STATUSES: TaskStatus[] = [
@@ -34,15 +31,51 @@ const ALL_STATUSES: TaskStatus[] = [
   "Completed",
 ];
 
+const STATUS_COLUMN_STYLES: Record<
+  TaskStatus,
+  { container: string; headerBorder: string; badgeVariant: "secondary" | "default" | "warning" | "destructive" | "success" }
+> = {
+  "To Do": {
+    container: "border-slate-300 bg-slate-50/70",
+    headerBorder: "border-slate-200",
+    badgeVariant: "secondary",
+  },
+  "In Progress": {
+    container: "border-violet-300 bg-violet-50/40",
+    headerBorder: "border-violet-200",
+    badgeVariant: "default",
+  },
+  "Pending": {
+    container: "border-amber-300 bg-amber-50/40",
+    headerBorder: "border-amber-200",
+    badgeVariant: "warning",
+  },
+  "Under Review": {
+    container: "border-sky-300 bg-sky-50/40",
+    headerBorder: "border-sky-200",
+    badgeVariant: "secondary",
+  },
+  "Blocked": {
+    container: "border-rose-300 bg-rose-50/40",
+    headerBorder: "border-rose-200",
+    badgeVariant: "destructive",
+  },
+  "Completed": {
+    container: "border-emerald-300 bg-emerald-50/40",
+    headerBorder: "border-emerald-200",
+    badgeVariant: "success",
+  },
+};
+
 function TasksContent() {
   const [searchParams] = useSearchParams();
   const autoCreate = searchParams.get("create") === "true";
 
   const [, setTick] = useState(0);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
   const [clientFilter, setClientFilter] = useState("ALL");
-  const [viewMode, setViewMode] = useState<"box" | "timeline">("box");
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(autoCreate);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -83,9 +116,8 @@ function TasksContent() {
       (t.project_name && t.project_name.toLowerCase().includes(search.toLowerCase())) ||
       (proj?.client_name && proj.client_name.toLowerCase().includes(search.toLowerCase()));
 
-    const matchesStatus = statusFilter === "ALL" || t.status === statusFilter;
     const matchesClient = clientFilter === "ALL" || proj?.client_id === clientFilter;
-    return matchesSearch && matchesStatus && matchesClient;
+    return matchesSearch && matchesClient;
   });
 
   const handleOpenDetail = (taskId: string) => {
@@ -164,8 +196,6 @@ function TasksContent() {
     toast.success(`Task status updated to ${newStatus}`);
   };
 
-  const summaryStatuses: TaskStatus[] = ["To Do", "In Progress", "Under Review", "Completed"];
-
   return (
     <div className="space-y-6 pb-12">
       {/* Top Header */}
@@ -175,68 +205,18 @@ function TasksContent() {
             Task Management Engine
           </h1>
           <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Deliverables, subtasks, workpaper reviews, due-date tracking and employee allocations.
+            Kanban board organized by task status. Drag cards between statuses or click a task to open its overview.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-2xl border-[1.5px] border-slate-300 bg-white p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode("box")}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
-                viewMode === "box" ? "bg-neutral-900 text-white" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              <span>Box View</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("timeline")}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
-                viewMode === "timeline" ? "bg-neutral-900 text-white" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <GanttChart className="h-3.5 w-3.5" />
-              <span>Timeline</span>
-            </button>
-          </div>
-
-          <Button
-            onClick={() => setIsModalOpen(true)}
-            size="sm"
-            className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Task</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Status Summary Boxes */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {(["ALL", ...summaryStatuses] as const).map((st) => {
-          const count = st === "ALL" ? tasks.length : tasks.filter((t) => t.status === st).length;
-          const active = statusFilter === st;
-          return (
-            <button
-              key={st}
-              type="button"
-              onClick={() => setStatusFilter(st)}
-              className={`text-left p-4 rounded-[20px] border-[1.5px] transition-all ${
-                active
-                  ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
-                  : "bg-white text-[#111827] border-slate-300 hover:border-neutral-900"
-              }`}
-            >
-              <span className={`text-[10px] font-bold uppercase tracking-wider block ${active ? "text-neutral-300" : "text-[#6b7280]"}`}>
-                {st === "ALL" ? "All Tasks" : st}
-              </span>
-              <span className="text-xl font-extrabold mt-0.5 block">{count}</span>
-            </button>
-          );
-        })}
+        <Button
+          onClick={() => setIsModalOpen(true)}
+          size="sm"
+          className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold self-start sm:self-auto"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Create Task</span>
+        </Button>
       </div>
 
       {/* Filter and Search Bar */}
@@ -265,226 +245,179 @@ function TasksContent() {
               </option>
             ))}
           </select>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-10 rounded-2xl border border-slate-300 bg-white px-3.5 text-xs font-semibold text-[#111827] focus:outline-none"
-          >
-            <option value="ALL">All Statuses</option>
-            {ALL_STATUSES.map((st) => (
-              <option key={st} value={st}>
-                {st}
-              </option>
-            ))}
-          </select>
         </CardContent>
       </Card>
 
-      {/* TASKS BOX VIEW OR TIMELINE VIEW */}
-      {filteredTasks.length === 0 ? (
-        <Card className="rounded-[24px] border-[1.5px] border-slate-300">
-          <CardContent className="py-16 text-center space-y-2">
-            <CheckSquare className="h-8 w-8 mx-auto text-slate-400" />
-            <p className="text-sm font-bold text-[#111827]">No tasks found</p>
-            <p className="text-xs text-[#6b7280]">
-              Adjust search or filters, or create a new deliverable task.
-            </p>
-          </CardContent>
-        </Card>
-      ) : viewMode === "timeline" ? (
-        <ProjectTimeline
-          tasks={filteredTasks}
-          onSelectTask={handleOpenDetail}
-          title="All Tasks & Subtasks Timeline"
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {filteredTasks.map((task) => {
-            const parentProj = projects.find((p) => p.id === task.project_id);
-            const subtasks = task.subtasks || [];
-            const doneSubtasks = subtasks.filter((s) => s.status === "Completed").length;
-            const startStr = task.start_date || task.created_at.slice(0, 10);
+      {/* KANBAN BOARD VIEW ONLY (Headings = Task Statuses) */}
+      <div className="flex gap-4 overflow-x-auto pb-4 items-start">
+        {ALL_STATUSES.map((status) => {
+          const columnTasks = filteredTasks.filter((t) => t.status === status);
+          const colStyle = STATUS_COLUMN_STYLES[status];
+          const isOver = dragOverStatus === status;
 
-            return (
-              <Card
-                key={task.id}
-                className="group rounded-[24px] border-[1.5px] border-slate-300 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(17,24,39,0.07)] hover:border-neutral-900 transition-all duration-200 flex flex-col justify-between"
-              >
-                <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-mono text-[11px] font-bold text-[#111827] bg-slate-100 border border-slate-300 px-2.5 py-1 rounded-xl">
-                        {task.task_code}
-                      </span>
-                      <Badge
-                        variant={
-                          task.priority === "Urgent"
-                            ? "destructive"
-                            : task.priority === "High"
-                            ? "warning"
-                            : "outline"
-                        }
-                        className="text-[10px] rounded-full"
-                      >
-                        {task.priority}
-                      </Badge>
-                    </div>
-                    <Badge
-                      variant={task.status === "Completed" ? "success" : "secondary"}
-                      className="text-[10px] rounded-full shrink-0"
-                    >
-                      {task.status}
-                    </Badge>
+          return (
+            <div
+              key={status}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOverStatus(status);
+              }}
+              onDragLeave={() =>
+                setDragOverStatus((prev) => (prev === status ? null : prev))
+              }
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOverStatus(null);
+                if (draggingTaskId) {
+                  const dragged = tasks.find((t) => t.id === draggingTaskId);
+                  setDraggingTaskId(null);
+                  if (dragged && dragged.status !== status) {
+                    handleStatusChange(dragged.id, status);
+                  }
+                }
+              }}
+              className={`w-[320px] shrink-0 rounded-[24px] border-[1.5px] p-4 space-y-3 transition-colors ${
+                isOver ? "border-neutral-900 bg-slate-100/80" : colStyle.container
+              }`}
+            >
+              {/* Status Heading */}
+              <div className={`flex items-center justify-between gap-2 pb-2.5 border-b ${colStyle.headerBorder}`}>
+                <h2 className="text-sm font-extrabold text-[#111827] truncate">
+                  {status}
+                </h2>
+                <Badge variant={colStyle.badgeVariant} className="rounded-full text-[11px] font-bold shrink-0">
+                  {columnTasks.length}
+                </Badge>
+              </div>
+
+              <div className="space-y-3 min-h-[160px]">
+                {columnTasks.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 px-3 py-10 text-center text-[11px] text-slate-400">
+                    Drop task card here
                   </div>
+                ) : (
+                  columnTasks.map((task) => {
+                    const parentProj = projects.find((p) => p.id === task.project_id);
+                    const subtasks = task.subtasks || [];
+                    const startStr = task.start_date || task.created_at.slice(0, 10);
 
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenDetail(task.id)}
-                      className="text-left group/title"
-                    >
-                      <h4 className="font-extrabold text-sm text-[#111827] leading-snug group-hover/title:text-violet-700 transition-colors">
-                        {task.title}
-                      </h4>
-                    </button>
-                    {task.description && (
-                      <p className="text-xs text-[#6b7280] mt-1 line-clamp-2 leading-relaxed">
-                        {task.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Client -> Project & Assignee & Dates Box */}
-                  <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-slate-50/80 border border-slate-300 p-3 text-xs">
-                    <div>
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
-                        Client → Project
-                      </span>
-                      <Link
-                        to={`/projects/${task.project_id}`}
-                        className="font-bold text-[#111827] hover:text-violet-700 mt-0.5 block truncate"
-                      >
-                        {task.project_name || "General"}
-                      </Link>
-                      {parentProj?.client_name && (
-                        <span className="text-[10px] text-slate-500 block truncate">
-                          {parentProj.client_name}
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
-                        Assignee
-                      </span>
-                      <span className="font-bold text-[#111827] mt-0.5 flex items-center gap-1 truncate">
-                        <User className="h-3 w-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{task.assigned_employee_name || "Unassigned"}</span>
-                      </span>
-                      <span className="text-[10px] text-slate-500 block mt-0.5">
-                        Start {formatDate(startStr)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Subtasks Preview Box */}
-                  <div className="rounded-2xl border border-slate-300 bg-slate-50/50 p-3 space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
-                      <span className="inline-flex items-center gap-1">
-                        <ListChecks className="h-3.5 w-3.5 text-violet-600" />
-                        Subtasks ({doneSubtasks}/{subtasks.length})
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-slate-600">
-                        <MessageSquare className="h-3 w-3 text-sky-600" />
-                        {task.comments_count || 0}
-                      </span>
-                    </div>
-                    {subtasks.length === 0 ? (
-                      <p className="text-[11px] text-slate-400">No subtasks added yet.</p>
-                    ) : (
-                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
-                        {subtasks.map((sub) => (
-                          <button
-                            key={sub.id}
-                            type="button"
-                            onClick={() => {
-                              const next: TaskStatus = sub.status === "Completed" ? "To Do" : "Completed";
-                              pmsStore.updateTaskStatus(sub.id, next);
-                              setTick((t) => t + 1);
-                            }}
-                            className="w-full flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-left text-[11px] hover:border-neutral-900 transition-colors"
-                          >
-                            <span
-                              className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
-                                sub.status === "Completed"
-                                  ? "bg-emerald-600 border-emerald-600 text-white"
-                                  : "border-slate-400"
-                              }`}
-                            >
-                              {sub.status === "Completed" ? "✓" : ""}
-                            </span>
-                            <span
-                              className={`truncate font-semibold flex-1 ${
-                                sub.status === "Completed" ? "line-through text-slate-400" : "text-slate-800"
-                              }`}
-                            >
-                              {sub.title}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Dates + Status + Subtasks/Comments Button */}
-                  <div className="space-y-2.5 pt-2 border-t border-slate-200">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-medium text-[#6b7280] flex items-center gap-1">
-                        <CalendarIcon className="h-3.5 w-3.5 text-slate-400" />
-                        {formatDate(startStr)} → {formatDate(task.due_date)}
-                      </span>
-                      <select
-                        value={task.status}
-                        onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
-                        className="h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827] focus:outline-none"
-                      >
-                        {ALL_STATUSES.map((st) => (
-                          <option key={st} value={st}>
-                            {st}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => handleOpenDetail(task.id)}
-                        className="flex-1 h-8 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold"
-                      >
-                        Open Subtasks, Timeline & Comments
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        onClick={() => {
-                          pmsStore.deleteTask(task.id);
-                          toast.success(`Deleted task ${task.task_code}`);
+                    return (
+                      <div
+                        key={task.id}
+                        draggable
+                        onDragStart={() => setDraggingTaskId(task.id)}
+                        onDragEnd={() => {
+                          setDraggingTaskId(null);
+                          setDragOverStatus(null);
                         }}
-                        className="h-8 w-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shrink-0"
-                        title="Delete Task"
+                        className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:border-neutral-900 transition-all space-y-3 cursor-grab active:cursor-grabbing"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <GripVertical className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                            <span className="font-mono text-[10px] font-bold text-[#111827] bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg">
+                              {task.task_code}
+                            </span>
+                            <Badge
+                              variant={
+                                task.priority === "Urgent"
+                                  ? "destructive"
+                                  : task.priority === "High"
+                                  ? "warning"
+                                  : "outline"
+                              }
+                              className="text-[10px] rounded-full"
+                            >
+                              {task.priority}
+                            </Badge>
+                          </div>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              pmsStore.deleteTask(task.id);
+                              toast.success(`Deleted task ${task.task_code}`);
+                            }}
+                            className="h-7 w-7 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 shrink-0"
+                            title="Delete Task"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDetail(task.id)}
+                            className="text-left group/title w-full"
+                          >
+                            <h4 className="font-extrabold text-sm text-[#111827] leading-snug group-hover/title:text-violet-700 transition-colors">
+                              {task.title}
+                            </h4>
+                          </button>
+                          {parentProj?.client_name && (
+                            <p className="text-[11px] font-semibold text-slate-500 mt-0.5 truncate">
+                              {parentProj.client_name} • {task.project_name || parentProj.project_name}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-2 space-y-1 text-[11px] text-slate-600">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-1 truncate font-medium">
+                              <User className="h-3 w-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{task.assigned_employee_name || "Unassigned"}</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1 shrink-0 font-semibold text-slate-700">
+                              <MessageSquare className="h-3 w-3 text-sky-600" />
+                              {task.comments_count || 0}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+                            <span className="inline-flex items-center gap-1">
+                              <CalendarIcon className="h-3 w-3 text-slate-400" />
+                              {formatDate(startStr)} → {formatDate(task.due_date)}
+                            </span>
+                            {subtasks.length > 0 && (
+                              <span className="inline-flex items-center gap-1 font-bold text-violet-700">
+                                <ListChecks className="h-3 w-3" />
+                                {subtasks.length} sub
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2">
+                          <select
+                            value={task.status}
+                            onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
+                            className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold text-[#111827] focus:outline-none"
+                          >
+                            {ALL_STATUSES.map((st) => (
+                              <option key={st} value={st}>
+                                {st}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => handleOpenDetail(task.id)}
+                            className="h-8 px-3 rounded-xl bg-neutral-900 hover:bg-black text-white text-[11px] font-bold"
+                          >
+                            Overview
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Create Task Dialog */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

@@ -1,12 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   ArrowLeft,
   Calendar,
   ListChecks,
   Plus,
-  Building2,
-  FolderGit2,
   Trash2,
   Pencil,
 } from "lucide-react";
@@ -19,7 +16,7 @@ import { pmsStore } from "@/lib/data/store";
 import { ProjectPriority, Task, TaskStatus } from "@/types";
 import { toast } from "sonner";
 import { ProjectTimeline } from "./project-timeline";
-import { SubtaskTree, countNestedSubtasks } from "./subtask-tree";
+import { SubtaskTree } from "./subtask-tree";
 import { TaskCommentsBox } from "./task-comments-box";
 import { TaskDocumentsBox } from "./task-documents-box";
 
@@ -112,8 +109,6 @@ export function TaskDetailDialog({
   }
 
   const subtasks = task.subtasks || [];
-  const { total: totalNestedSubtasks, completed: completedNestedSubtasks } =
-    countNestedSubtasks(subtasks);
   const directParent = ancestors.length > 0 ? ancestors[ancestors.length - 1] : null;
   const levelLabel =
     ancestors.length === 0 ? "Task" : ancestors.length === 1 ? "Subtask" : `Sub-subtask (L${ancestors.length})`;
@@ -158,73 +153,29 @@ export function TaskDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[24px] border-[1.5px] border-slate-300 bg-[#f8f9fc] p-6">
         <DialogHeader className="space-y-2 pb-4 border-b border-slate-300">
-          {/* Hierarchy Flow Breadcrumb: Client -> Project -> Task -> Subtask -> Sub-subtask */}
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-            {directParent && (
+          {directParent && (
+            <div className="flex items-center">
               <button
                 type="button"
                 onClick={() => setViewingTaskId(directParent.id)}
-                className="inline-flex items-center gap-1 rounded-full border border-neutral-900 bg-white px-2.5 py-0.5 text-[#111827] hover:bg-neutral-900 hover:text-white transition-colors mr-1"
+                className="inline-flex items-center gap-1 rounded-full border border-neutral-900 bg-white px-2.5 py-0.5 text-[11px] font-bold text-[#111827] hover:bg-neutral-900 hover:text-white transition-colors"
               >
                 <ArrowLeft className="h-3 w-3" />
                 <span>Back to {directParent.task_code}</span>
               </button>
-            )}
+            </div>
+          )}
 
-            {project?.client_id && (
-              <>
-                <Link
-                  to={`/clients/${project.client_id}`}
-                  onClick={() => onOpenChange(false)}
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-slate-700 hover:border-neutral-900"
-                >
-                  <Building2 className="h-3 w-3 text-violet-600" />
-                  <span>{project.client_name || "Client"}</span>
-                </Link>
-                <span className="text-slate-400">→</span>
-              </>
-            )}
-
-            <Link
-              to={`/projects/${task.project_id}`}
-              onClick={() => onOpenChange(false)}
-              className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-slate-700 hover:border-neutral-900"
-            >
-              <FolderGit2 className="h-3 w-3 text-sky-600" />
-              <span>
-                {project?.project_code || "Project"}: {task.project_name || project?.project_name}
-              </span>
-            </Link>
-
-            {ancestors.map((anc) => (
-              <React.Fragment key={anc.id}>
-                <span className="text-slate-400">→</span>
-                <button
-                  type="button"
-                  onClick={() => setViewingTaskId(anc.id)}
-                  className="font-mono rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-slate-700 hover:border-neutral-900"
-                >
-                  {anc.task_code}
-                </button>
-              </React.Fragment>
-            ))}
-
-            <span className="text-slate-400">→</span>
-            <span className="font-mono rounded-full border border-neutral-900 bg-neutral-900 px-2.5 py-0.5 text-white">
-              {task.task_code}
-            </span>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold rounded-full border border-neutral-900 bg-neutral-900 px-2.5 py-0.5 text-white">
+                  {task.task_code}
+                </span>
                 <DialogTitle className="text-xl font-extrabold text-[#111827]">{task.title}</DialogTitle>
-                <Badge variant="outline" className="text-[10px] rounded-full border-slate-300 bg-white">
-                  {levelLabel} Overview
-                </Badge>
               </div>
               {task.description && !editingNotes && (
-                <DialogDescription className="text-xs text-[#6b7280] mt-0.5">
+                <DialogDescription className="text-xs text-[#6b7280] mt-1">
                   {task.description}
                 </DialogDescription>
               )}
@@ -391,9 +342,7 @@ export function TaskDetailDialog({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
                 <ListChecks className="h-4 w-4 text-violet-600" />
-                <span>
-                  Subtasks ({completedNestedSubtasks}/{totalNestedSubtasks} Completed)
-                </span>
+                <span>Subtasks</span>
               </h4>
               <Button
                 type="button"
