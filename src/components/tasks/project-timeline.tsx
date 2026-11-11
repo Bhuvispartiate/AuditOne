@@ -363,7 +363,7 @@ export function ProjectTimeline({
                         return (
                           <div
                             key={sub.id}
-                            onClick={() => onSelectTask?.(task.id)}
+                            onClick={() => onSelectTask?.(sub.id)}
                             className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center pr-3 py-2 hover:bg-white cursor-pointer transition-colors"
                             style={{ paddingLeft: `${32 + depth * 18}px` }}
                           >

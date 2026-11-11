@@ -42,6 +42,7 @@ import {
 } from "@/types";
 import { SubtaskTree, countNestedSubtasks } from "@/components/tasks/subtask-tree";
 import { TaskCommentsBox } from "@/components/tasks/task-comments-box";
+import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 import { toast } from "sonner";
 
 type BoardViewMode = "workflow_stages" | "status_columns";
@@ -102,6 +103,7 @@ export default function WorkflowKanbanPage() {
   // Client Task Drawer/Modal
   const [selectedEntryKey, setSelectedEntryKey] = useState<string | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [subtaskTitleByTask, setSubtaskTitleByTask] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -1133,7 +1135,6 @@ export default function WorkflowKanbanPage() {
                   {selectedEntry.tasks.map((task, idx) => {
                     const subs = task.subtasks || [];
                     const { total: totalNestedSubs, completed: doneNestedSubs } = countNestedSubtasks(subs);
-                    const employees = pmsStore.getEmployees();
 
                     return (
                       <div
@@ -1182,8 +1183,8 @@ export default function WorkflowKanbanPage() {
 
                           <SubtaskTree
                             subtasks={subs}
-                            employees={employees}
                             fallbackStartDate={task.start_date}
+                            onSelectTask={(subId) => setDetailTaskId(subId)}
                             onChanged={() => setTick((t) => t + 1)}
                           />
 
@@ -1231,6 +1232,15 @@ export default function WorkflowKanbanPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <TaskDetailDialog
+        taskId={detailTaskId}
+        open={Boolean(detailTaskId)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setDetailTaskId(null);
+        }}
+        onUpdated={() => setTick((t) => t + 1)}
+      />
     </div>
   );
 }
