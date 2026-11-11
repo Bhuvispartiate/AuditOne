@@ -698,6 +698,7 @@ export default function Client360ProfilePage() {
                 }
 
                 return clientWorkflows.map((wf) => {
+                  const templateTasks = wf.template_tasks || [];
                   const stages = wf.versions?.[0]?.stages || [];
                   return (
                     <div key={wf.id} className="p-4 bg-slate-50 rounded-2xl border-[1.5px] border-slate-300 space-y-3">
@@ -707,17 +708,46 @@ export default function Client360ProfilePage() {
                           <h4 className="font-bold text-slate-900 text-sm">
                             {wf.workflow_name} (v{wf.version})
                           </h4>
+                          {wf.service_name && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {wf.service_name}
+                            </Badge>
+                          )}
                         </div>
                         <Badge variant="success">Active</Badge>
                       </div>
-                      {stages.length > 0 && (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                          {stages.map((st, idx) => (
-                            <div key={st.id} className="p-2.5 bg-white border border-slate-300 rounded-xl font-semibold text-slate-800">
-                              {idx + 1}. {st.stage_name}
+                      {templateTasks.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+                          {templateTasks.map((tt, idx) => (
+                            <div
+                              key={tt.id}
+                              className="p-3 bg-white border-[1.5px] border-slate-300 rounded-xl space-y-1.5"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold text-slate-900 truncate">
+                                  {idx + 1}. {tt.task_name}
+                                </span>
+                                <Badge variant="secondary" className="text-[10px] shrink-0">
+                                  Day {tt.start_day_offset + 1} · {tt.duration_days}d
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between text-[11px] text-slate-500">
+                                <span>{tt.subtasks.length} Subtasks</span>
+                                <span>{tt.status}</span>
+                              </div>
                             </div>
                           ))}
                         </div>
+                      ) : (
+                        stages.length > 0 && (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            {stages.map((st, idx) => (
+                              <div key={st.id} className="p-2.5 bg-white border border-slate-300 rounded-xl font-semibold text-slate-800">
+                                {idx + 1}. {st.stage_name}
+                              </div>
+                            ))}
+                          </div>
+                        )
                       )}
                     </div>
                   );

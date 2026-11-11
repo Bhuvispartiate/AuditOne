@@ -315,6 +315,33 @@ export interface TaskComment {
   created_at: string;
 }
 
+export interface WorkflowSubtaskTemplate {
+  id: string;
+  title: string;
+  description?: string;
+  start_day_offset: number;
+  duration_days: number;
+  priority?: ProjectPriority;
+  status?: TaskStatus;
+  assigned_employee_id?: string;
+  assigned_employee_name?: string;
+}
+
+export interface WorkflowProjectTaskTemplate {
+  id: string;
+  task_name: string;
+  description: string;
+  sequence_number: number;
+  start_day_offset: number;
+  duration_days: number;
+  priority: ProjectPriority;
+  status: TaskStatus;
+  assigned_employee_id?: string;
+  assigned_employee_name?: string;
+  subtasks: WorkflowSubtaskTemplate[];
+  default_comments: string[];
+}
+
 export interface WorkflowTemplate {
   id: string;
   workflow_code: string;
@@ -326,6 +353,7 @@ export interface WorkflowTemplate {
   version: number;
   stages_count?: number;
   created_at: string;
+  template_tasks?: WorkflowProjectTaskTemplate[];
   versions?: WorkflowTemplateVersion[];
 }
 

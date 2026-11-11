@@ -686,6 +686,22 @@ class PMSDataStore {
     const today = new Date().toISOString().slice(0, 10);
     const startDate = engagement.start_date || today;
 
+    const matchingWorkflow = this.workflows.find(
+      (w) =>
+        w.is_active &&
+        (w.service_id === engagement.service_id ||
+          (engagement.service_name && w.service_name === engagement.service_name))
+    );
+    const tplTasks = matchingWorkflow?.template_tasks || [];
+    const maxTemplateEndOffset = tplTasks.reduce((maxD, t) => {
+      const tEnd = (t.start_day_offset || 0) + Math.max(1, t.duration_days || 1);
+      const subMax = (t.subtasks || []).reduce(
+        (m, st) => Math.max(m, (st.start_day_offset ?? t.start_day_offset ?? 0) + Math.max(1, st.duration_days || 1)),
+        tEnd
+      );
+      return Math.max(maxD, subMax);
+    }, 0);
+
     const offsetDays =
       engagement.billing_frequency === "Monthly"
         ? 30
@@ -696,7 +712,9 @@ class PMSDataStore {
         : engagement.billing_frequency === "Annually"
         ? 365
         : 15;
-    const computedDueDate = engagement.end_date || this.addDaysIso(startDate, offsetDays);
+    const computedDueDate =
+      engagement.end_date ||
+      this.addDaysIso(startDate, Math.max(offsetDays, maxTemplateEndOffset));
 
     const project = this.addProject(
       {
@@ -711,6 +729,7 @@ class PMSDataStore {
         project_manager_id: engagement.relationship_manager_id || this.currentUser.id,
         project_manager_name: engagement.relationship_manager_name || this.currentUser.full_name,
         description:
+          matchingWorkflow?.description ||
           matchedService?.description ||
           `Service delivery project for ${engagement.service_name} (${engagement.billing_frequency})`,
         priority: "Medium",
@@ -722,12 +741,66 @@ class PMSDataStore {
     );
 
     const createdTasks: Task[] = [];
-    const matchingWorkflow = this.workflows.find(
-      (w) => w.is_active && w.service_id === engagement.service_id
-    );
     const stages = matchingWorkflow?.versions?.[0]?.stages || [];
 
-    if (stages.length > 0) {
+    if (tplTasks.length > 0) {
+      tplTasks.forEach((tplTask) => {
+        const taskStart = this.addDaysIso(startDate, Math.max(0, tplTask.start_day_offset || 0));
+        const taskDue = this.addDaysIso(taskStart, Math.max(0, (tplTask.duration_days || 1) - 1));
+        const createdTask = this.addTask({
+          title: tplTask.task_name,
+          project_id: project.id,
+          project_name: project.project_name,
+          assigned_employee_id:
+            tplTask.assigned_employee_id || engagement.relationship_manager_id || this.currentUser.id,
+          assigned_employee_name:
+            tplTask.assigned_employee_name ||
+            engagement.relationship_manager_name ||
+            this.currentUser.full_name,
+          priority: tplTask.priority || "Medium",
+          start_date: taskStart,
+          due_date: taskDue,
+          status: tplTask.status || "To Do",
+          description: tplTask.description || `Workflow deliverable under ${matchingWorkflow?.workflow_name}.`,
+          created_by: this.currentUser.id,
+          created_by_name: this.currentUser.full_name,
+        });
+
+        (tplTask.subtasks || []).forEach((tplSub) => {
+          const subStart = this.addDaysIso(
+            startDate,
+            Math.max(0, tplSub.start_day_offset ?? tplTask.start_day_offset ?? 0)
+          );
+          const subDue = this.addDaysIso(subStart, Math.max(0, (tplSub.duration_days || 1) - 1));
+          this.addSubtask(createdTask.id, {
+            title: tplSub.title,
+            description: tplSub.description,
+            start_date: subStart,
+            due_date: subDue,
+            priority: tplSub.priority || tplTask.priority,
+            status: tplSub.status || "To Do",
+            assigned_employee_id:
+              tplSub.assigned_employee_id ||
+              tplTask.assigned_employee_id ||
+              engagement.relationship_manager_id ||
+              this.currentUser.id,
+            assigned_employee_name:
+              tplSub.assigned_employee_name ||
+              tplTask.assigned_employee_name ||
+              engagement.relationship_manager_name ||
+              this.currentUser.full_name,
+          });
+        });
+
+        (tplTask.default_comments || []).forEach((cmt) => {
+          if (cmt.trim()) {
+            this.addTaskComment(createdTask.id, cmt.trim());
+          }
+        });
+
+        createdTasks.push(this.getTaskById(createdTask.id) || createdTask);
+      });
+    } else if (stages.length > 0) {
       let runningStart = startDate;
       stages.forEach((stage) => {
         const stageEnd = this.addDaysIso(runningStart, Math.max(1, stage.default_days || 5));
@@ -1112,11 +1185,30 @@ class PMSDataStore {
   }
 
   addWorkflow(wfData: Omit<WorkflowTemplate, "id" | "created_at">): WorkflowTemplate {
-    const id = `wf-${Date.now()}`;
+    const id = generateId("wf");
     const newWf: WorkflowTemplate = { ...wfData, id, created_at: new Date().toISOString() };
     this.workflows.unshift(newWf);
     this.addActivityLog(`Published workflow template: ${newWf.workflow_name}`, "workflow", id);
     return newWf;
+  }
+
+  updateWorkflow(id: string, updates: Partial<WorkflowTemplate>): WorkflowTemplate | null {
+    const index = this.workflows.findIndex((w) => w.id === id);
+    if (index === -1) return null;
+    this.workflows[index] = {
+      ...this.workflows[index],
+      ...updates,
+    };
+    this.addActivityLog(`Updated workflow template: ${this.workflows[index].workflow_name}`, "workflow", id);
+    return this.workflows[index];
+  }
+
+  deleteWorkflow(id: string): boolean {
+    const target = this.workflows.find((w) => w.id === id);
+    if (!target) return false;
+    this.workflows = this.workflows.filter((w) => w.id !== id);
+    this.addActivityLog(`Deleted workflow template: ${target.workflow_name}`, "workflow", id);
+    return true;
   }
 
   // Invoices & Financials
