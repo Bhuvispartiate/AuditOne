@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft,
   Building2,
@@ -9,20 +8,40 @@ import {
   ShieldCheck,
   Plus,
   Save,
-  CheckCircle2
+  Briefcase,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
-import { ClientConstitution, ClientStatus } from "@/types";
+import { BillingFrequency, ClientConstitution, ClientStatus } from "@/types";
+import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+
+interface SelectedRetainerDraft {
+  id: string;
+  service_id: string;
+  service_code: string;
+  service_name: string;
+  default_gst_rate: number;
+  billing_frequency: BillingFrequency;
+  agreed_fee: number;
+  start_date: string;
+  end_date: string;
+  payment_terms: string;
+  department_id: string;
+  department_name: string;
+}
 
 export default function NewClientOnboardingPage() {
   const navigate = useNavigate();
   const employees = pmsStore.getEmployees();
+  const departments = pmsStore.getDepartments();
+  const availableServices = pmsStore.getServices().filter((s) => s.status === "Active");
 
   // Section A
   const [clientName, setClientName] = useState("");
@@ -57,6 +76,70 @@ export default function NewClientOnboardingPage() {
   const [relationshipManagerId, setRelationshipManagerId] = useState(employees[0]?.id || "");
   const [clientStatus, setClientStatus] = useState<ClientStatus>("Active");
   const [remarks, setRemarks] = useState("");
+
+  // Section E — Retainer Services & Subscription Plan
+  const [selectedServiceId, setSelectedServiceId] = useState(
+    availableServices[0]?.id || ""
+  );
+  const [retainerFrequency, setRetainerFrequency] = useState<BillingFrequency>(
+    availableServices[0]?.billing_type === "One-time" ? "One-time" : "Monthly"
+  );
+  const [retainerFee, setRetainerFee] = useState<number>(
+    availableServices[0]?.default_fee ?? 0
+  );
+  const [retainerStartDate, setRetainerStartDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [retainerEndDate, setRetainerEndDate] = useState("");
+  const [retainerPaymentTerms, setRetainerPaymentTerms] = useState("15 Days Net");
+  const [retainerDeptId, setRetainerDeptId] = useState(
+    departments[0]?.id || ""
+  );
+  const [selectedRetainers, setSelectedRetainers] = useState<SelectedRetainerDraft[]>([]);
+
+  const handleServiceSelectChange = (serviceId: string) => {
+    setSelectedServiceId(serviceId);
+    const match = availableServices.find((s) => s.id === serviceId);
+    if (match) {
+      setRetainerFee(match.default_fee);
+      setRetainerFrequency(match.billing_type === "One-time" ? "One-time" : "Monthly");
+    }
+  };
+
+  const handleAddRetainer = () => {
+    const srv = availableServices.find((s) => s.id === selectedServiceId);
+    if (!srv) {
+      toast.error("Please select a service from your Services catalog.");
+      return;
+    }
+    if (retainerFee < 0 || Number.isNaN(Number(retainerFee))) {
+      toast.error("Please enter a valid agreed fee.");
+      return;
+    }
+
+    const dept = departments.find((d) => d.id === retainerDeptId);
+    const newItem: SelectedRetainerDraft = {
+      id: `ret-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      service_id: srv.id,
+      service_code: srv.service_code,
+      service_name: srv.service_name,
+      default_gst_rate: srv.default_gst_rate,
+      billing_frequency: retainerFrequency,
+      agreed_fee: Number(retainerFee),
+      start_date: retainerStartDate,
+      end_date: retainerEndDate,
+      payment_terms: retainerPaymentTerms,
+      department_id: retainerDeptId,
+      department_name: dept?.name || "General",
+    };
+
+    setSelectedRetainers((prev) => [...prev, newItem]);
+    toast.success(`Added "${srv.service_name}" to selected retainers.`);
+  };
+
+  const handleRemoveRetainer = (id: string) => {
+    setSelectedRetainers((prev) => prev.filter((item) => item.id !== id));
+  };
 
   const handleAddExtraRegistration = () => {
     if (!extraValue.trim()) return;
@@ -133,7 +216,33 @@ export default function NewClientOnboardingPage() {
       }
     });
 
-    toast.success(`Client ${newClient.client_name} onboarded successfully with ID ${newClient.client_code}`);
+    selectedRetainers.forEach((ret) => {
+      pmsStore.addServiceEngagement({
+        client_id: newClient.id,
+        client_name: newClient.client_name,
+        service_id: ret.service_id,
+        service_name: ret.service_name,
+        service_code: ret.service_code,
+        agreed_fee: ret.agreed_fee,
+        gst_rate: ret.default_gst_rate,
+        billing_frequency: ret.billing_frequency,
+        payment_terms: ret.payment_terms,
+        department_id: ret.department_id || undefined,
+        department_name: ret.department_name,
+        relationship_manager_id: relationshipManagerId,
+        relationship_manager_name: rm?.full_name,
+        start_date: ret.start_date,
+        end_date: ret.end_date || undefined,
+        status: "Active",
+        remarks: "Subscribed during client onboarding",
+      });
+    });
+
+    toast.success(
+      selectedRetainers.length > 0
+        ? `Client ${newClient.client_name} (${newClient.client_code}) onboarded with ${selectedRetainers.length} retainer service(s).`
+        : `Client ${newClient.client_name} onboarded successfully with ID ${newClient.client_code}`
+    );
     navigate(`/clients/${newClient.id}`);
   };
 
@@ -534,6 +643,214 @@ export default function NewClientOnboardingPage() {
                 onChange={(e) => setRemarks(e.target.value)}
                 className="min-h-[80px]"
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* SECTION E — Service Selection & Retainer Plan */}
+        <Card className="shadow-xs border-slate-200">
+          <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center gap-2">
+              <Briefcase className="h-4 w-4 text-lime-600" />
+              <CardTitle className="text-base font-semibold text-slate-900">
+                Section E — Retainer Services &amp; Service Selection
+              </CardTitle>
+            </div>
+            <CardDescription className="text-xs font-medium text-slate-600">
+              Stage 2: Retainer Services, Recurring Frequencies &amp; Agreed Pricing
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-5">
+            {/* Add Subscribed Service Row */}
+            <div className="space-y-3">
+              <Label className="text-xs font-semibold text-slate-800 block">
+                Add Subscribed Service:
+              </Label>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                <div className="md:col-span-5">
+                  <select
+                    value={selectedServiceId}
+                    onChange={(e) => handleServiceSelectChange(e.target.value)}
+                    disabled={availableServices.length === 0}
+                    className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 focus:ring-1 focus:ring-blue-600 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    {availableServices.length === 0 ? (
+                      <option value="">No services added in catalog yet</option>
+                    ) : (
+                      availableServices.map((srv) => (
+                        <option key={srv.id} value={srv.id}>
+                          {srv.service_name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                <div className="md:col-span-3">
+                  <select
+                    value={retainerFrequency}
+                    onChange={(e) => setRetainerFrequency(e.target.value as BillingFrequency)}
+                    className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                  >
+                    <option value="Monthly">Monthly</option>
+                    <option value="One-time">One-time</option>
+                    <option value="Quarterly">Quarterly</option>
+                    <option value="Half-yearly">Half-yearly</option>
+                    <option value="Annually">Annually</option>
+                    <option value="Custom">Custom</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={retainerFee}
+                    onChange={(e) => setRetainerFee(Number(e.target.value))}
+                    placeholder="15000"
+                    className="h-10 text-sm font-semibold"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <Button
+                    type="button"
+                    onClick={handleAddRetainer}
+                    disabled={availableServices.length === 0}
+                    className="w-full h-10 bg-neutral-900 hover:bg-black text-white gap-1.5 font-semibold disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add</span>
+                  </Button>
+                </div>
+              </div>
+
+              {availableServices.length === 0 && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  No services found in your catalog.{" "}
+                  <Link to="/services" className="font-semibold underline">
+                    Add services in the Services page
+                  </Link>{" "}
+                  to select them here.
+                </p>
+              )}
+
+              {/* Optional Engagement Metadata */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-slate-500">Start Date</Label>
+                  <Input
+                    type="date"
+                    value={retainerStartDate}
+                    onChange={(e) => setRetainerStartDate(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-slate-500">End Date (Optional)</Label>
+                  <Input
+                    type="date"
+                    value={retainerEndDate}
+                    onChange={(e) => setRetainerEndDate(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-slate-500">Payment Terms</Label>
+                  <Input
+                    value={retainerPaymentTerms}
+                    onChange={(e) => setRetainerPaymentTerms(e.target.value)}
+                    placeholder="15 Days Net"
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-slate-500">Responsible Department</Label>
+                  <select
+                    value={retainerDeptId}
+                    onChange={(e) => setRetainerDeptId(e.target.value)}
+                    className="w-full h-8 rounded-md border border-slate-300 bg-white px-2.5 text-xs focus:outline-none"
+                  >
+                    {departments.length === 0 ? (
+                      <option value="">General</option>
+                    ) : (
+                      departments.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Selected Retainers List */}
+            <div className="pt-3 border-t border-slate-100 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-slate-800">
+                  Selected Retainers ({selectedRetainers.length}):
+                </Label>
+                {selectedRetainers.length > 0 && (
+                  <span className="text-xs font-semibold text-slate-600">
+                    Total Agreed Value:{" "}
+                    <strong className="text-slate-900">
+                      {formatCurrency(selectedRetainers.reduce((sum, r) => sum + r.agreed_fee, 0))}
+                    </strong>
+                  </span>
+                )}
+              </div>
+
+              {selectedRetainers.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-6 text-center text-xs text-slate-500">
+                  No services added yet. Select a service above to add to retainer.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedRetainers.map((ret) => (
+                    <div
+                      key={ret.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-[11px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                            {ret.service_code}
+                          </span>
+                          <span className="text-sm font-bold text-slate-900">
+                            {ret.service_name}
+                          </span>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {ret.billing_frequency}
+                          </Badge>
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-3">
+                          <span>Start: {ret.start_date}</span>
+                          {ret.end_date && <span>End: {ret.end_date}</span>}
+                          <span>Terms: {ret.payment_terms}</span>
+                          <span>Dept: {ret.department_name}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 self-end sm:self-center">
+                        <span className="text-sm font-extrabold text-slate-900">
+                          {formatCurrency(ret.agreed_fee)}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveRetainer(ret.id)}
+                          className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                          title="Remove service"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

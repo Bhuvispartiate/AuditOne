@@ -52,7 +52,7 @@ export default function Client360ProfilePage() {
 
   // Quick Subscribe Service state
   const [selectedServiceId, setSelectedServiceId] = useState(allServices[0]?.id || "");
-  const [agreedFee, setAgreedFee] = useState(5000);
+  const [agreedFee, setAgreedFee] = useState(allServices[0]?.default_fee || 0);
   const [billingFreq, setBillingFreq] = useState<any>("Monthly");
 
   if (!client) {

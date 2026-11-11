@@ -26,15 +26,41 @@ export default function ServicesPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
   const services = pmsStore.getServices();
 
-  // Form State for Adding Service
+  // Form State for Adding / Editing Service
   const [serviceCode, setServiceCode] = useState("");
   const [serviceName, setServiceName] = useState("");
   const [description, setDescription] = useState("");
   const [defaultFee, setDefaultFee] = useState(10000);
   const [defaultGstRate, setDefaultGstRate] = useState(18);
   const [billingType, setBillingType] = useState<"One-time" | "Recurring">("Recurring");
+  const [status, setStatus] = useState<"Active" | "Inactive">("Active");
+
+  const openCreateModal = () => {
+    setEditingService(null);
+    setServiceCode("");
+    setServiceName("");
+    setDescription("");
+    setDefaultFee(10000);
+    setDefaultGstRate(18);
+    setBillingType("Recurring");
+    setStatus("Active");
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (srv: Service) => {
+    setEditingService(srv);
+    setServiceCode(srv.service_code);
+    setServiceName(srv.service_name);
+    setDescription(srv.description || "");
+    setDefaultFee(srv.default_fee);
+    setDefaultGstRate(srv.default_gst_rate);
+    setBillingType(srv.billing_type);
+    setStatus(srv.status);
+    setIsModalOpen(true);
+  };
 
   const filteredServices = services.filter((s) => {
     const matchesSearch =
@@ -46,25 +72,39 @@ export default function ServicesPage() {
     return matchesSearch && matchesType;
   });
 
-  const handleCreateService = (e: React.FormEvent) => {
+  const handleSaveService = (e: React.FormEvent) => {
     e.preventDefault();
     if (!serviceCode.trim() || !serviceName.trim()) {
       toast.error("Please provide both Service Code and Service Name.");
       return;
     }
 
-    pmsStore.addService({
-      service_code: serviceCode.toUpperCase(),
-      service_name: serviceName,
-      description,
-      default_fee: Number(defaultFee),
-      default_gst_rate: Number(defaultGstRate),
-      billing_type: billingType,
-      status: "Active",
-    });
+    if (editingService) {
+      pmsStore.updateService(editingService.id, {
+        service_code: serviceCode.toUpperCase(),
+        service_name: serviceName,
+        description,
+        default_fee: Number(defaultFee),
+        default_gst_rate: Number(defaultGstRate),
+        billing_type: billingType,
+        status,
+      });
+      toast.success(`Service "${serviceName}" updated.`);
+    } else {
+      pmsStore.addService({
+        service_code: serviceCode.toUpperCase(),
+        service_name: serviceName,
+        description,
+        default_fee: Number(defaultFee),
+        default_gst_rate: Number(defaultGstRate),
+        billing_type: billingType,
+        status,
+      });
+      toast.success(`Service "${serviceName}" added to catalog.`);
+    }
 
-    toast.success(`Service "${serviceName}" added to catalog.`);
     setIsModalOpen(false);
+    setEditingService(null);
     setServiceCode("");
     setServiceName("");
     setDescription("");
@@ -83,7 +123,7 @@ export default function ServicesPage() {
           </p>
         </div>
         <Button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           size="sm"
           className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold"
         >
@@ -170,54 +210,79 @@ export default function ServicesPage() {
                 <TableHead className="text-right">Default Fee</TableHead>
                 <TableHead className="text-center">GST Rate</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredServices.map((srv) => (
-                <TableRow key={srv.id} className="hover:bg-slate-50/80">
-                  <TableCell className="font-mono text-xs font-bold text-blue-700">
-                    {srv.service_code}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-semibold text-slate-900 block text-sm">
-                      {srv.service_name}
-                    </span>
-                    <span className="text-xs text-slate-500 block mt-0.5 line-clamp-1">
-                      {srv.description}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={srv.billing_type === "Recurring" ? "info" : "secondary"}>
-                      {srv.billing_type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-bold text-slate-900">
-                    {formatCurrency(srv.default_fee)}
-                  </TableCell>
-                  <TableCell className="text-center font-mono text-xs">
-                    {srv.default_gst_rate}%
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="success">{srv.status}</Badge>
+              {filteredServices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-xs text-[#9ca3af]">
+                    No services found. Click "Add New Service" to create one.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredServices.map((srv) => (
+                  <TableRow key={srv.id} className="hover:bg-slate-50/80">
+                    <TableCell className="font-mono text-xs font-bold text-blue-700">
+                      {srv.service_code}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-semibold text-slate-900 block text-sm">
+                        {srv.service_name}
+                      </span>
+                      <span className="text-xs text-slate-500 block mt-0.5 line-clamp-1">
+                        {srv.description}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={srv.billing_type === "Recurring" ? "info" : "secondary"}>
+                        {srv.billing_type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-slate-900">
+                      {formatCurrency(srv.default_fee)}
+                    </TableCell>
+                    <TableCell className="text-center font-mono text-xs">
+                      {srv.default_gst_rate}%
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={srv.status === "Active" ? "success" : "secondary"}>
+                        {srv.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEditModal(srv)}
+                        className="h-8 gap-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-950 hover:bg-slate-100"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                        <span>Edit</span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Add Service Modal */}
+      {/* Add / Edit Service Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-slate-900">Add Service to Catalog</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-slate-900">
+              {editingService ? "Edit Service" : "Add Service to Catalog"}
+            </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
               Define standard deliverables, baseline fees and statutory GST rates.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateService} className="space-y-4 py-2">
+          <form onSubmit={handleSaveService} className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">Service Code</label>
@@ -260,7 +325,7 @@ export default function ServicesPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">Default Service Fee (₹)</label>
                 <Input
@@ -279,6 +344,17 @@ export default function ServicesPage() {
                   required
                 />
               </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700">Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as "Active" | "Inactive")}
+                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
             </div>
 
             <DialogFooter className="pt-4">
@@ -286,7 +362,7 @@ export default function ServicesPage() {
                 Cancel
               </Button>
               <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
-                Save Service
+                {editingService ? "Update Service" : "Save Service"}
               </Button>
             </DialogFooter>
           </form>

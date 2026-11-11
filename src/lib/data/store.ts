@@ -23,6 +23,7 @@ import {
   DashboardKPIs,
   RoleCode
 } from "@/types";
+import { createClient } from "@/lib/supabase/client";
 
 // Standard System Designations (Reference Master)
 export const SYSTEM_DESIGNATIONS: Designation[] = [
@@ -56,8 +57,6 @@ const DEFAULT_SYSTEM_ADMIN: Employee = {
   completed_tasks_count: 0,
   created_at: new Date().toISOString(),
 };
-
-import { createClient } from "@/lib/supabase/client";
 
 function generateId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -419,6 +418,17 @@ class PMSDataStore {
     this.services.push(newService);
     this.addActivityLog(`Added service to catalog: ${newService.service_name}`, "service", id);
     return newService;
+  }
+
+  updateService(id: string, updates: Partial<Omit<Service, "id" | "created_at">>): Service | null {
+    const index = this.services.findIndex(s => s.id === id);
+    if (index === -1) return null;
+    this.services[index] = {
+      ...this.services[index],
+      ...updates,
+    };
+    this.addActivityLog(`Updated service catalog entry: ${this.services[index].service_name}`, "service", id);
+    return this.services[index];
   }
 
   getEngagementsByClientId(clientId: string): ServiceEngagement[] {
