@@ -6,8 +6,6 @@ import {
   Search,
   Download,
   Building2,
-  LayoutGrid,
-  GanttChart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +13,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { pmsStore } from "@/lib/data/store";
 import { getInitials } from "@/lib/utils";
 import { toast } from "sonner";
-import { ProjectTimeline } from "@/components/tasks/project-timeline";
-import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 
 export default function ClientsListPage() {
   const [searchParams] = useSearchParams();
@@ -26,9 +22,6 @@ export default function ClientsListPage() {
   const [search, setSearch] = useState(initialSearch);
   const [constitutionFilter, setConstitutionFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [viewMode, setViewMode] = useState<"box" | "timeline">("box");
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
 
   useEffect(() => {
     const unsub = pmsStore.subscribe(() => setTick((t) => t + 1));
@@ -43,8 +36,6 @@ export default function ClientsListPage() {
   }, [searchParams]);
 
   const allClients = pmsStore.getClients();
-  const allProjects = pmsStore.getProjects();
-  const allTasks = pmsStore.getTasks();
 
   const filteredClients = allClients.filter((c) => {
     const matchesSearch =
@@ -100,28 +91,6 @@ export default function ClientsListPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-2xl border-[1.5px] border-slate-300 bg-white p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode("box")}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
-                viewMode === "box" ? "bg-neutral-900 text-white" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              <span>Box View</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("timeline")}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
-                viewMode === "timeline" ? "bg-neutral-900 text-white" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <GanttChart className="h-3.5 w-3.5" />
-              <span>Timeline</span>
-            </button>
-          </div>
           <Button
             onClick={exportToExcel}
             variant="outline"
@@ -198,7 +167,7 @@ export default function ClientsListPage() {
         </span>
       </div>
 
-      {/* Box View or Timeline View */}
+      {/* Box View Only */}
       {filteredClients.length === 0 ? (
         <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[24px]">
           <CardContent className="py-16 text-center space-y-3">
@@ -219,21 +188,7 @@ export default function ClientsListPage() {
             </div>
           </CardContent>
         </Card>
-      ) : viewMode === "timeline" ? (
-        <ProjectTimeline
-          tasks={allTasks.filter((t) => {
-            const proj = allProjects.find((p) => p.id === t.project_id);
-            return proj && filteredClients.some((c) => c.id === proj.client_id);
-          })}
-          showClientFilter
-          onSelectTask={(tid) => {
-            setActiveTaskId(tid);
-            setIsTaskDetailOpen(true);
-          }}
-          title="All Clients Delivery Timeline (Client -> Project -> Task -> Subtasks)"
-        />
       ) : (
-        /* Box View Only */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
           {filteredClients.map((client) => {
             const isActive = client.status === "Active";
@@ -290,13 +245,6 @@ export default function ClientsListPage() {
           })}
         </div>
       )}
-
-      <TaskDetailDialog
-        taskId={activeTaskId}
-        open={isTaskDetailOpen}
-        onOpenChange={setIsTaskDetailOpen}
-        onUpdated={() => setTick((t) => t + 1)}
-      />
     </div>
   );
 }

@@ -4,16 +4,12 @@ import {
   FolderGit2,
   Plus,
   Search,
-  LayoutGrid,
-  GanttChart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { pmsStore } from "@/lib/data/store";
 import { getInitials } from "@/lib/utils";
-import { ProjectTimeline } from "@/components/tasks/project-timeline";
-import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 
 export default function ProjectsPage() {
   const [, setTick] = useState(0);
@@ -21,9 +17,6 @@ export default function ProjectsPage() {
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [clientFilter, setClientFilter] = useState("ALL");
-  const [viewMode, setViewMode] = useState<"box" | "timeline">("box");
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
 
   useEffect(() => {
     const unsub = pmsStore.subscribe(() => setTick((t) => t + 1));
@@ -46,8 +39,6 @@ export default function ProjectsPage() {
     return matchesSearch && matchesType && matchesStatus && matchesClient;
   });
 
-  const timelineTasks = filteredProjects.flatMap((p) => p.tasks || []);
-
   const total = projects.length;
   const active = projects.filter((p) => p.status === "In Progress" || p.status === "Under Review").length;
   const completed = projects.filter((p) => p.status === "Completed").length;
@@ -66,28 +57,6 @@ export default function ProjectsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-2xl border-[1.5px] border-slate-300 bg-white p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode("box")}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
-                viewMode === "box" ? "bg-neutral-900 text-white" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              <span>Box View</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("timeline")}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
-                viewMode === "timeline" ? "bg-neutral-900 text-white" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <GanttChart className="h-3.5 w-3.5" />
-              <span>Timeline</span>
-            </button>
-          </div>
           <Link to="/projects/new">
             <Button size="sm" className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold">
               <Plus className="h-4 w-4" />
@@ -188,7 +157,7 @@ export default function ProjectsPage() {
         </CardContent>
       </Card>
 
-      {/* Projects Box View or Timeline */}
+      {/* Projects Box View */}
       {filteredProjects.length === 0 ? (
         <Card className="rounded-[24px] border-[1.5px] border-slate-300">
           <CardContent className="py-16 text-center space-y-2">
@@ -199,15 +168,6 @@ export default function ProjectsPage() {
             </p>
           </CardContent>
         </Card>
-      ) : viewMode === "timeline" ? (
-        <ProjectTimeline
-          tasks={timelineTasks}
-          onSelectTask={(tid) => {
-            setActiveTaskId(tid);
-            setIsTaskDetailOpen(true);
-          }}
-          title="Client -> Project -> Tasks Timeline"
-        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
           {filteredProjects.map((p) => {
@@ -267,13 +227,6 @@ export default function ProjectsPage() {
           })}
         </div>
       )}
-
-      <TaskDetailDialog
-        taskId={activeTaskId}
-        open={isTaskDetailOpen}
-        onOpenChange={setIsTaskDetailOpen}
-        onUpdated={() => setTick((t) => t + 1)}
-      />
     </div>
   );
 }
