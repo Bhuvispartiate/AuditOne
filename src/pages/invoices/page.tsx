@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Receipt,
@@ -18,12 +18,19 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
+import { getInvoiceNetPayable } from "@/lib/invoice-template";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 
 export default function InvoicesListPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [, setVersion] = useState(0);
+
+  useEffect(() => {
+    return pmsStore.subscribe(() => setVersion((v) => v + 1));
+  }, []);
+
   const invoices = pmsStore.getInvoices();
 
   const filteredInvoices = invoices.filter((inv) => {
@@ -52,6 +59,8 @@ export default function InvoicesListPage() {
       "IGST (₹)": inv.igst_amount,
       "Total GST (₹)": inv.total_gst,
       "Grand Total (₹)": inv.grand_total,
+      "TDS (₹)": inv.tds_amount || 0,
+      "Net Payable (₹)": getInvoiceNetPayable(inv),
       "Paid (₹)": inv.paid_amount,
       "Outstanding (₹)": inv.outstanding_balance,
       Status: inv.status,
@@ -167,10 +176,10 @@ export default function InvoicesListPage() {
                       inv.status === "Paid"
                         ? "success"
                         : inv.status === "Cancelled"
-                        ? "destructive"
-                        : inv.status === "Draft"
-                        ? "secondary"
-                        : "warning"
+                          ? "destructive"
+                          : inv.status === "Draft"
+                            ? "secondary"
+                            : "warning"
                     }
                     className="text-[10px] rounded-full shrink-0"
                   >
@@ -193,10 +202,10 @@ export default function InvoicesListPage() {
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="rounded-2xl border border-slate-300 bg-slate-50/80 px-3 py-2.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
-                      Grand Total
+                      Net Payable
                     </span>
                     <span className="text-sm font-extrabold text-[#111827] mt-0.5 block">
-                      {formatCurrency(inv.grand_total)}
+                      {formatCurrency(getInvoiceNetPayable(inv))}
                     </span>
                   </div>
                   <div className="rounded-2xl border border-slate-300 bg-white px-3 py-2.5">

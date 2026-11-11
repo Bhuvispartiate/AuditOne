@@ -18,6 +18,7 @@ import {
   WorkflowTemplate,
   Invoice,
   Payment,
+  PaymentMode,
   FileObject,
   Notification,
   ActivityLog,
@@ -1436,24 +1437,67 @@ class PMSDataStore {
     return this.invoices.find(i => i.id === id);
   }
 
-  addInvoice(invoiceData: Omit<Invoice, "id" | "invoice_number" | "paid_amount" | "outstanding_balance" | "created_at">): Invoice {
-    const nextNum = this.invoices.length + 1;
-    const fy = invoiceData.financial_year || "2024-25";
-    const invoice_number = `INV/${fy}/${String(nextNum).padStart(5, "0")}`;
+  addInvoice(
+    invoiceData: Omit<Invoice, "id" | "invoice_number" | "paid_amount" | "outstanding_balance" | "created_at"> & {
+      invoice_number?: string;
+      initial_paid_amount?: number;
+      payment_mode?: PaymentMode;
+      transaction_reference?: string;
+    }
+  ): Invoice {
+    const {
+      invoice_number: providedNumber,
+      initial_paid_amount,
+      payment_mode,
+      transaction_reference,
+      ...restInvoiceData
+    } = invoiceData;
+
+    const fy = restInvoiceData.financial_year || "2026-27";
+    const nextSeq = 754 + this.invoices.length;
+    const invoice_number = (providedNumber || "").trim() || `LMA/${fy}/${String(nextSeq).padStart(4, "0")}`;
     const id = `inv-${Date.now()}`;
+    const tdsAmount = Number(restInvoiceData.tds_amount || 0);
+    const netPayable = restInvoiceData.net_payable ?? Math.max(0, restInvoiceData.grand_total - tdsAmount);
 
     const newInvoice: Invoice = {
-      ...invoiceData,
+      ...restInvoiceData,
       id,
       invoice_number,
+      tds_amount: tdsAmount,
+      net_payable: netPayable,
       paid_amount: 0,
-      outstanding_balance: invoiceData.grand_total,
-      status: invoiceData.status || "Draft",
+      outstanding_balance: netPayable,
+      status: restInvoiceData.status || "Finalized",
       created_at: new Date().toISOString()
     };
 
     this.invoices.unshift(newInvoice);
-    this.addActivityLog(`Created invoice ${invoice_number} for ₹${newInvoice.grand_total}`, "invoice", id);
+    this.addActivityLog(
+      `Created invoice ${invoice_number} for ₹${netPayable.toLocaleString("en-IN")}`,
+      "invoice",
+      id
+    );
+
+    const paidInit = Math.max(0, Math.min(Number(initial_paid_amount || 0), netPayable));
+    if (paidInit > 0) {
+      this.recordPayment({
+        client_id: newInvoice.client_id,
+        client_name: newInvoice.client_name || newInvoice.client_legal_name,
+        invoice_id: newInvoice.id,
+        invoice_number: newInvoice.invoice_number,
+        service_engagement_id: newInvoice.service_engagement_id,
+        payment_date: newInvoice.invoice_date,
+        amount: paidInit,
+        payment_mode: payment_mode || "Bank Transfer",
+        transaction_reference: transaction_reference || "",
+        received_by: this.currentUser?.id,
+        received_by_name: this.currentUser?.full_name || "System Administrator",
+        remarks: `Initial payment recorded at invoice creation (${newInvoice.invoice_number})`,
+        status: "Completed"
+      });
+    }
+
     return newInvoice;
   }
 
@@ -1501,9 +1545,11 @@ class PMSDataStore {
     if (newPayment.invoice_id) {
       const inv = this.invoices.find(i => i.id === newPayment.invoice_id);
       if (inv) {
-        inv.paid_amount += newPayment.amount;
-        inv.outstanding_balance = Math.max(0, inv.grand_total - inv.paid_amount);
-        if (inv.outstanding_balance === 0) {
+        const payableTotal = inv.net_payable ?? inv.grand_total;
+        inv.paid_amount = Math.min(payableTotal, inv.paid_amount + newPayment.amount);
+        inv.outstanding_balance = Math.max(0, payableTotal - inv.paid_amount);
+        if (inv.outstanding_balance <= 0.01) {
+          inv.outstanding_balance = 0;
           inv.status = "Paid";
         } else if (inv.paid_amount > 0) {
           inv.status = "Partially Paid";

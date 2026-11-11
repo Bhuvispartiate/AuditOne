@@ -432,10 +432,15 @@ export interface Invoice {
   igst_amount: number;
   total_gst: number;
   grand_total: number;
+  tds_section?: string;
+  tds_rate?: number;
+  tds_amount?: number;
+  net_payable?: number;
   paid_amount: number;
   outstanding_balance: number;
 
   status: InvoiceStatus;
+  terms_label?: string;
   pdf_file_object_id?: string;
   notes?: string;
   terms_conditions?: string;
@@ -451,7 +456,9 @@ export interface Invoice {
 export interface InvoiceItem {
   id: string;
   invoice_id?: string;
+  service_id?: string;
   description: string;
+  sub_description?: string;
   sac_code?: string;
   quantity: number;
   rate: number;
