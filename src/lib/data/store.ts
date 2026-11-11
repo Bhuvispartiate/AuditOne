@@ -2007,8 +2007,29 @@ class PMSDataStore {
       created_at: new Date().toISOString()
     };
 
+    if (newEmployee.team_id) {
+      const team = this.teams.find((t) => t.id === newEmployee.team_id);
+      if (team) {
+        newEmployee.team_name = team.name;
+        const members = team.members ? [...team.members] : [];
+        members.push({
+          id: `tm-${Date.now()}`,
+          team_id: team.id,
+          employee_id: newEmployee.id,
+          employee_name: newEmployee.full_name,
+          designation: newEmployee.designation_name,
+          role_in_team: newEmployee.role_code || "Member",
+          is_active: true,
+          joined_at: newEmployee.created_at,
+        });
+        team.members = members;
+        team.member_count = members.length;
+      }
+    }
+
     this.employees.push(newEmployee);
     this.addActivityLog(`Onboarded new employee: ${newEmployee.full_name}`, "employee", id);
+    this.persist();
     return newEmployee;
   }
 

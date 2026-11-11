@@ -125,6 +125,10 @@ export default function EmployeeProfilePage() {
               <span className="text-slate-900 text-sm">{employee.supervisor_name || "Managing Partner"}</span>
             </div>
             <div>
+              <span className="text-slate-500 font-semibold block uppercase">Assigned Team</span>
+              <span className="text-slate-900 text-sm">{employee.team_name || "Unassigned"}</span>
+            </div>
+            <div>
               <span className="text-slate-500 font-semibold block uppercase">Date of Joining</span>
               <span className="text-slate-900 text-sm">{formatDate(employee.joining_date)}</span>
             </div>

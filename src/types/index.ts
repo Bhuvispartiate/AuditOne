@@ -50,6 +50,8 @@ export interface Employee {
   designation_name?: string;
   supervisor_id?: string;
   supervisor_name?: string;
+  team_id?: string;
+  team_name?: string;
   joining_date: string;
   employment_status: 'Active' | 'Inactive' | 'Probation' | 'Notice Period' | 'Terminated';
   is_active: boolean;

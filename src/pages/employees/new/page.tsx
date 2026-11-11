@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import {
@@ -23,6 +23,14 @@ export default function NewEmployeePage() {
   const navigate = useNavigate();
   const designations = INITIAL_DESIGNATIONS;
   const currentEmployees = pmsStore.getEmployees();
+  const [teams, setTeams] = useState(() => pmsStore.getTeams());
+
+  useEffect(() => {
+    setTeams(pmsStore.getTeams());
+    return pmsStore.subscribe(() => {
+      setTeams(pmsStore.getTeams());
+    });
+  }, []);
 
   // Employee details
   const [firstName, setFirstName] = useState("");
@@ -33,6 +41,7 @@ export default function NewEmployeePage() {
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [designationId, setDesignationId] = useState(designations[3]?.id || "");
   const [supervisorId, setSupervisorId] = useState(currentEmployees[0]?.id || "");
+  const [teamId, setTeamId] = useState("");
   const [joiningDate, setJoiningDate] = useState(new Date().toISOString().slice(0, 10));
   const [employmentStatus, setEmploymentStatus] = useState<any>("Active");
   const [roleCode, setRoleCode] = useState<RoleCode>("EMPLOYEE");
@@ -55,6 +64,7 @@ export default function NewEmployeePage() {
 
     const desig = designations.find((d) => d.id === designationId);
     const sup = currentEmployees.find((e) => e.id === supervisorId);
+    const selectedTeam = teams.find((t) => t.id === teamId);
 
     const newEmp = pmsStore.addEmployee({
       first_name: firstName,
@@ -68,6 +78,8 @@ export default function NewEmployeePage() {
       designation_name: desig?.title,
       supervisor_id: supervisorId,
       supervisor_name: sup?.full_name,
+      team_id: selectedTeam?.id,
+      team_name: selectedTeam?.name,
       joining_date: joiningDate,
       employment_status: employmentStatus,
       is_active: true,
@@ -220,6 +232,31 @@ export default function NewEmployeePage() {
                   <option value="SUPER_ADMIN">Super Admin</option>
                   <option value="TRAINEE">Trainee</option>
                 </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Team</Label>
+                <select
+                  value={teamId}
+                  onChange={(e) => setTeamId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold"
+                >
+                  <option value="">Unassigned / No Team</option>
+                  {teams
+                    .filter((t) => t.status === "Active")
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                </select>
+                {teams.length === 0 && (
+                  <p className="text-[11px] text-slate-500">
+                    No teams created yet.{" "}
+                    <Link to="/teams" className="text-blue-600 hover:underline font-medium">
+                      Create a team
+                    </Link>
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>

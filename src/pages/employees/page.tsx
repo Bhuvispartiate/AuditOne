@@ -117,6 +117,11 @@ export default function EmployeesListPage() {
                     <Badge variant="outline" className="text-[10px] rounded-full bg-blue-50 text-blue-700 border-blue-200">
                       {emp.role_code || "EMPLOYEE"}
                     </Badge>
+                    {emp.team_name && (
+                      <Badge variant="outline" className="text-[10px] rounded-full bg-indigo-50 text-indigo-700 border-indigo-200">
+                        {emp.team_name}
+                      </Badge>
+                    )}
                   </div>
                   <Badge
                     variant={emp.employment_status === "Active" ? "success" : "secondary"}
