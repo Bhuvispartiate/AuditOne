@@ -20,6 +20,7 @@ import {
 import { pmsStore } from "@/lib/data/store";
 import { GeoLocationSetupCard } from "@/components/attendance/geo-location-setup-card";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
+import { renderCommentWithMentions } from "@/components/tasks/task-comments-box";
 import { formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -848,7 +849,7 @@ export default function DashboardPage() {
                       </div>
 
                       <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-slate-200 px-3 py-2">
-                        {c.comment}
+                        {renderCommentWithMentions(c.comment, employees)}
                       </p>
 
                       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">

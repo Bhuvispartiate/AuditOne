@@ -1426,10 +1426,24 @@ class PMSDataStore {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
-  addTaskComment(taskId: string, commentText: string): TaskComment | null {
+  addTaskComment(
+    taskId: string,
+    commentText: string,
+    mentionedEmployeeIds?: string[]
+  ): TaskComment | null {
     const task = this.tasks.find((t) => t.id === taskId);
     const trimmed = commentText.trim();
     if (!task || !trimmed) return null;
+
+    // Resolve all @mentioned employees (both explicit IDs and @Full Name matches in text)
+    const mentionedSet = new Set<string>(mentionedEmployeeIds || []);
+    const lowerText = trimmed.toLowerCase();
+    this.employees.forEach((emp) => {
+      if (emp.full_name && lowerText.includes(`@${emp.full_name.toLowerCase()}`)) {
+        mentionedSet.add(emp.id);
+      }
+    });
+    const resolvedMentions = Array.from(mentionedSet);
 
     const now = new Date().toISOString();
     const newComment: TaskComment = {
@@ -1445,12 +1459,28 @@ class PMSDataStore {
           read_at: now,
         },
       ],
+      mentioned_employee_ids: resolvedMentions,
       created_at: now,
     };
 
     this.taskComments.push(newComment);
     task.comments_count = this.taskComments.filter((c) => c.task_id === taskId).length;
+
+    resolvedMentions.forEach((empId) => {
+      if (empId !== this.currentUser.id) {
+        this.addNotification(
+          empId,
+          `Mentioned in ${task.task_code}: ${task.title}`,
+          `${this.currentUser.full_name} mentioned you: "${trimmed.slice(0, 80)}"`,
+          "task_comment_mention",
+          "task",
+          taskId
+        );
+      }
+    });
+
     this.addActivityLog(`Commented on ${task.task_code}: "${trimmed.slice(0, 60)}"`, "task", taskId);
+    this.persist();
     return newComment;
   }
 

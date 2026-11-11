@@ -307,6 +307,7 @@ export interface TaskComment {
   employee_name: string;
   comment: string;
   read_by?: CommentReadReceipt[];
+  mentioned_employee_ids?: string[];
   created_at: string;
 }
 
@@ -567,6 +568,7 @@ export interface Notification {
     | 'invoice_generated' 
     | 'invoice_overdue' 
     | 'document_expiring' 
+    | 'task_comment_mention'
     | 'system';
   reference_type?: string;
   reference_id?: string;
