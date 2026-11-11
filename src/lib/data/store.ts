@@ -6,7 +6,6 @@
 import {
   Client,
   Employee,
-  Department,
   Designation,
   Team,
   Service,
@@ -80,7 +79,6 @@ class PMSDataStore {
   private deletedTaskProjectIds: string[] = [];
   private workflows: WorkflowTemplate[] = [];
   private employees: Employee[] = [DEFAULT_SYSTEM_ADMIN];
-  private departments: Department[] = [];
   private teams: Team[] = [];
   private invoices: Invoice[] = [];
   private payments: Payment[] = [];
@@ -137,8 +135,6 @@ class PMSDataStore {
           client_name: clientName,
           service_engagement_id: eng.id,
           service_name: eng.service_name,
-          department_id: eng.department_id,
-          department_name: eng.department_name || "Practice",
           project_manager_id: eng.relationship_manager_id || this.currentUser.id,
           project_manager_name: eng.relationship_manager_name || this.currentUser.full_name,
           description: `Service delivery project for ${eng.service_name} (${eng.billing_frequency})`,
@@ -170,7 +166,6 @@ class PMSDataStore {
           project_type: "Client Project",
           client_id: client.id,
           client_name: client.client_name,
-          department_name: "Practice",
           project_manager_id: client.relationship_manager_id || this.currentUser.id,
           project_manager_name: client.relationship_manager_name || this.currentUser.full_name,
           description: `Primary compliance & execution project for ${client.client_name}.`,
@@ -290,7 +285,6 @@ class PMSDataStore {
       if (Array.isArray(parsed.employees) && parsed.employees.length > 0) {
         this.employees = parsed.employees;
       }
-      if (Array.isArray(parsed.departments)) this.departments = parsed.departments;
       if (Array.isArray(parsed.teams)) this.teams = parsed.teams;
       if (Array.isArray(parsed.invoices)) this.invoices = parsed.invoices;
       if (Array.isArray(parsed.payments)) this.payments = parsed.payments;
@@ -318,7 +312,6 @@ class PMSDataStore {
           deletedTaskProjectIds: this.deletedTaskProjectIds,
           workflows: this.workflows,
           employees: this.employees,
-          departments: this.departments,
           teams: this.teams,
           invoices: this.invoices,
           payments: this.payments,
@@ -604,7 +597,6 @@ class PMSDataStore {
         project_type: "Client Project",
         client_id: client.id,
         client_name: client.client_name,
-        department_name: "Practice",
         project_manager_id: client.relationship_manager_id || this.currentUser.id,
         project_manager_name: client.relationship_manager_name || this.currentUser.full_name,
         description: `Primary compliance & delivery project for ${client.client_name}.`,
@@ -724,8 +716,6 @@ class PMSDataStore {
         client_name: engagement.client_name,
         service_engagement_id: createdEngagement.id,
         service_name: engagement.service_name,
-        department_id: engagement.department_id,
-        department_name: engagement.department_name || "Practice",
         project_manager_id: engagement.relationship_manager_id || this.currentUser.id,
         project_manager_name: engagement.relationship_manager_name || this.currentUser.full_name,
         description:
@@ -1334,21 +1324,9 @@ class PMSDataStore {
     return newEmployee;
   }
 
-  // Departments & Teams
-  getDepartments(): Department[] {
-    return [...this.departments];
-  }
-
+  // Teams
   getTeams(): Team[] {
     return [...this.teams];
-  }
-
-  addDepartment(deptData: Omit<Department, "id" | "created_at">): Department {
-    const id = `dept-${Date.now()}`;
-    const newDept: Department = { ...deptData, id, created_at: new Date().toISOString() };
-    this.departments.push(newDept);
-    this.addActivityLog(`Added department: ${newDept.name}`, "department", id);
-    return newDept;
   }
 
   addTeam(teamData: Omit<Team, "id">): Team {

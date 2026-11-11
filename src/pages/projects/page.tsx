@@ -66,7 +66,7 @@ export default function ProjectsPage() {
             Project Deliverables & Engagements
           </h1>
           <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Track client compliance milestones, internal initiatives and cross-departmental delivery teams.
+            Track client compliance milestones, internal initiatives and delivery teams.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -272,13 +272,13 @@ export default function ProjectsPage() {
                   </div>
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
-                      Lead & Dept
+                      Project Lead
                     </span>
                     <span className="text-xs font-bold text-[#111827] mt-0.5 block truncate">
                       {p.project_manager_name || "Unassigned"}
                     </span>
                     <span className="text-[10px] text-[#6b7280] block truncate">
-                      {p.department_name || "Practice"}
+                      {p.priority} Priority
                     </span>
                   </div>
                 </div>

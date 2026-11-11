@@ -21,12 +21,10 @@ import { toast } from "sonner";
 
 export default function TeamsPage() {
   const teams = pmsStore.getTeams();
-  const departments = pmsStore.getDepartments();
   const employees = pmsStore.getEmployees();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
-  const [departmentId, setDepartmentId] = useState(departments[0]?.id || "");
   const [supervisorId, setSupervisorId] = useState(employees[0]?.id || "");
   const [description, setDescription] = useState("");
 
@@ -37,13 +35,10 @@ export default function TeamsPage() {
       return;
     }
 
-    const dept = departments.find((d) => d.id === departmentId);
     const sup = employees.find((e) => e.id === supervisorId);
 
     pmsStore.addTeam({
       name: teamName,
-      department_id: departmentId,
-      department_name: dept?.name,
       supervisor_id: supervisorId,
       supervisor_name: sup?.full_name,
       description,
@@ -51,7 +46,7 @@ export default function TeamsPage() {
       member_count: 1,
     });
 
-    toast.success(`Team "${teamName}" created under ${dept?.name}.`);
+    toast.success(`Team "${teamName}" created.`);
     setIsModalOpen(false);
     setTeamName("");
     setDescription("");
@@ -66,7 +61,7 @@ export default function TeamsPage() {
             Team Management & Operational Hierarchy
           </h1>
           <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Departmental squads, team leads, supervisor assignments and apprentice reporting.
+            Operational squads, team leads, supervisor assignments and apprentice reporting.
           </p>
         </div>
 
@@ -119,7 +114,7 @@ export default function TeamsPage() {
             <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-base font-bold text-slate-900">{team.name}</CardTitle>
-                <CardDescription className="text-xs">{team.department_name}</CardDescription>
+                <CardDescription className="text-xs">Operational Squad</CardDescription>
               </div>
               <Badge variant="success" className="text-[10px]">{team.status}</Badge>
             </CardHeader>
@@ -165,18 +160,6 @@ export default function TeamsPage() {
                 onChange={(e) => setTeamName(e.target.value)}
                 required
               />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Department</label>
-              <select
-                value={departmentId}
-                onChange={(e) => setDepartmentId(e.target.value)}
-                className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs"
-              >
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-700">Team Supervisor / Manager</label>

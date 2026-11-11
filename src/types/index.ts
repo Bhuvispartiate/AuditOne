@@ -27,24 +27,11 @@ export interface Permission {
   description: string;
 }
 
-export interface Department {
-  id: string;
-  department_code: string;
-  name: string;
-  head_employee_id?: string;
-  head_employee_name?: string;
-  description: string;
-  status: 'Active' | 'Inactive';
-  employee_count?: number;
-  created_at: string;
-}
-
 export interface Designation {
   id: string;
   title: string;
   code: string;
   level: number;
-  department_id?: string;
   description?: string;
 }
 
@@ -61,8 +48,6 @@ export interface Employee {
   date_of_birth?: string;
   designation_id?: string;
   designation_name?: string;
-  department_id?: string;
-  department_name?: string;
   supervisor_id?: string;
   supervisor_name?: string;
   joining_date: string;
@@ -90,8 +75,6 @@ export interface EmployeePrivateDetails {
 export interface Team {
   id: string;
   name: string;
-  department_id: string;
-  department_name?: string;
   supervisor_id?: string;
   supervisor_name?: string;
   description?: string;
@@ -228,8 +211,6 @@ export interface ServiceEngagement {
   gst_rate: number;
   billing_frequency: BillingFrequency;
   payment_terms: string;
-  department_id?: string;
-  department_name?: string;
   relationship_manager_id?: string;
   relationship_manager_name?: string;
   start_date: string;
@@ -264,8 +245,6 @@ export interface Project {
   client_name?: string;
   service_engagement_id?: string;
   service_name?: string;
-  department_id?: string;
-  department_name?: string;
   description: string;
   project_manager_id?: string;
   project_manager_name?: string;
@@ -374,8 +353,6 @@ export interface WorkflowStage {
   description: string;
   sequence_number: number;
   default_days: number;
-  assigned_department_id?: string;
-  assigned_department_name?: string;
   tasks: WorkflowTaskTemplate[];
 }
 
@@ -414,7 +391,6 @@ export interface ProjectWorkflowStage {
   stage_name: string;
   description: string;
   sequence_number: number;
-  assigned_department_id?: string;
   assigned_supervisor_id?: string;
   assigned_supervisor_name?: string;
   start_date?: string;

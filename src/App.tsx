@@ -19,7 +19,6 @@ import InvoiceDetailsPage from "@/pages/invoices/[id]/page";
 import EmployeesPage from "@/pages/employees/page";
 import NewEmployeePage from "@/pages/employees/new/page";
 import EmployeeProfilePage from "@/pages/employees/[id]/page";
-import DepartmentsPage from "@/pages/departments/page";
 import TeamsPage from "@/pages/teams/page";
 import DocumentsPage from "@/pages/documents/page";
 import NotificationsPage from "@/pages/notifications/page";
@@ -57,7 +56,6 @@ export default function App() {
           <Route path="/employees/new" element={<NewEmployeePage />} />
           <Route path="/employees/:id" element={<EmployeeProfilePage />} />
 
-          <Route path="/departments" element={<DepartmentsPage />} />
           <Route path="/teams" element={<TeamsPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

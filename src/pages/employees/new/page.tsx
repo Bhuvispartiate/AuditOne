@@ -21,7 +21,6 @@ import { toast } from "sonner";
 
 export default function NewEmployeePage() {
   const navigate = useNavigate();
-  const departments = pmsStore.getDepartments();
   const designations = INITIAL_DESIGNATIONS;
   const currentEmployees = pmsStore.getEmployees();
 
@@ -33,7 +32,6 @@ export default function NewEmployeePage() {
   const [fatherName, setFatherName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [designationId, setDesignationId] = useState(designations[3]?.id || "");
-  const [departmentId, setDepartmentId] = useState(departments[0]?.id || "");
   const [supervisorId, setSupervisorId] = useState(currentEmployees[0]?.id || "");
   const [joiningDate, setJoiningDate] = useState(new Date().toISOString().slice(0, 10));
   const [employmentStatus, setEmploymentStatus] = useState<any>("Active");
@@ -55,7 +53,6 @@ export default function NewEmployeePage() {
       return;
     }
 
-    const dept = departments.find((d) => d.id === departmentId);
     const desig = designations.find((d) => d.id === designationId);
     const sup = currentEmployees.find((e) => e.id === supervisorId);
 
@@ -69,8 +66,6 @@ export default function NewEmployeePage() {
       date_of_birth: dateOfBirth,
       designation_id: designationId,
       designation_name: desig?.title,
-      department_id: departmentId,
-      department_name: dept?.name,
       supervisor_id: supervisorId,
       supervisor_name: sup?.full_name,
       joining_date: joiningDate,
@@ -194,19 +189,6 @@ export default function NewEmployeePage() {
                 >
                   {designations.map((d) => (
                     <option key={d.id} value={d.id}>{d.title} (Level {d.level})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Department</Label>
-                <select
-                  value={departmentId}
-                  onChange={(e) => setDepartmentId(e.target.value)}
-                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs"
-                >
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
               </div>

@@ -25,7 +25,6 @@ function NewProjectContent() {
   const prefillClientId = searchParams.get("clientId") || "";
 
   const clients = pmsStore.getClients();
-  const departments = pmsStore.getDepartments();
   const employees = pmsStore.getEmployees();
   const services = pmsStore.getServices();
 
@@ -34,7 +33,6 @@ function NewProjectContent() {
     prefillClientId ? "Client Project" : "Client Project"
   );
   const [clientId, setClientId] = useState(prefillClientId || clients[0]?.id || "");
-  const [departmentId, setDepartmentId] = useState(departments[0]?.id || "");
   const [projectManagerId, setProjectManagerId] = useState(employees[0]?.id || "");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<ProjectPriority>("Medium");
@@ -64,7 +62,6 @@ function NewProjectContent() {
     }
 
     const selectedClient = projectType === "Client Project" ? clients.find((c) => c.id === clientId) : undefined;
-    const selectedDept = departments.find((d) => d.id === departmentId);
     const selectedPM = employees.find((e) => e.id === projectManagerId);
 
     const assigned = assignedEmpIds.map((id) => {
@@ -81,8 +78,6 @@ function NewProjectContent() {
       project_type: projectType,
       client_id: selectedClient?.id,
       client_name: selectedClient?.client_name,
-      department_id: selectedDept?.id,
-      department_name: selectedDept?.name,
       project_manager_id: selectedPM?.id,
       project_manager_name: selectedPM?.full_name,
       description,
@@ -126,7 +121,7 @@ function NewProjectContent() {
               </CardTitle>
             </div>
             <CardDescription className="text-xs">
-              Project heading, type, client association and department ownership
+              Project heading, type, client association and delivery ownership
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
@@ -174,22 +169,7 @@ function NewProjectContent() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Department</Label>
-                <select
-                  value={departmentId}
-                  onChange={(e) => setDepartmentId(e.target.value)}
-                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
-                >
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Project Manager</Label>
                 <select

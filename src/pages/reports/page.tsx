@@ -357,7 +357,7 @@ export default function ReportsPage() {
                       </div>
                       <div>
                         <p className="font-bold text-sm text-slate-900 truncate">{emp.full_name}</p>
-                        <p className="text-xs text-slate-500 truncate">{emp.department_name}</p>
+                        <p className="text-xs text-slate-500 truncate">{emp.designation_name || emp.role_code || "Team Member"}</p>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-center">
                         <div>

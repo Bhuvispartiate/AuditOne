@@ -94,8 +94,6 @@ export default function Client360ProfilePage() {
       gst_rate: service.default_gst_rate,
       billing_frequency: billingFreq,
       payment_terms: "15 Days Net",
-      department_id: "33333333-3333-3333-3333-333333330001",
-      department_name: "Tax & Regulatory Services",
       relationship_manager_id: client.relationship_manager_id,
       relationship_manager_name: client.relationship_manager_name,
       start_date: new Date().toISOString().slice(0, 10),
@@ -497,8 +495,8 @@ export default function Client360ProfilePage() {
                           <span className="font-semibold text-slate-800">{formatDate(eng.start_date)}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase text-slate-400 block">Department</span>
-                          <span className="font-semibold text-slate-800 truncate block">{eng.department_name}</span>
+                          <span className="text-[10px] uppercase text-slate-400 block">Payment Terms</span>
+                          <span className="font-semibold text-slate-800 truncate block">{eng.payment_terms || "15 Days Net"}</span>
                         </div>
                       </div>
                     </div>

@@ -24,10 +24,8 @@ import { formatDate } from "@/lib/utils";
 
 export default function EmployeesListPage() {
   const [search, setSearch] = useState("");
-  const [deptFilter, setDeptFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const employees = pmsStore.getEmployees();
-  const departments = pmsStore.getDepartments();
 
   const filteredEmployees = employees.filter((emp) => {
     const matchesSearch =
@@ -36,10 +34,9 @@ export default function EmployeesListPage() {
       emp.email.toLowerCase().includes(search.toLowerCase()) ||
       (emp.designation_name && emp.designation_name.toLowerCase().includes(search.toLowerCase()));
 
-    const matchesDept = deptFilter === "ALL" || emp.department_id === deptFilter;
     const matchesStatus = statusFilter === "ALL" || emp.employment_status === statusFilter;
 
-    return matchesSearch && matchesDept && matchesStatus;
+    return matchesSearch && matchesStatus;
   });
 
   return (
@@ -78,17 +75,6 @@ export default function EmployeesListPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <select
-              value={deptFilter}
-              onChange={(e) => setDeptFilter(e.target.value)}
-              className="h-10 rounded-2xl border border-[#e5e7eb] bg-white px-3.5 text-xs font-semibold text-[#111827] focus:outline-none"
-            >
-              <option value="ALL">All Departments</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -155,7 +141,7 @@ export default function EmployeesListPage() {
                       {emp.full_name}
                     </Link>
                     <p className="text-xs font-semibold text-[#6b7280] truncate">
-                      {emp.designation_name} &bull; {emp.department_name}
+                      {emp.designation_name || emp.role_code || "Staff Member"}
                     </p>
                   </div>
                 </div>

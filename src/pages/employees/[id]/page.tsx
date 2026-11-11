@@ -75,7 +75,7 @@ export default function EmployeeProfilePage() {
                 <Badge variant="success" className="text-xs">{employee.employment_status}</Badge>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                {employee.designation_name} &bull; {employee.department_name} &bull; Role:{" "}
+                {employee.designation_name || "Staff Member"} &bull; Role:{" "}
                 <span className="font-semibold text-slate-700">{employee.role_code}</span>
               </p>
             </div>
@@ -109,7 +109,7 @@ export default function EmployeeProfilePage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="shadow-xs">
           <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-base font-semibold">Personal & Department Profile</CardTitle>
+            <CardTitle className="text-base font-semibold">Personal &amp; Role Profile</CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-3 text-xs">
             <div>

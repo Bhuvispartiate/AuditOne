@@ -33,14 +33,11 @@ interface SelectedRetainerDraft {
   start_date: string;
   end_date: string;
   payment_terms: string;
-  department_id: string;
-  department_name: string;
 }
 
 export default function NewClientOnboardingPage() {
   const navigate = useNavigate();
   const employees = pmsStore.getEmployees();
-  const departments = pmsStore.getDepartments();
   const availableServices = pmsStore.getServices().filter((s) => s.status === "Active");
 
   // Section A
@@ -86,9 +83,6 @@ export default function NewClientOnboardingPage() {
   );
   const [retainerEndDate, setRetainerEndDate] = useState("");
   const [retainerPaymentTerms, setRetainerPaymentTerms] = useState("15 Days Net");
-  const [retainerDeptId, setRetainerDeptId] = useState(
-    departments[0]?.id || ""
-  );
   const [selectedRetainers, setSelectedRetainers] = useState<SelectedRetainerDraft[]>([]);
 
   const handleServiceSelectChange = (serviceId: string) => {
@@ -111,7 +105,6 @@ export default function NewClientOnboardingPage() {
       return;
     }
 
-    const dept = departments.find((d) => d.id === retainerDeptId);
     const newItem: SelectedRetainerDraft = {
       id: `ret-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       service_id: srv.id,
@@ -123,8 +116,6 @@ export default function NewClientOnboardingPage() {
       start_date: retainerStartDate,
       end_date: retainerEndDate,
       payment_terms: retainerPaymentTerms,
-      department_id: retainerDeptId,
-      department_name: dept?.name || "General",
     };
 
     setSelectedRetainers((prev) => [...prev, newItem]);
@@ -161,7 +152,6 @@ export default function NewClientOnboardingPage() {
     if (selectedServiceId) {
       const pendingSrv = availableServices.find((s) => s.id === selectedServiceId);
       if (pendingSrv) {
-        const dept = departments.find((d) => d.id === retainerDeptId);
         retainersToCreate.push({
           id: `ret-pending-${Date.now()}`,
           service_id: pendingSrv.id,
@@ -173,8 +163,6 @@ export default function NewClientOnboardingPage() {
           start_date: retainerStartDate,
           end_date: retainerEndDate,
           payment_terms: retainerPaymentTerms,
-          department_id: retainerDeptId,
-          department_name: dept?.name || "General",
         });
       }
     }
@@ -251,8 +239,6 @@ export default function NewClientOnboardingPage() {
         gst_rate: ret.default_gst_rate,
         billing_frequency: ret.billing_frequency,
         payment_terms: ret.payment_terms,
-        department_id: ret.department_id || undefined,
-        department_name: ret.department_name,
         relationship_manager_id: relationshipManagerId,
         relationship_manager_name: rm?.full_name,
         start_date: ret.start_date,
@@ -765,7 +751,7 @@ export default function NewClientOnboardingPage() {
               )}
 
               {/* Optional Engagement Metadata */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                 <div className="space-y-1">
                   <Label className="text-[11px] text-slate-500">Start Date</Label>
                   <Input
@@ -792,24 +778,6 @@ export default function NewClientOnboardingPage() {
                     placeholder="15 Days Net"
                     className="h-8 text-xs"
                   />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-slate-500">Responsible Department</Label>
-                  <select
-                    value={retainerDeptId}
-                    onChange={(e) => setRetainerDeptId(e.target.value)}
-                    className="w-full h-8 rounded-md border border-slate-300 bg-white px-2.5 text-xs focus:outline-none"
-                  >
-                    {departments.length === 0 ? (
-                      <option value="">General</option>
-                    ) : (
-                      departments.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
                 </div>
               </div>
             </div>
@@ -857,7 +825,6 @@ export default function NewClientOnboardingPage() {
                           <span>Start: {ret.start_date}</span>
                           {ret.end_date && <span>End: {ret.end_date}</span>}
                           <span>Terms: {ret.payment_terms}</span>
-                          <span>Dept: {ret.department_name}</span>
                         </div>
                       </div>
 

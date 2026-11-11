@@ -10,7 +10,6 @@ import {
   CreditCard,
   Receipt,
   UserCheck,
-  Building2,
   Users,
   FileText,
   Bell,
@@ -42,7 +41,6 @@ const mainNavItems: NavItem[] = [
   { title: "Invoices", href: "/invoices", icon: Receipt },
   { title: "Team", href: "/teams", icon: Users },
   { title: "Employees", href: "/employees", icon: UserCheck },
-  { title: "Departments", href: "/departments", icon: Building2 },
   { title: "Documents", href: "/documents", icon: FileText },
   { title: "Reports", href: "/reports", icon: BarChart3 },
 ];
