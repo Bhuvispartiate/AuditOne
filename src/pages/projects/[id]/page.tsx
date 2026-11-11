@@ -22,15 +22,6 @@ import { toast } from "sonner";
 import { ProjectTimeline } from "@/components/tasks/project-timeline";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 
-const ALL_TASK_STATUSES: TaskStatus[] = [
-  "To Do",
-  "In Progress",
-  "Pending",
-  "Under Review",
-  "Blocked",
-  "Completed",
-];
-
 const PROJECT_STATUSES: ProjectStatus[] = [
   "Not Started",
   "In Progress",
@@ -63,6 +54,7 @@ export default function ProjectDetailPage() {
   const project = pmsStore.getProjectById(projectId);
   const tasks = project ? pmsStore.getTasksByProjectId(project.id) : [];
   const employees = pmsStore.getEmployees();
+  const taskStatusNames = pmsStore.getTaskStatusNames();
 
   useEffect(() => {
     if (project) {
@@ -339,7 +331,7 @@ export default function ProjectDetailPage() {
                       }}
                       className="h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-[#111827]"
                     >
-                      {ALL_TASK_STATUSES.map((st) => (
+                      {taskStatusNames.map((st) => (
                         <option key={st} value={st}>
                           {st}
                         </option>

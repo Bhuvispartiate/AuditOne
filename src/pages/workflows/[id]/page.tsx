@@ -47,14 +47,6 @@ import { toast } from "sonner";
 
 type BoardViewMode = "workflow_stages" | "status_columns";
 
-const STATUS_COLUMNS: TaskStatus[] = [
-  "To Do",
-  "In Progress",
-  "Under Review",
-  "Blocked",
-  "Completed",
-];
-
 interface BoardClientEntry {
   entryKey: string;
   clientId: string;
@@ -113,6 +105,7 @@ export default function WorkflowKanbanPage() {
 
   const workflows = pmsStore.getWorkflows();
   const workflow = workflows.find((w) => w.id === id);
+  const statusNames = pmsStore.getTaskStatusNames();
   const clients = pmsStore.getClients();
   const engagements = pmsStore.getAllEngagements();
   const projects = pmsStore.getProjects();
@@ -698,7 +691,7 @@ export default function WorkflowKanbanPage() {
                                   }
                                   className="h-6 rounded-lg border border-slate-300 bg-slate-50 px-1.5 text-[10px] font-bold text-slate-800"
                                 >
-                                  {STATUS_COLUMNS.map((st) => (
+                                  {statusNames.map((st) => (
                                     <option key={st} value={st}>
                                       {st}
                                     </option>
@@ -995,7 +988,7 @@ export default function WorkflowKanbanPage() {
       ) : (
         /* KANBAN VIEW 2: TASK STATUS COLUMNS ACROSS ALL CLIENT TASKS FOR THIS WORKFLOW */
         <div className="flex gap-4 overflow-x-auto pb-4 items-start">
-          {STATUS_COLUMNS.map((statusCol) => {
+          {statusNames.map((statusCol) => {
             const colItems = allWorkflowClientTasks.filter(
               (item) => item.task.status === statusCol
             );
@@ -1163,7 +1156,7 @@ export default function WorkflowKanbanPage() {
                             }}
                             className="h-8 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-bold"
                           >
-                            {STATUS_COLUMNS.map((st) => (
+                            {statusNames.map((st) => (
                               <option key={st} value={st}>
                                 {st}
                               </option>

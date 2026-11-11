@@ -14,6 +14,8 @@ import {
   ProjectPriority,
   Task,
   TaskStatus,
+  TaskStatusColor,
+  TaskStatusConfig,
   TaskComment,
   CommentReadReceipt,
   WorkflowTemplate,
@@ -42,6 +44,15 @@ export const SYSTEM_DESIGNATIONS: Designation[] = [
 ];
 
 export const INITIAL_DESIGNATIONS = SYSTEM_DESIGNATIONS;
+
+export const DEFAULT_TASK_STATUSES: TaskStatusConfig[] = [
+  { id: "st-todo", label: "To Do", color: "slate" },
+  { id: "st-in-progress", label: "In Progress", color: "violet" },
+  { id: "st-pending", label: "Pending", color: "amber" },
+  { id: "st-under-review", label: "Under Review", color: "sky" },
+  { id: "st-blocked", label: "Blocked", color: "rose" },
+  { id: "st-completed", label: "Completed", color: "emerald", isCompleted: true },
+];
 
 // Default System Administrator Profile for initial system access
 const DEFAULT_SYSTEM_ADMIN: Employee = {
@@ -92,6 +103,7 @@ class PMSDataStore {
   private activityLogs: ActivityLog[] = [];
   private officeGeoConfig: OfficeGeoConfig | null = null;
   private attendanceRecords: AttendanceRecord[] = [];
+  private taskStatuses: TaskStatusConfig[] = [...DEFAULT_TASK_STATUSES];
   private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
   private listeners: Set<() => void> = new Set();
 
@@ -304,6 +316,9 @@ class PMSDataStore {
       if (Array.isArray(parsed.attendanceRecords)) {
         this.attendanceRecords = parsed.attendanceRecords;
       }
+      if (Array.isArray(parsed.taskStatuses) && parsed.taskStatuses.length > 0) {
+        this.taskStatuses = parsed.taskStatuses;
+      }
       if (parsed.currentUser && parsed.currentUser.id) {
         this.currentUser = parsed.currentUser;
       }
@@ -333,6 +348,7 @@ class PMSDataStore {
           activityLogs: this.activityLogs,
           officeGeoConfig: this.officeGeoConfig,
           attendanceRecords: this.attendanceRecords,
+          taskStatuses: this.taskStatuses,
           currentUser: this.currentUser,
         };
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
@@ -521,7 +537,7 @@ class PMSDataStore {
   }
 
   private computeTaskProgressScore(task: Task, visited = new Set<string>()): number {
-    if (task.status === "Completed") return 100;
+    if (this.isCompletedStatus(task.status)) return 100;
     if (visited.has(task.id)) return 0;
     const nextVisited = new Set(visited);
     nextVisited.add(task.id);
@@ -1050,6 +1066,160 @@ class PMSDataStore {
     return this.projects[index];
   }
 
+  // Customizable Task Statuses (Admin Settings)
+  getTaskStatuses(): TaskStatusConfig[] {
+    return this.taskStatuses.map((s) => ({ ...s }));
+  }
+
+  getTaskStatusNames(): TaskStatus[] {
+    return this.taskStatuses.map((s) => s.label);
+  }
+
+  getDefaultStatusName(): TaskStatus {
+    return this.taskStatuses[0]?.label || "To Do";
+  }
+
+  getCompletedStatusName(): TaskStatus {
+    return (
+      this.taskStatuses.find((s) => s.isCompleted)?.label ||
+      this.taskStatuses.find((s) => s.label.toLowerCase() === "completed")?.label ||
+      "Completed"
+    );
+  }
+
+  isCompletedStatus(status?: string): boolean {
+    if (!status) return false;
+    const norm = status.trim().toLowerCase();
+    const cfg = this.taskStatuses.find((s) => s.label.trim().toLowerCase() === norm);
+    return Boolean(cfg?.isCompleted || norm === "completed");
+  }
+
+  addTaskStatusConfig(input: {
+    label: string;
+    color?: TaskStatusColor;
+    isCompleted?: boolean;
+  }): TaskStatusConfig | null {
+    if (this.currentUser?.role_code !== "SUPER_ADMIN") return null;
+    const trimmed = input.label.trim();
+    if (!trimmed) return null;
+    if (this.taskStatuses.some((s) => s.label.trim().toLowerCase() === trimmed.toLowerCase())) {
+      return null;
+    }
+    const created: TaskStatusConfig = {
+      id: generateId("st"),
+      label: trimmed,
+      color: input.color || "slate",
+      isCompleted: Boolean(input.isCompleted),
+    };
+    this.taskStatuses.push(created);
+    this.addActivityLog(`Added custom task status: "${created.label}"`, "settings");
+    this.persist();
+    return { ...created };
+  }
+
+  private migrateTaskStatusLabel(oldLabel: string, newLabel: string) {
+    const affectedProjectIds = new Set<string>();
+    this.tasks.forEach((t) => {
+      if (t.status === oldLabel) {
+        t.status = newLabel;
+        affectedProjectIds.add(t.project_id);
+      }
+    });
+    this.workflows.forEach((wf) => {
+      wf.template_tasks?.forEach((pt) => {
+        if (pt.status === oldLabel) pt.status = newLabel;
+        pt.subtasks?.forEach((st) => {
+          if (st.status === oldLabel) st.status = newLabel;
+        });
+      });
+    });
+    affectedProjectIds.forEach((pid) => this.refreshProjectProgress(pid));
+  }
+
+  updateTaskStatusConfig(
+    statusId: string,
+    updates: Partial<Pick<TaskStatusConfig, "label" | "color" | "isCompleted">>
+  ): TaskStatusConfig | null {
+    if (this.currentUser?.role_code !== "SUPER_ADMIN") return null;
+    const idx = this.taskStatuses.findIndex((s) => s.id === statusId);
+    if (idx === -1) return null;
+
+    const current = this.taskStatuses[idx];
+    const nextLabel = updates.label !== undefined ? updates.label.trim() : current.label;
+    if (!nextLabel) return null;
+
+    // Reject duplicate label names across other statuses
+    if (
+      this.taskStatuses.some(
+        (s) => s.id !== statusId && s.label.trim().toLowerCase() === nextLabel.toLowerCase()
+      )
+    ) {
+      return null;
+    }
+
+    const oldLabel = current.label;
+    const updated: TaskStatusConfig = {
+      ...current,
+      label: nextLabel,
+      color: updates.color ?? current.color,
+      isCompleted: updates.isCompleted !== undefined ? updates.isCompleted : current.isCompleted,
+    };
+    this.taskStatuses[idx] = updated;
+
+    // Migrate existing tasks and workflow template tasks if renamed
+    if (oldLabel !== nextLabel) {
+      this.migrateTaskStatusLabel(oldLabel, nextLabel);
+      this.addActivityLog(`Renamed task status "${oldLabel}" → "${nextLabel}"`, "settings");
+    } else {
+      this.addActivityLog(`Updated task status "${updated.label}"`, "settings");
+    }
+
+    this.persist();
+    return { ...updated };
+  }
+
+  moveTaskStatusConfig(statusId: string, direction: "up" | "down"): boolean {
+    if (this.currentUser?.role_code !== "SUPER_ADMIN") return false;
+    const idx = this.taskStatuses.findIndex((s) => s.id === statusId);
+    if (idx === -1) return false;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= this.taskStatuses.length) return false;
+
+    const copy = [...this.taskStatuses];
+    const [moved] = copy.splice(idx, 1);
+    copy.splice(swapIdx, 0, moved);
+    this.taskStatuses = copy;
+    this.persist();
+    return true;
+  }
+
+  deleteTaskStatusConfig(statusId: string, fallbackStatus?: TaskStatus): boolean {
+    if (this.currentUser?.role_code !== "SUPER_ADMIN") return false;
+    if (this.taskStatuses.length <= 1) return false;
+    const target = this.taskStatuses.find((s) => s.id === statusId);
+    if (!target) return false;
+
+    const remaining = this.taskStatuses.filter((s) => s.id !== statusId);
+    const replacement = fallbackStatus || remaining[0]?.label || "To Do";
+    this.taskStatuses = remaining;
+
+    this.migrateTaskStatusLabel(target.label, replacement);
+
+    this.addActivityLog(
+      `Deleted task status "${target.label}" (reassigned to "${replacement}")`,
+      "settings"
+    );
+    this.persist();
+    return true;
+  }
+
+  resetTaskStatusesToDefault(): void {
+    if (this.currentUser?.role_code !== "SUPER_ADMIN") return;
+    this.taskStatuses = DEFAULT_TASK_STATUSES.map((s) => ({ ...s }));
+    this.addActivityLog("Reset task statuses to defaults", "settings");
+    this.persist();
+  }
+
   // Tasks, Subtasks & Task Comments
   private enrichTask(task: Task, visited = new Set<string>()): Task {
     if (visited.has(task.id)) {
@@ -1195,7 +1365,7 @@ class PMSDataStore {
       ...current,
       ...updates,
       completed_at:
-        nextStatus === "Completed"
+        this.isCompletedStatus(nextStatus)
           ? current.completed_at || new Date().toISOString()
           : updates.status
           ? undefined
@@ -1213,7 +1383,7 @@ class PMSDataStore {
     if (!task) return null;
     const oldStatus = task.status;
     task.status = newStatus;
-    if (newStatus === "Completed") {
+    if (this.isCompletedStatus(newStatus)) {
       task.completed_at = new Date().toISOString();
     } else {
       task.completed_at = undefined;

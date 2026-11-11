@@ -17,55 +17,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
+import { getStyleForColor } from "@/lib/task-status-styles";
 import { formatDate } from "@/lib/utils";
 import { TaskStatus, ProjectPriority } from "@/types";
 import { toast } from "sonner";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
-
-const ALL_STATUSES: TaskStatus[] = [
-  "To Do",
-  "In Progress",
-  "Pending",
-  "Under Review",
-  "Blocked",
-  "Completed",
-];
-
-const STATUS_COLUMN_STYLES: Record<
-  TaskStatus,
-  { container: string; headerBorder: string; badgeVariant: "secondary" | "default" | "warning" | "destructive" | "success" }
-> = {
-  "To Do": {
-    container: "border-slate-300 bg-slate-50/70",
-    headerBorder: "border-slate-200",
-    badgeVariant: "secondary",
-  },
-  "In Progress": {
-    container: "border-violet-300 bg-violet-50/40",
-    headerBorder: "border-violet-200",
-    badgeVariant: "default",
-  },
-  "Pending": {
-    container: "border-amber-300 bg-amber-50/40",
-    headerBorder: "border-amber-200",
-    badgeVariant: "warning",
-  },
-  "Under Review": {
-    container: "border-sky-300 bg-sky-50/40",
-    headerBorder: "border-sky-200",
-    badgeVariant: "secondary",
-  },
-  "Blocked": {
-    container: "border-rose-300 bg-rose-50/40",
-    headerBorder: "border-rose-200",
-    badgeVariant: "destructive",
-  },
-  "Completed": {
-    container: "border-emerald-300 bg-emerald-50/40",
-    headerBorder: "border-emerald-200",
-    badgeVariant: "success",
-  },
-};
 
 function TasksContent() {
   const [searchParams] = useSearchParams();
@@ -89,13 +45,15 @@ function TasksContent() {
   const projects = pmsStore.getProjects();
   const clients = pmsStore.getClients();
   const employees = pmsStore.getEmployees();
+  const taskStatuses = pmsStore.getTaskStatuses();
+  const statusNames = taskStatuses.map((s) => s.label);
 
   // New task form state
   const [taskTitle, setTaskTitle] = useState("");
   const [projectId, setProjectId] = useState(projects[0]?.id || "");
   const [assignedEmployeeId, setAssignedEmployeeId] = useState(employees[0]?.id || "");
   const [priority, setPriority] = useState<ProjectPriority>("Medium");
-  const [initialStatus, setInitialStatus] = useState<TaskStatus>("To Do");
+  const [initialStatus, setInitialStatus] = useState<TaskStatus>(pmsStore.getDefaultStatusName());
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
@@ -248,16 +206,19 @@ function TasksContent() {
         </CardContent>
       </Card>
 
-      {/* KANBAN BOARD VIEW ONLY (Headings = Task Statuses) */}
+      {/* KANBAN BOARD VIEW ONLY (Headings = Customizable Task Statuses) */}
       <div className="flex gap-4 overflow-x-auto pb-4 items-start">
-        {ALL_STATUSES.map((status) => {
-          const columnTasks = filteredTasks.filter((t) => t.status === status);
-          const colStyle = STATUS_COLUMN_STYLES[status];
+        {taskStatuses.map((statusCfg, colIdx) => {
+          const status = statusCfg.label;
+          const columnTasks = filteredTasks.filter(
+            (t) => t.status === status || (colIdx === 0 && !statusNames.includes(t.status))
+          );
+          const colStyle = getStyleForColor(statusCfg.color);
           const isOver = dragOverStatus === status;
 
           return (
             <div
-              key={status}
+              key={statusCfg.id}
               onDragOver={(e) => {
                 e.preventDefault();
                 setDragOverStatus(status);
@@ -277,7 +238,7 @@ function TasksContent() {
                 }
               }}
               className={`w-[320px] shrink-0 rounded-[24px] border-[1.5px] p-4 space-y-3 transition-colors ${
-                isOver ? "border-neutral-900 bg-slate-100/80" : colStyle.container
+                isOver ? "border-neutral-900 bg-slate-100/80" : colStyle.columnContainer
               }`}
             >
               {/* Status Heading */}
@@ -394,7 +355,7 @@ function TasksContent() {
                             onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
                             className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold text-[#111827] focus:outline-none"
                           >
-                            {ALL_STATUSES.map((st) => (
+                            {statusNames.map((st) => (
                               <option key={st} value={st}>
                                 {st}
                               </option>
@@ -489,7 +450,7 @@ function TasksContent() {
                   onChange={(e) => setInitialStatus(e.target.value as TaskStatus)}
                   className="w-full h-9 rounded-md border border-slate-300 bg-white px-2 text-xs"
                 >
-                  {ALL_STATUSES.map((st) => (
+                  {statusNames.map((st) => (
                     <option key={st} value={st}>
                       {st}
                     </option>

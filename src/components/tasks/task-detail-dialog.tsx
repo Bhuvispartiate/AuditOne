@@ -27,15 +27,6 @@ interface TaskDetailDialogProps {
   onUpdated?: () => void;
 }
 
-const ALL_STATUSES: TaskStatus[] = [
-  "To Do",
-  "In Progress",
-  "Pending",
-  "Under Review",
-  "Blocked",
-  "Completed",
-];
-
 export function TaskDetailDialog({
   taskId,
   open,
@@ -67,6 +58,7 @@ export function TaskDetailDialog({
   const task = activeId ? pmsStore.getTaskById(activeId) : undefined;
   const project = task ? pmsStore.getProjectById(task.project_id) : undefined;
   const employees = pmsStore.getEmployees();
+  const statusNames = pmsStore.getTaskStatusNames();
 
   // Build ancestor chain for hierarchical drill-down navigation (Task -> Subtask -> Sub-subtask)
   const ancestors = useMemo(() => {
@@ -263,7 +255,7 @@ export function TaskDetailDialog({
                   }
                   className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-bold text-[#111827]"
                 >
-                  {ALL_STATUSES.map((st) => (
+                  {statusNames.map((st) => (
                     <option key={st} value={st}>
                       {st}
                     </option>

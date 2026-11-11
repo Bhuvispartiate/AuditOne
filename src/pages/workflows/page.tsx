@@ -41,15 +41,6 @@ import {
 import { toast } from "sonner";
 import { ProjectTimeline } from "@/components/tasks/project-timeline";
 
-const ALL_STATUSES: TaskStatus[] = [
-  "To Do",
-  "In Progress",
-  "Pending",
-  "Under Review",
-  "Blocked",
-  "Completed",
-];
-
 function addDays(baseIso: string, days: number): string {
   const parsed = new Date(baseIso);
   const ms = Number.isNaN(parsed.getTime()) ? Date.now() : parsed.getTime();
@@ -97,6 +88,7 @@ export default function WorkflowsPage() {
   const workflows = pmsStore.getWorkflows();
   const services = pmsStore.getServices();
   const employees = pmsStore.getEmployees();
+  const statusNames = pmsStore.getTaskStatusNames();
 
   useEffect(() => {
     if (!selectedWorkflowId && workflows.length > 0) {
@@ -653,7 +645,7 @@ export default function WorkflowsPage() {
                         onChange={(e) => setTaskStatus(e.target.value as TaskStatus)}
                         className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-semibold"
                       >
-                        {ALL_STATUSES.map((st) => (
+                        {statusNames.map((st) => (
                           <option key={st} value={st}>
                             {st}
                           </option>
@@ -950,7 +942,7 @@ export default function WorkflowsPage() {
                       }
                       className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-bold"
                     >
-                      {ALL_STATUSES.map((st) => (
+                      {statusNames.map((st) => (
                         <option key={st} value={st}>
                           {st}
                         </option>
@@ -1066,7 +1058,7 @@ export default function WorkflowsPage() {
                               }
                               className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold"
                             >
-                              {ALL_STATUSES.map((opt) => (
+                              {statusNames.map((opt) => (
                                 <option key={opt} value={opt}>
                                   {opt}
                                 </option>

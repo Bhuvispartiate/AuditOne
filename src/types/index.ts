@@ -259,7 +259,16 @@ export interface Project {
   updated_at: string;
 }
 
-export type TaskStatus = 'To Do' | 'In Progress' | 'Pending' | 'Under Review' | 'Completed' | 'Blocked';
+export type TaskStatusColor = "slate" | "violet" | "amber" | "sky" | "rose" | "emerald";
+
+export interface TaskStatusConfig {
+  id: string;
+  label: string;
+  color: TaskStatusColor;
+  isCompleted?: boolean;
+}
+
+export type TaskStatus = string;
 
 export interface Task {
   id: string;

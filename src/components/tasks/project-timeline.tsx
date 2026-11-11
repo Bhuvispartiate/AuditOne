@@ -10,9 +10,10 @@ import {
   Building2,
   FolderGit2,
 } from "lucide-react";
-import { Task, TaskStatus } from "@/types";
+import { Task } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
+import { getStyleForColor, getTaskStatusVisual } from "@/lib/task-status-styles";
 import { formatDate } from "@/lib/utils";
 
 interface ProjectTimelineProps {
@@ -25,24 +26,6 @@ interface ProjectTimelineProps {
   collapsible?: boolean;
   defaultExpanded?: boolean;
 }
-
-const STATUS_BAR_STYLES: Record<TaskStatus, string> = {
-  "To Do": "bg-slate-400 text-white",
-  "Pending": "bg-amber-500 text-white",
-  "In Progress": "bg-violet-600 text-white",
-  "Under Review": "bg-sky-600 text-white",
-  "Blocked": "bg-rose-600 text-white",
-  "Completed": "bg-emerald-600 text-white",
-};
-
-const STATUS_BADGE_VARIANT: Record<TaskStatus, "secondary" | "warning" | "default" | "destructive" | "success"> = {
-  "To Do": "secondary",
-  "Pending": "warning",
-  "In Progress": "default",
-  "Under Review": "warning",
-  "Blocked": "destructive",
-  "Completed": "success",
-};
 
 function toMs(dateStr?: string): number {
   if (!dateStr) return Date.now();
@@ -80,6 +63,7 @@ export function ProjectTimeline({
 
   const projects = pmsStore.getProjects();
   const clients = pmsStore.getClients();
+  const configuredStatuses = pmsStore.getTaskStatuses();
 
   const visibleTasks = useMemo(() => {
     if (!showClientFilter || clientFilter === "ALL") return tasks;
@@ -203,13 +187,13 @@ export function ProjectTimeline({
               ))}
             </select>
           )}
-          {(["To Do", "In Progress", "Under Review", "Completed", "Blocked"] as TaskStatus[]).map((st) => (
+          {configuredStatuses.map((st) => (
             <span
-              key={st}
+              key={st.id}
               className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 text-slate-700"
             >
-              <span className={`h-2 w-2 rounded-full ${STATUS_BAR_STYLES[st].split(" ")[0]}`} />
-              {st}
+              <span className={`h-2 w-2 rounded-full ${getStyleForColor(st.color).dotClass}`} />
+              {st.label}
             </span>
           ))}
         </div>
@@ -298,7 +282,10 @@ export function ProjectTimeline({
                             <span className="font-mono text-[10px] font-bold text-slate-800 bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded-md">
                               {task.task_code}
                             </span>
-                            <Badge variant={STATUS_BADGE_VARIANT[task.status] || "secondary"} className="text-[10px]">
+                            <Badge
+                              variant={getTaskStatusVisual(task.status, configuredStatuses).badgeVariant}
+                              className="text-[10px]"
+                            >
                               {task.status}
                             </Badge>
                             {subtasks.length > 0 && (
@@ -342,7 +329,7 @@ export function ProjectTimeline({
                       )}
                       <div
                         className={`absolute top-1.5 bottom-1.5 rounded-lg px-2 flex items-center justify-between text-[10px] font-bold shadow-xs ${
-                          STATUS_BAR_STYLES[task.status] || "bg-slate-600 text-white"
+                          getTaskStatusVisual(task.status, configuredStatuses).barClass
                         }`}
                         style={{ left: bar.left, width: bar.width }}
                       >
@@ -372,7 +359,10 @@ export function ProjectTimeline({
                                 <span className="font-mono text-[10px] font-bold text-slate-600 bg-white border border-slate-300 px-1.5 py-0.5 rounded">
                                   {sub.task_code}
                                 </span>
-                                <Badge variant={STATUS_BADGE_VARIANT[sub.status] || "secondary"} className="text-[9px]">
+                                <Badge
+                                  variant={getTaskStatusVisual(sub.status, configuredStatuses).badgeVariant}
+                                  className="text-[9px]"
+                                >
                                   {sub.status}
                                 </Badge>
                               </div>
@@ -396,7 +386,7 @@ export function ProjectTimeline({
                               )}
                               <div
                                 className={`absolute top-1 bottom-1 rounded-md px-2 flex items-center justify-between text-[9px] font-bold ${
-                                  STATUS_BAR_STYLES[sub.status] || "bg-slate-500 text-white"
+                                  getTaskStatusVisual(sub.status, configuredStatuses).barClass
                                 }`}
                                 style={{ left: subBar.left, width: subBar.width }}
                               >

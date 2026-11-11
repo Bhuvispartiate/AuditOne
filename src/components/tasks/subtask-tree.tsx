@@ -15,15 +15,6 @@ import { Task, TaskStatus } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 
-const ALL_STATUSES: TaskStatus[] = [
-  "To Do",
-  "In Progress",
-  "Pending",
-  "Under Review",
-  "Blocked",
-  "Completed",
-];
-
 export function countNestedSubtasks(subtasks: Task[] = []): { total: number; completed: number } {
   return subtasks.reduce(
     (acc, st) => {
@@ -93,17 +84,20 @@ function SubtaskRow({
 }: SubtaskRowProps) {
   const [editingDates, setEditingDates] = useState(false);
 
-  const isDone = sub.status === "Completed";
+  const isDone = pmsStore.isCompletedStatus(sub.status);
   const children = sub.subtasks || [];
   const docsCount = pmsStore.getDocumentsByEntity("task", sub.id).length;
   const commentsCount = sub.comments_count ?? pmsStore.getTaskComments(sub.id).length;
+  const statusNames = pmsStore.getTaskStatusNames();
 
   const triggerChanged = () => {
     onChanged?.();
   };
 
   const handleToggleDone = () => {
-    const next: TaskStatus = isDone ? "To Do" : "Completed";
+    const next: TaskStatus = isDone
+      ? pmsStore.getDefaultStatusName()
+      : pmsStore.getCompletedStatusName();
     pmsStore.updateTaskStatus(sub.id, next);
     toast.success(`Subtask ${sub.task_code} marked ${next}.`);
     triggerChanged();
@@ -227,7 +221,7 @@ function SubtaskRow({
             }}
             className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold text-[#111827]"
           >
-            {ALL_STATUSES.map((st) => (
+            {statusNames.map((st) => (
               <option key={st} value={st}>
                 {st}
               </option>

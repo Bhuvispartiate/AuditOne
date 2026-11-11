@@ -640,12 +640,11 @@ export default function Client360ProfilePage() {
                             }}
                             className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-800"
                           >
-                            <option value="To Do">To Do</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Pending">Pending</option>
-                            <option value="Under Review">Under Review</option>
-                            <option value="Blocked">Blocked</option>
-                            <option value="Completed">Completed</option>
+                            {pmsStore.getTaskStatusNames().map((st) => (
+                              <option key={st} value={st}>
+                                {st}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <button
