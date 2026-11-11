@@ -120,7 +120,7 @@ export default function DashboardPage() {
       {/* 4 PRIMARY METRIC CARDS (Exact User Requirements) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Metric 1: Count of the Services */}
-        <div className="rounded-[24px] bg-white border border-[#e5e7eb] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+        <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider">
               1. Count of Services
@@ -145,7 +145,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Metric 2: Subscribed Clients across Services */}
-        <div className="rounded-[24px] bg-white border border-[#e5e7eb] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+        <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider">
               2. Clients with Services
@@ -171,7 +171,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Metric 3: Total Pending Works */}
-        <div className="rounded-[24px] bg-white border border-[#e5e7eb] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+        <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider">
               3. Total Pending Works
@@ -197,7 +197,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Metric 4: Total Completed Works */}
-        <div className="rounded-[24px] bg-white border border-[#e5e7eb] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+        <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider">
               4. Total Completed Works
@@ -224,7 +224,7 @@ export default function DashboardPage() {
       </div>
 
       {/* SECTION 2: COUNT OF EACH SERVICE CLIENTS (Exact Breakdown Grid) */}
-      <div className="rounded-[24px] bg-white border border-[#e5e7eb] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4">
+      <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-[#f3f4f6]">
           <div>
             <div className="flex items-center gap-2">
@@ -301,7 +301,7 @@ export default function DashboardPage() {
       {/* SECTION 3 & 4: DETAILED BREAKDOWN OF PENDING WORKS vs COMPLETED WORKS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         {/* Left Column: Total Pending Works Deep Dive (lg:col-span-6) */}
-        <div className="lg:col-span-6 rounded-[24px] bg-white border border-[#e5e7eb] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+        <div className="lg:col-span-6 rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-[#f3f4f6]">
               <div>
@@ -414,7 +414,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Right Column: Total Completed Works Deep Dive (lg:col-span-6) */}
-        <div className="lg:col-span-6 rounded-[24px] bg-white border border-[#e5e7eb] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+        <div className="lg:col-span-6 rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-[#f3f4f6]">
               <div>

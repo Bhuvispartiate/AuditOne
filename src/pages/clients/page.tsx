@@ -232,13 +232,13 @@ export default function ClientsListPage() {
             return (
               <Card
                 key={client.id}
-                className="group rounded-[24px] border border-[#e5e7eb] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.02)] hover:shadow-[0_10px_28px_rgba(17,24,39,0.06)] hover:border-neutral-300 transition-all duration-200 flex flex-col justify-between"
+                className="group rounded-[24px] border-[1.5px] border-slate-300 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(17,24,39,0.07)] hover:border-neutral-900 transition-all duration-200 flex flex-col justify-between"
               >
                 <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
                   {/* Top Badges Row */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-mono text-[11px] font-bold text-[#111827] bg-[#f3f4f6] px-2.5 py-1 rounded-xl">
+                      <span className="font-mono text-[11px] font-bold text-[#111827] bg-slate-100 border border-slate-300 px-2.5 py-1 rounded-xl">
                         {client.client_code}
                       </span>
                       <Badge variant="secondary" className="text-[10px] font-semibold rounded-full px-2.5 py-0.5">
@@ -273,7 +273,7 @@ export default function ClientsListPage() {
                   </div>
 
                   {/* Registration Identifiers Box */}
-                  <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-[#f9fafb] border border-[#f3f4f6] p-3">
+                  <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-slate-50/80 border border-slate-300 p-3">
                     <div>
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
                         PAN
@@ -294,7 +294,7 @@ export default function ClientsListPage() {
 
                   {/* Financial Summary Row */}
                   <div className="grid grid-cols-2 gap-2.5 pt-1">
-                    <div className="rounded-2xl border border-[#f3f4f6] px-3 py-2.5">
+                    <div className="rounded-2xl border border-slate-300 bg-white px-3 py-2.5">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
                         Total Invoiced
                       </span>
@@ -302,7 +302,7 @@ export default function ClientsListPage() {
                         {formatCurrency(client.total_invoiced_amount || 0)}
                       </span>
                     </div>
-                    <div className="rounded-2xl border border-[#f3f4f6] px-3 py-2.5">
+                    <div className="rounded-2xl border border-slate-300 bg-white px-3 py-2.5">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
                         Outstanding
                       </span>
