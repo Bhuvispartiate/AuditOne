@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
-  ArrowRight,
   Briefcase,
   Calendar,
+  Check,
   CheckSquare,
   Columns3,
   ExternalLink,
@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Send,
   Trash2,
@@ -90,7 +91,11 @@ export default function WorkflowKanbanPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Drag state
-  const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
+  const [draggingWorkflowCard, setDraggingWorkflowCard] = useState<{
+    entryKey: string;
+    tplTaskId: string;
+    isCompleted: boolean;
+  } | null>(null);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
 
@@ -273,73 +278,46 @@ export default function WorkflowKanbanPage() {
     }
   };
 
-  const moveEntryToStage = (entry: BoardClientEntry, targetColumnId: string) => {
-    if (!workflow || tplTasks.length === 0) return;
+  const setClientWorkflowTaskStatus = (
+    entry: BoardClientEntry,
+    tplTask: WorkflowProjectTaskTemplate,
+    nextStatus: TaskStatus
+  ) => {
+    if (!workflow) return;
 
-    // If client project doesn't yet have these template tasks, sync first so every stage exists!
-    if (!entry.project || entry.missingTemplateTasksCount > 0) {
+    let targetTask = entry.stageTaskMap.get(tplTask.id);
+    if (!entry.project || !targetTask) {
       pmsStore.syncWorkflowTasksToSubscribedClients(workflow.id);
-    }
+      const freshProjects = pmsStore.getProjects();
+      const targetProject =
+        entry.project ||
+        freshProjects.find(
+          (p) =>
+            (entry.engagement && p.service_engagement_id === entry.engagement.id) ||
+            (p.client_id === entry.clientId &&
+              (p.service_name || "").trim().toLowerCase() ===
+                (workflow.service_name || "").trim().toLowerCase())
+        );
 
-    // Re-read fresh project & tasks from store after potential sync
-    const freshProjects = pmsStore.getProjects();
-    const targetProject =
-      entry.project ||
-      freshProjects.find(
-        (p) =>
-          (entry.engagement && p.service_engagement_id === entry.engagement.id) ||
-          (p.client_id === entry.clientId &&
-            (p.service_name || "").trim().toLowerCase() ===
-              (workflow.service_name || "").trim().toLowerCase())
-      );
-
-    if (!targetProject) {
-      toast.error(`No project found for ${entry.clientName}. Click "Sync Workflow Tasks" first.`);
-      return;
-    }
-
-    const freshTasks = pmsStore
-      .getTasks()
-      .filter((t) => t.project_id === targetProject.id && !t.parent_task_id);
-
-    const resolveTask = (tpl: WorkflowProjectTaskTemplate) =>
-      freshTasks.find(
-        (pt) => pt.title.trim().toLowerCase() === tpl.task_name.trim().toLowerCase()
-      );
-
-    if (targetColumnId === "COMPLETED") {
-      tplTasks.forEach((tpl) => {
-        const t = resolveTask(tpl);
-        if (t && t.status !== "Completed") {
-          pmsStore.updateTaskStatus(t.id, "Completed");
-        }
-      });
-      toast.success(`${entry.clientName}: all workflow tasks marked Completed.`);
-      return;
-    }
-
-    const targetIndex = tplTasks.findIndex((t) => t.id === targetColumnId);
-    if (targetIndex === -1) return;
-
-    tplTasks.forEach((tpl, idx) => {
-      const t = resolveTask(tpl);
-      if (!t) return;
-      if (idx < targetIndex) {
-        if (t.status !== "Completed") {
-          pmsStore.updateTaskStatus(t.id, "Completed");
-        }
-      } else if (idx === targetIndex) {
-        if (t.status !== "In Progress") {
-          pmsStore.updateTaskStatus(t.id, "In Progress");
-        }
-      } else if (t.status === "Completed" || t.status === "In Progress") {
-        pmsStore.updateTaskStatus(t.id, "To Do");
+      if (targetProject) {
+        targetTask = pmsStore
+          .getTasks()
+          .find(
+            (t) =>
+              t.project_id === targetProject.id &&
+              !t.parent_task_id &&
+              t.title.trim().toLowerCase() === tplTask.task_name.trim().toLowerCase()
+          );
       }
-    });
+    }
 
-    toast.success(
-      `${entry.clientName} moved to "${tplTasks[targetIndex].task_name}".`
-    );
+    if (!targetTask) {
+      toast.error(`Unable to find "${tplTask.task_name}" for ${entry.clientName}.`);
+      return;
+    }
+
+    pmsStore.updateTaskStatus(targetTask.id, nextStatus);
+    toast.success(`${entry.clientName} — "${tplTask.task_name}" marked ${nextStatus}.`);
   };
 
   const handleStatusDrop = (taskId: string, nextStatus: TaskStatus) => {
@@ -602,53 +580,46 @@ export default function WorkflowKanbanPage() {
           )}
 
           <div className="flex gap-4 overflow-x-auto pb-4 items-start">
-            {[
-              ...tplTasks.map((t, index) => ({
-                id: t.id,
-                index,
-                title: `${index + 1}. ${t.task_name}`,
-                subtitle: `Day ${t.start_day_offset + 1} • ${t.duration_days}d • ${(t.subtasks || []).length} sub`,
-                isCompletedCol: false,
-                tplTask: t as WorkflowProjectTaskTemplate | null,
-              })),
-              {
-                id: "COMPLETED",
-                index: tplTasks.length,
-                title: "All Tasks Completed",
-                subtitle: "Finished all workflow stages",
-                isCompletedCol: true,
-                tplTask: null,
-              },
-            ].map((col) => {
-              const columnEntries = filteredEntries.filter(
-                (entry) => entry.currentColumnId === col.id
-              );
-              const isOver = dragOverColumnId === col.id;
+            {tplTasks.map((tplTask, index) => {
+              // Show EVERY subscribed client whose task for THIS column is NOT yet Completed
+              const openEntries = filteredEntries.filter((entry) => {
+                const matched = entry.stageTaskMap.get(tplTask.id);
+                return !matched || matched.status !== "Completed";
+              });
+              const isOver = dragOverColumnId === tplTask.id;
 
               return (
                 <div
-                  key={col.id}
+                  key={tplTask.id}
                   onDragOver={(e) => {
                     e.preventDefault();
-                    setDragOverColumnId(col.id);
+                    setDragOverColumnId(tplTask.id);
                   }}
-                  onDragLeave={() => setDragOverColumnId((prev) => (prev === col.id ? null : prev))}
+                  onDragLeave={() =>
+                    setDragOverColumnId((prev) => (prev === tplTask.id ? null : prev))
+                  }
                   onDrop={(e) => {
                     e.preventDefault();
                     setDragOverColumnId(null);
-                    if (draggingEntryKey) {
-                      const dragged = boardEntries.find((x) => x.entryKey === draggingEntryKey);
-                      setDraggingEntryKey(null);
-                      if (dragged && dragged.currentColumnId !== col.id) {
-                        moveEntryToStage(dragged, col.id);
+                    if (
+                      draggingWorkflowCard &&
+                      draggingWorkflowCard.isCompleted &&
+                      draggingWorkflowCard.tplTaskId === tplTask.id
+                    ) {
+                      const entry = boardEntries.find(
+                        (x) => x.entryKey === draggingWorkflowCard.entryKey
+                      );
+                      setDraggingWorkflowCard(null);
+                      if (entry) {
+                        setClientWorkflowTaskStatus(entry, tplTask, "In Progress");
                       }
+                    } else {
+                      setDraggingWorkflowCard(null);
                     }
                   }}
                   className={`w-[330px] shrink-0 rounded-[24px] border-[1.5px] p-4 space-y-3 transition-colors ${
                     isOver
                       ? "border-violet-600 bg-violet-50/60"
-                      : col.isCompletedCol
-                      ? "border-emerald-300 bg-emerald-50/40"
                       : "border-slate-300 bg-slate-50/80"
                   }`}
                 >
@@ -656,49 +627,50 @@ export default function WorkflowKanbanPage() {
                   <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-200">
                     <div className="min-w-0">
                       <h3 className="text-sm font-extrabold text-[#111827] truncate">
-                        {col.title}
+                        {index + 1}. {tplTask.task_name}
                       </h3>
                       <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-                        {col.subtitle}
+                        Day {tplTask.start_day_offset + 1} • {tplTask.duration_days}d •{" "}
+                        {(tplTask.subtasks || []).length} sub
                       </p>
                     </div>
                     <Badge
-                      variant={col.isCompletedCol ? "success" : "secondary"}
+                      variant="secondary"
                       className="rounded-full text-[11px] font-bold shrink-0"
                     >
-                      {columnEntries.length}
+                      {openEntries.length}
                     </Badge>
                   </div>
 
-                  {/* Client Cards in Column */}
+                  {/* Client Cards in This Task Column */}
                   <div className="space-y-3 min-h-[140px]">
-                    {columnEntries.length === 0 ? (
+                    {openEntries.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 px-3 py-8 text-center text-[11px] text-slate-400">
-                        Drop client card here
+                        {boardEntries.length === 0
+                          ? "No clients subscribed yet"
+                          : "All subscribed clients completed this task"}
                       </div>
                     ) : (
-                      columnEntries.map((entry) => {
-                        const stageTask = col.tplTask
-                          ? entry.stageTaskMap.get(col.tplTask.id)
-                          : entry.activeTask;
+                      openEntries.map((entry) => {
+                        const stageTask = entry.stageTaskMap.get(tplTask.id);
                         const subtasks = stageTask?.subtasks || [];
                         const doneSubtasks = subtasks.filter(
                           (s) => s.status === "Completed"
                         ).length;
-                        const nextColId =
-                          col.index + 1 < tplTasks.length
-                            ? tplTasks[col.index + 1].id
-                            : !col.isCompletedCol
-                            ? "COMPLETED"
-                            : null;
 
                         return (
                           <div
-                            key={entry.entryKey}
+                            key={`${entry.entryKey}-${tplTask.id}`}
                             draggable
-                            onDragStart={() => setDraggingEntryKey(entry.entryKey)}
+                            onDragStart={() =>
+                              setDraggingWorkflowCard({
+                                entryKey: entry.entryKey,
+                                tplTaskId: tplTask.id,
+                                isCompleted: false,
+                              })
+                            }
                             onDragEnd={() => {
-                              setDraggingEntryKey(null);
+                              setDraggingWorkflowCard(null);
                               setDragOverColumnId(null);
                             }}
                             className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 shadow-xs hover:border-neutral-900 transition-all cursor-grab active:cursor-grabbing space-y-3"
@@ -721,20 +693,35 @@ export default function WorkflowKanbanPage() {
                               </div>
 
                               {stageTask ? (
-                                <Badge
-                                  variant={getStatusBadgeVariant(stageTask.status)}
-                                  className="text-[10px] shrink-0"
+                                <select
+                                  value={stageTask.status}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) =>
+                                    setClientWorkflowTaskStatus(
+                                      entry,
+                                      tplTask,
+                                      e.target.value as TaskStatus
+                                    )
+                                  }
+                                  className="h-6 rounded-lg border border-slate-300 bg-slate-50 px-1.5 text-[10px] font-bold text-slate-800"
                                 >
-                                  {stageTask.status}
-                                </Badge>
+                                  {STATUS_COLUMNS.map((st) => (
+                                    <option key={st} value={st}>
+                                      {st}
+                                    </option>
+                                  ))}
+                                </select>
                               ) : (
-                                <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300">
-                                  Not Synced
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] text-amber-700 border-amber-300"
+                                >
+                                  Pending Sync
                                 </Badge>
                               )}
                             </div>
 
-                            {/* Client Name & Stage Progress */}
+                            {/* Client Name & Progress */}
                             <div>
                               <Link
                                 to={`/clients/${entry.clientId}`}
@@ -744,7 +731,7 @@ export default function WorkflowKanbanPage() {
                                 <ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
                               </Link>
                               <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                                {entry.completedTemplateTasks}/{tplTasks.length} workflow stages completed
+                                {entry.completedTemplateTasks}/{tplTasks.length} tasks completed
                               </p>
                             </div>
 
@@ -754,7 +741,8 @@ export default function WorkflowKanbanPage() {
                                 <div className="flex items-center justify-between text-slate-700 font-semibold">
                                   <span className="inline-flex items-center gap-1">
                                     <Calendar className="h-3 w-3 text-slate-400" />
-                                    {formatDate(stageTask.start_date)} &rarr; {formatDate(stageTask.due_date)}
+                                    {formatDate(stageTask.start_date)} &rarr;{" "}
+                                    {formatDate(stageTask.due_date)}
                                   </span>
                                   <span className="font-mono text-[10px] text-slate-500">
                                     {stageTask.task_code}
@@ -841,19 +829,17 @@ export default function WorkflowKanbanPage() {
                                 Tasks & Subtasks
                               </Button>
 
-                              {nextColId && (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={() => moveEntryToStage(entry, nextColId)}
-                                  className="h-7 px-2.5 rounded-lg bg-neutral-900 hover:bg-black text-white text-[11px] font-bold gap-1"
-                                >
-                                  <span>
-                                    {nextColId === "COMPLETED" ? "Finish" : "Next Stage"}
-                                  </span>
-                                  <ArrowRight className="h-3 w-3" />
-                                </Button>
-                              )}
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() =>
+                                  setClientWorkflowTaskStatus(entry, tplTask, "Completed")
+                                }
+                                className="h-7 px-2.5 rounded-lg bg-neutral-900 hover:bg-black text-white text-[11px] font-bold gap-1"
+                              >
+                                <Check className="h-3 w-3" />
+                                <span>Complete</span>
+                              </Button>
                             </div>
                           </div>
                         );
@@ -863,6 +849,154 @@ export default function WorkflowKanbanPage() {
                 </div>
               );
             })}
+
+            {/* Final Completed Tasks Column (holds completed tasks from any stage, independently) */}
+            {(() => {
+              const completedTaskCards = filteredEntries.flatMap((entry) =>
+                tplTasks
+                  .map((tplTask, idx) => ({
+                    entry,
+                    tplTask,
+                    idx,
+                    task: entry.stageTaskMap.get(tplTask.id),
+                  }))
+                  .filter((item) => item.task && item.task.status === "Completed")
+              );
+              const isOver = dragOverColumnId === "COMPLETED";
+
+              return (
+                <div
+                  key="COMPLETED"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverColumnId("COMPLETED");
+                  }}
+                  onDragLeave={() =>
+                    setDragOverColumnId((prev) => (prev === "COMPLETED" ? null : prev))
+                  }
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverColumnId(null);
+                    if (draggingWorkflowCard && !draggingWorkflowCard.isCompleted) {
+                      const entry = boardEntries.find(
+                        (x) => x.entryKey === draggingWorkflowCard.entryKey
+                      );
+                      const tplTask = tplTasks.find(
+                        (t) => t.id === draggingWorkflowCard.tplTaskId
+                      );
+                      setDraggingWorkflowCard(null);
+                      if (entry && tplTask) {
+                        setClientWorkflowTaskStatus(entry, tplTask, "Completed");
+                      }
+                    } else {
+                      setDraggingWorkflowCard(null);
+                    }
+                  }}
+                  className={`w-[330px] shrink-0 rounded-[24px] border-[1.5px] p-4 space-y-3 transition-colors ${
+                    isOver
+                      ? "border-emerald-600 bg-emerald-100/60"
+                      : "border-emerald-300 bg-emerald-50/40"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 pb-2 border-b border-emerald-200">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-extrabold text-[#111827] truncate">
+                        Completed Tasks
+                      </h3>
+                      <p className="text-[11px] font-medium text-emerald-700 mt-0.5">
+                        Drag any task card here to complete
+                      </p>
+                    </div>
+                    <Badge
+                      variant="success"
+                      className="rounded-full text-[11px] font-bold shrink-0"
+                    >
+                      {completedTaskCards.length}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-3 min-h-[140px]">
+                    {completedTaskCards.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-emerald-300 bg-white/70 px-3 py-8 text-center text-[11px] text-slate-400">
+                        Drop any completed task here
+                      </div>
+                    ) : (
+                      completedTaskCards.map(({ entry, tplTask, idx, task }) => (
+                        <div
+                          key={`done-${entry.entryKey}-${tplTask.id}`}
+                          draggable
+                          onDragStart={() =>
+                            setDraggingWorkflowCard({
+                              entryKey: entry.entryKey,
+                              tplTaskId: tplTask.id,
+                              isCompleted: true,
+                            })
+                          }
+                          onDragEnd={() => {
+                            setDraggingWorkflowCard(null);
+                            setDragOverColumnId(null);
+                          }}
+                          className="rounded-2xl border-[1.5px] border-emerald-300 bg-white p-4 shadow-xs hover:border-neutral-900 transition-all cursor-grab active:cursor-grabbing space-y-2.5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                              {entry.clientCode}
+                            </span>
+                            <Badge variant="success" className="text-[10px]">
+                              Completed
+                            </Badge>
+                          </div>
+
+                          <div>
+                            <Link
+                              to={`/clients/${entry.clientId}`}
+                              className="text-sm font-extrabold text-[#111827] hover:text-violet-700 truncate block"
+                            >
+                              {entry.clientName}
+                            </Link>
+                            <p className="text-xs font-bold text-emerald-800 mt-0.5 truncate">
+                              {idx + 1}. {tplTask.task_name}
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              {entry.completedTemplateTasks}/{tplTasks.length} workflow tasks done
+                              {task ? ` • ${task.task_code}` : ""}
+                            </p>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedEntryKey(entry.entryKey);
+                                setIsDetailModalOpen(true);
+                              }}
+                              className="h-7 px-2.5 rounded-lg border-slate-300 text-[11px] font-bold"
+                            >
+                              Tasks & Subtasks
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setClientWorkflowTaskStatus(entry, tplTask, "In Progress")
+                              }
+                              className="h-7 px-2.5 rounded-lg border-slate-300 text-[11px] font-bold gap-1"
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                              <span>Reopen</span>
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       ) : (
