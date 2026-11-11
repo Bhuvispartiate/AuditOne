@@ -16,8 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { pmsStore } from "@/lib/data/store";
@@ -104,94 +103,100 @@ export default function EmployeesListPage() {
         </CardContent>
       </Card>
 
-      {/* Employees Table */}
-      <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[24px] overflow-hidden">
-        <CardHeader className="p-5 pb-3 border-b border-[#f3f4f6] flex flex-row items-center justify-between">
-          <CardTitle className="text-sm font-bold text-[#111827]">
-            Registered Professional Staff ({filteredEmployees.length})
-          </CardTitle>
-          <span className="text-xs text-[#9ca3af]">Active organization directory</span>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-24">Emp ID</TableHead>
-                <TableHead>Employee Name</TableHead>
-                <TableHead>Designation & Role</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Contact (Mobile / Email)</TableHead>
-                <TableHead>Reporting Supervisor</TableHead>
-                <TableHead>Employment Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEmployees.map((emp) => (
-                <TableRow key={emp.id} className="hover:bg-slate-50/80">
-                  <TableCell className="font-mono text-xs font-bold text-blue-700">
-                    {emp.employee_code}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-bold">
-                          {(emp.first_name?.[0] || "E") + (emp.last_name?.[0] || "")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <Link
-                          to={`/employees/${emp.id}`}
-                          className="font-semibold text-slate-900 hover:text-blue-600 text-sm leading-tight block"
-                        >
-                          {emp.full_name}
-                        </Link>
-                        <span className="text-[11px] text-slate-400 block font-mono">
-                          Joined: {formatDate(emp.joining_date)}
-                        </span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium text-slate-800 text-xs block">
-                      {emp.designation_name}
+      {/* Employees Box View */}
+      {filteredEmployees.length === 0 ? (
+        <Card className="rounded-[24px] border-[1.5px] border-slate-300">
+          <CardContent className="py-16 text-center space-y-2">
+            <UserCheck className="h-8 w-8 mx-auto text-slate-400" />
+            <p className="text-sm font-bold text-[#111827]">No employees found</p>
+            <p className="text-xs text-[#6b7280]">
+              Adjust filters or onboard a new team member.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {filteredEmployees.map((emp) => (
+            <Card
+              key={emp.id}
+              className="group rounded-[24px] border-[1.5px] border-slate-300 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(17,24,39,0.07)] hover:border-neutral-900 transition-all duration-200 flex flex-col justify-between"
+            >
+              <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                {/* Top Badges */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-[11px] font-bold text-[#111827] bg-slate-100 border border-slate-300 px-2.5 py-1 rounded-xl">
+                      {emp.employee_code}
                     </span>
-                    <Badge variant="outline" className="text-[9px] mt-0.5 bg-blue-50 text-blue-700 border-blue-200">
+                    <Badge variant="outline" className="text-[10px] rounded-full bg-blue-50 text-blue-700 border-blue-200">
                       {emp.role_code || "EMPLOYEE"}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-700">
-                    {emp.department_name}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    <div className="font-medium text-slate-800">{emp.mobile_number}</div>
-                    <div className="text-slate-400 text-[11px]">{emp.email}</div>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-600">
-                    {emp.supervisor_name || "Managing Partner"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={emp.employment_status === "Active" ? "success" : "secondary"}
-                      className="text-[10px]"
+                  </div>
+                  <Badge
+                    variant={emp.employment_status === "Active" ? "success" : "secondary"}
+                    className="text-[10px] rounded-full shrink-0"
+                  >
+                    {emp.employment_status}
+                  </Badge>
+                </div>
+
+                {/* Employee Avatar & Name */}
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-11 w-11 border border-slate-300">
+                    <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-bold">
+                      {(emp.first_name?.[0] || "E") + (emp.last_name?.[0] || "")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <Link
+                      to={`/employees/${emp.id}`}
+                      className="text-base font-extrabold text-[#111827] hover:text-blue-600 transition-colors block truncate"
                     >
-                      {emp.employment_status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Link to={`/employees/${emp.id}`}>
-                      <Button variant="ghost" size="sm" className="h-8 gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>Profile</span>
-                      </Button>
+                      {emp.full_name}
                     </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                    <p className="text-xs font-semibold text-[#6b7280] truncate">
+                      {emp.designation_name} &bull; {emp.department_name}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Contact & Reporting Box */}
+                <div className="grid grid-cols-1 gap-2 rounded-2xl bg-slate-50/80 border border-slate-300 p-3 text-xs">
+                  <div className="flex items-center gap-2 text-[#111827] truncate">
+                    <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate font-medium">{emp.email}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[#6b7280]">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                      {emp.mobile_number}
+                    </span>
+                    <span className="font-mono text-[10px]">
+                      Joined {formatDate(emp.joining_date)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Footer Action */}
+                <div className="flex items-center justify-between pt-3 border-t border-[#f3f4f6]">
+                  <span className="text-[11px] text-[#6b7280] truncate">
+                    Reports to: <strong className="text-[#111827]">{emp.supervisor_name || "Managing Partner"}</strong>
+                  </span>
+                  <Link to={`/employees/${emp.id}`}>
+                    <Button
+                      size="sm"
+                      className="h-8 px-3 rounded-xl bg-[#f3f4f6] hover:bg-neutral-900 text-[#111827] hover:text-white text-xs font-bold gap-1.5 transition-colors shadow-none"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>Profile</span>
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

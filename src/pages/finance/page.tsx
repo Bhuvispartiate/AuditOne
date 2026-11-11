@@ -18,8 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
@@ -150,7 +149,7 @@ function FinanceContent() {
 
       {/* Main KPI Cards: Real calculations */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[24px] border border-[#e5e7eb]">
+        <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.03)] rounded-[24px] border-[1.5px] border-slate-300">
           <CardContent className="p-6">
             <span className="text-xs font-semibold text-[#6b7280] uppercase tracking-wider">
               Total Invoiced Billing
@@ -164,7 +163,7 @@ function FinanceContent() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[24px] border border-[#e5e7eb]">
+        <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.03)] rounded-[24px] border-[1.5px] border-slate-300">
           <CardContent className="p-6">
             <span className="text-xs font-semibold text-[#6b7280] uppercase tracking-wider">
               Total Payments Received
@@ -178,7 +177,7 @@ function FinanceContent() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[24px] border border-[#e5e7eb]">
+        <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.03)] rounded-[24px] border-[1.5px] border-slate-300">
           <CardContent className="p-6">
             <span className="text-xs font-semibold text-[#6b7280] uppercase tracking-wider">
               Outstanding Receivables
@@ -223,82 +222,84 @@ function FinanceContent() {
         </CardContent>
       </Card>
 
-      {/* Payments Ledger Table */}
-      <Card className="shadow-xs overflow-hidden">
-        <CardHeader className="p-4 border-b border-slate-100 flex flex-row items-center justify-between">
-          <CardTitle className="text-base font-semibold text-slate-900">
-            Payment Receipts & Remittances Register ({filteredPayments.length})
-          </CardTitle>
-          <span className="text-xs text-slate-500">Verified transaction receipts</span>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-28">Payment #</TableHead>
-                <TableHead>Payment Date</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Associated Invoice</TableHead>
-                <TableHead>Payment Mode</TableHead>
-                <TableHead>Transaction Ref</TableHead>
-                <TableHead className="text-right">Amount (₹)</TableHead>
-                <TableHead>Received By</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredPayments.map((p) => (
-                <TableRow key={p.id} className="hover:bg-slate-50/80">
-                  <TableCell className="font-mono text-xs font-bold text-emerald-700">
-                    {p.payment_number}
-                  </TableCell>
-                  <TableCell className="text-xs font-medium">
-                    {formatDate(p.payment_date)}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-semibold text-slate-900 text-sm block">
-                      {p.client_name}
+      {/* Payments Box View */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-sm font-bold text-[#111827]">
+          Payment Receipts & Remittances ({filteredPayments.length})
+        </span>
+        <span className="text-xs text-[#9ca3af]">Verified transaction receipts</span>
+      </div>
+
+      {filteredPayments.length === 0 ? (
+        <Card className="rounded-[24px] border-[1.5px] border-slate-300">
+          <CardContent className="py-16 text-center space-y-2">
+            <CreditCard className="h-8 w-8 mx-auto text-slate-400" />
+            <p className="text-sm font-bold text-[#111827]">No payment receipts recorded</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {filteredPayments.map((p) => (
+            <Card
+              key={p.id}
+              className="group rounded-[24px] border-[1.5px] border-slate-300 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(17,24,39,0.07)] hover:border-neutral-900 transition-all duration-200 flex flex-col justify-between"
+            >
+              <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl">
+                      {p.payment_number}
                     </span>
-                    {p.remarks && (
-                      <span className="text-xs text-slate-500 block truncate max-w-xs">
-                        {p.remarks}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {p.invoice_number ? (
-                      <span className="font-mono text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-                        {p.invoice_number}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-400">Advance Retainer</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-medium text-[10px]">
+                    <Badge variant="outline" className="text-[10px] rounded-full">
                       {p.payment_mode}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-slate-600">
-                    {p.transaction_reference || "—"}
-                  </TableCell>
-                  <TableCell className="text-right font-bold text-slate-900">
-                    {formatCurrency(p.amount)}
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-700">
-                    {p.received_by_name}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="success" className="text-[10px]">
-                      {p.status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                  </div>
+                  <Badge variant="success" className="text-[10px] rounded-full shrink-0">
+                    {p.status}
+                  </Badge>
+                </div>
+
+                <div>
+                  <h3 className="text-base font-extrabold text-[#111827] truncate">
+                    {p.client_name || "Client Remittance"}
+                  </h3>
+                  <p className="text-xs text-[#6b7280] mt-0.5 line-clamp-1">
+                    {p.remarks || "Cleared collection entry"}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="rounded-2xl border border-slate-300 bg-slate-50/80 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
+                      Amount Received
+                    </span>
+                    <span className="text-sm font-extrabold text-[#111827] mt-0.5 block">
+                      {formatCurrency(p.amount)}
+                    </span>
+                  </div>
+                  <div className="rounded-2xl border border-slate-300 bg-white px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
+                      Invoice Ref
+                    </span>
+                    <span className="font-mono text-xs font-bold text-blue-700 mt-1 block truncate">
+                      {p.invoice_number || "Advance Retainer"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-[#f3f4f6] text-[11px] text-[#6b7280]">
+                  <span className="font-mono truncate max-w-[160px]">
+                    UTR: {p.transaction_reference || "—"}
+                  </span>
+                  <span className="font-medium shrink-0">
+                    {formatDate(p.payment_date)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Record Payment Dialog */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

@@ -4,24 +4,13 @@ import {
   CheckSquare,
   Plus,
   Search,
-  Filter,
-  Kanban,
-  List,
-  Calendar as CalendarIcon,
-  Clock,
-  AlertCircle,
-  CheckCircle2,
-  MoreVertical,
   User,
-  FolderGit2,
-  MessageSquare,
-  Paperclip
+  Calendar as CalendarIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
@@ -33,7 +22,6 @@ function TasksContent() {
   const [searchParams] = useSearchParams();
   const autoCreate = searchParams.get("create") === "true";
 
-  const [view, setView] = useState<"list" | "kanban" | "calendar" | "timeline">("kanban");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [isModalOpen, setIsModalOpen] = useState(autoCreate);
@@ -110,56 +98,39 @@ function TasksContent() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* View Toggles */}
-          <div className="bg-white p-1 rounded-2xl flex items-center gap-1 border border-[#e5e7eb] shadow-xs">
-            <button
-              onClick={() => setView("kanban")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                view === "kanban" ? "bg-neutral-900 text-white" : "text-[#6b7280] hover:text-[#111827]"
-              }`}
-            >
-              <Kanban className="h-3.5 w-3.5" />
-              <span>Kanban</span>
-            </button>
-            <button
-              onClick={() => setView("list")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                view === "list" ? "bg-neutral-900 text-white" : "text-[#6b7280] hover:text-[#111827]"
-              }`}
-            >
-              <List className="h-3.5 w-3.5" />
-              <span>List</span>
-            </button>
-            <button
-              onClick={() => setView("calendar")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                view === "calendar" ? "bg-neutral-900 text-white" : "text-[#6b7280] hover:text-[#111827]"
-              }`}
-            >
-              <CalendarIcon className="h-3.5 w-3.5" />
-              <span>Calendar</span>
-            </button>
-            <button
-              onClick={() => setView("timeline")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                view === "timeline" ? "bg-neutral-900 text-white" : "text-[#6b7280] hover:text-[#111827]"
-              }`}
-            >
-              <Clock className="h-3.5 w-3.5" />
-              <span>Timeline</span>
-            </button>
-          </div>
+        <Button
+          onClick={() => setIsModalOpen(true)}
+          size="sm"
+          className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Create Task</span>
+        </Button>
+      </div>
 
-          <Button
-            onClick={() => setIsModalOpen(true)}
-            size="sm"
-            className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Task</span>
-          </Button>
-        </div>
+      {/* Status Summary Boxes */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {(["ALL", ...kanbanColumns] as const).map((st) => {
+          const count = st === "ALL" ? tasks.length : tasks.filter((t) => t.status === st).length;
+          const active = statusFilter === st;
+          return (
+            <button
+              key={st}
+              type="button"
+              onClick={() => setStatusFilter(st)}
+              className={`text-left p-4 rounded-[20px] border-[1.5px] transition-all ${
+                active
+                  ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
+                  : "bg-white text-[#111827] border-slate-300 hover:border-neutral-900"
+              }`}
+            >
+              <span className={`text-[10px] font-bold uppercase tracking-wider block ${active ? "text-neutral-300" : "text-[#6b7280]"}`}>
+                {st === "ALL" ? "All Tasks" : st}
+              </span>
+              <span className="text-xl font-extrabold mt-0.5 block">{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filter and Search Bar */}
@@ -172,14 +143,14 @@ function TasksContent() {
               placeholder="Search tasks by title, code, or project..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-10 rounded-2xl border-[#e5e7eb] text-xs font-medium"
+              className="pl-10 h-10 rounded-2xl border-slate-300 text-xs font-medium"
             />
           </div>
 
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-medium focus:ring-1 focus:ring-blue-600 focus:outline-none"
+            className="h-10 rounded-2xl border border-slate-300 bg-white px-3.5 text-xs font-semibold text-[#111827] focus:outline-none"
           >
             <option value="ALL">All Statuses</option>
             <option value="To Do">To Do</option>
@@ -190,231 +161,102 @@ function TasksContent() {
         </CardContent>
       </Card>
 
-      {/* VIEW 1: KANBAN BOARD */}
-      {view === "kanban" && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
-          {kanbanColumns.map((col) => {
-            const colTasks = filteredTasks.filter((t) => t.status === col);
-            return (
-              <div key={col} className="bg-slate-100/70 p-3 rounded-xl border border-slate-200/80 min-h-[500px]">
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs uppercase tracking-wider text-slate-700">
-                      {col}
-                    </span>
-                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-                      {colTasks.length}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {colTasks.map((task) => (
-                    <Card
-                      key={task.id}
-                      className="shadow-xs hover:shadow-md transition-all border-slate-200 cursor-pointer bg-white"
-                    >
-                      <CardContent className="p-3.5 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-mono text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
-                            {task.task_code}
-                          </span>
-                          <Badge
-                            variant={
-                              task.priority === "Urgent"
-                                ? "destructive"
-                                : task.priority === "High"
-                                ? "warning"
-                                : "outline"
-                            }
-                            className="text-[9px] px-1.5 py-0"
-                          >
-                            {task.priority}
-                          </Badge>
-                        </div>
-
-                        <h4 className="font-semibold text-xs text-slate-900 leading-snug line-clamp-2">
-                          {task.title}
-                        </h4>
-
-                        <p className="text-[11px] text-slate-500 font-medium truncate">
-                          {task.project_name}
-                        </p>
-
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                          <span className="flex items-center gap-1 font-medium text-slate-700">
-                            <User className="h-3 w-3 text-slate-400" />
-                            {task.assigned_employee_name?.split(" ")[0] || "Unassigned"}
-                          </span>
-                          <span className="text-[10px] text-slate-400">
-                            Due {formatDate(task.due_date)}
-                          </span>
-                        </div>
-
-                        {/* Quick Move Action */}
-                        <div className="pt-1 flex items-center gap-1 justify-end">
-                          <select
-                            value={task.status}
-                            onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
-                            className="text-[10px] bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 font-medium text-slate-600 focus:outline-none"
-                          >
-                            <option value="To Do">Move: To Do</option>
-                            <option value="In Progress">Move: In Progress</option>
-                            <option value="Under Review">Move: Review</option>
-                            <option value="Completed">Move: Completed</option>
-                          </select>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* VIEW 2: LIST VIEW */}
-      {view === "list" && (
-        <Card className="shadow-xs overflow-hidden">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-24">Task ID</TableHead>
-                  <TableHead>Task Title</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Assignee</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTasks.map((t) => (
-                  <TableRow key={t.id} className="hover:bg-slate-50/80">
-                    <TableCell className="font-mono text-xs font-bold text-blue-700">
-                      {t.task_code}
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-semibold text-slate-900 block text-xs">
-                        {t.title}
-                      </span>
-                      {t.description && (
-                        <span className="text-[11px] text-slate-500 line-clamp-1">
-                          {t.description}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-700 font-medium">
-                      {t.project_name}
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-700">
-                      {t.assigned_employee_name || "Unassigned"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          t.priority === "Urgent"
-                            ? "destructive"
-                            : t.priority === "High"
-                            ? "warning"
-                            : "outline"
-                        }
-                        className="text-[10px]"
-                      >
-                        {t.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs">{formatDate(t.due_date)}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={t.status === "Completed" ? "success" : "secondary"}
-                        className="text-[10px]"
-                      >
-                        {t.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <select
-                        value={t.status}
-                        onChange={(e) => handleStatusChange(t.id, e.target.value as TaskStatus)}
-                        className="text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-600 focus:outline-none"
-                      >
-                        <option value="To Do">To Do</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Under Review">Under Review</option>
-                        <option value="Completed">Completed</option>
-                      </select>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      {/* TASKS BOX VIEW ONLY */}
+      {filteredTasks.length === 0 ? (
+        <Card className="rounded-[24px] border-[1.5px] border-slate-300">
+          <CardContent className="py-16 text-center space-y-2">
+            <CheckSquare className="h-8 w-8 mx-auto text-slate-400" />
+            <p className="text-sm font-bold text-[#111827]">No tasks found</p>
+            <p className="text-xs text-[#6b7280]">
+              Adjust search or filters, or create a new deliverable task.
+            </p>
           </CardContent>
         </Card>
-      )}
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {filteredTasks.map((task) => (
+            <Card
+              key={task.id}
+              className="group rounded-[24px] border-[1.5px] border-slate-300 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(17,24,39,0.07)] hover:border-neutral-900 transition-all duration-200 flex flex-col justify-between"
+            >
+              <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-[11px] font-bold text-[#111827] bg-slate-100 border border-slate-300 px-2.5 py-1 rounded-xl">
+                      {task.task_code}
+                    </span>
+                    <Badge
+                      variant={
+                        task.priority === "Urgent"
+                          ? "destructive"
+                          : task.priority === "High"
+                          ? "warning"
+                          : "outline"
+                      }
+                      className="text-[10px] rounded-full"
+                    >
+                      {task.priority}
+                    </Badge>
+                  </div>
+                  <Badge
+                    variant={task.status === "Completed" ? "success" : "secondary"}
+                    className="text-[10px] rounded-full shrink-0"
+                  >
+                    {task.status}
+                  </Badge>
+                </div>
 
-      {/* VIEW 3: CALENDAR VIEW */}
-      {view === "calendar" && (
-        <Card className="shadow-xs p-6">
-          <CardHeader className="p-0 pb-4 border-b">
-            <CardTitle className="text-base font-semibold">Monthly Calendar Deadlines</CardTitle>
-            <CardDescription className="text-xs">Visual deadline map for task deliverables</CardDescription>
-          </CardHeader>
-          <div className="grid grid-cols-7 gap-2 pt-4">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-              <div key={day} className="text-center font-bold text-xs uppercase text-slate-400 py-1">
-                {day}
-              </div>
-            ))}
-            {Array.from({ length: 35 }).map((_, i) => {
-              const dayNum = (i % 31) + 1;
-              const hasTask = dayNum === 25 || dayNum === 10 || dayNum === 15;
-              return (
-                <div key={i} className="min-h-[85px] p-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors">
-                  <span className="text-xs font-semibold text-slate-600">{dayNum}</span>
-                  {hasTask && (
-                    <div className="mt-1 p-1 bg-blue-50 text-blue-800 rounded border border-blue-200 text-[10px] font-medium truncate">
-                      Due: Audit Filing
-                    </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-[#111827] leading-snug">
+                    {task.title}
+                  </h4>
+                  {task.description && (
+                    <p className="text-xs text-[#6b7280] mt-1 line-clamp-2 leading-relaxed">
+                      {task.description}
+                    </p>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
 
-      {/* VIEW 4: TIMELINE VIEW */}
-      {view === "timeline" && (
-        <Card className="shadow-xs p-6">
-          <CardHeader className="p-0 pb-4 border-b">
-            <CardTitle className="text-base font-semibold">Gantt & Execution Timeline</CardTitle>
-            <CardDescription className="text-xs">Sequential task delivery track</CardDescription>
-          </CardHeader>
-          <div className="space-y-4 pt-4">
-            {filteredTasks.map((t, idx) => (
-              <div key={t.id} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-900">{t.task_code}: {t.title}</span>
-                  <span className="text-slate-500 font-mono text-[11px]">Due {formatDate(t.due_date)}</span>
-                </div>
-                <div className="w-full bg-slate-100 h-6 rounded-md overflow-hidden relative border border-slate-200">
-                  <div
-                    className={`h-full rounded-md flex items-center px-2 text-[10px] font-bold text-white ${
-                      t.status === "Completed" ? "bg-emerald-600" : "bg-blue-600"
-                    }`}
-                    style={{ width: `${(idx + 1) * 22}%` }}
-                  >
-                    {t.status}
+                <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-slate-50/80 border border-slate-300 p-3 text-xs">
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
+                      Project
+                    </span>
+                    <span className="font-bold text-[#111827] mt-0.5 block truncate">
+                      {task.project_name || "General"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
+                      Assignee
+                    </span>
+                    <span className="font-bold text-[#111827] mt-0.5 flex items-center gap-1 truncate">
+                      <User className="h-3 w-3 text-slate-400 shrink-0" />
+                      <span className="truncate">{task.assigned_employee_name || "Unassigned"}</span>
+                    </span>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+
+                <div className="flex items-center justify-between pt-3 border-t border-[#f3f4f6] gap-2">
+                  <span className="text-xs font-medium text-[#6b7280] flex items-center gap-1">
+                    <CalendarIcon className="h-3.5 w-3.5 text-slate-400" />
+                    Due {formatDate(task.due_date)}
+                  </span>
+                  <select
+                    value={task.status}
+                    onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
+                    className="h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827] focus:outline-none"
+                  >
+                    <option value="To Do">To Do</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Under Review">Under Review</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* Create Task Dialog */}

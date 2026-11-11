@@ -9,15 +9,12 @@ import {
   Building2,
   UserCheck,
   Briefcase,
-  LayoutGrid,
-  List,
   ArrowUpRight,
   FileCheck2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
 import { formatCurrency } from "@/lib/utils";
@@ -30,7 +27,6 @@ export default function ClientsListPage() {
   const [search, setSearch] = useState(initialSearch);
   const [constitutionFilter, setConstitutionFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [viewMode, setViewMode] = useState<"box" | "table">("box");
 
   useEffect(() => {
     const querySearch = searchParams.get("search");
@@ -146,7 +142,7 @@ export default function ClientsListPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-10 rounded-2xl border border-[#e5e7eb] bg-white px-3.5 text-xs font-semibold text-[#111827] focus:outline-none"
+                className="h-10 rounded-2xl border border-slate-300 bg-white px-3.5 text-xs font-semibold text-[#111827] focus:outline-none"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="Active">Active</option>
@@ -154,34 +150,6 @@ export default function ClientsListPage() {
                 <option value="On Hold">On Hold</option>
                 <option value="Archived">Archived</option>
               </select>
-
-              {/* View Mode Switcher */}
-              <div className="flex items-center rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] p-1">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("box")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    viewMode === "box"
-                      ? "bg-white text-[#111827] shadow-xs"
-                      : "text-[#6b7280] hover:text-[#111827]"
-                  }`}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  <span>Box</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("table")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    viewMode === "table"
-                      ? "bg-white text-[#111827] shadow-xs"
-                      : "text-[#6b7280] hover:text-[#111827]"
-                  }`}
-                >
-                  <List className="h-3.5 w-3.5" />
-                  <span>List</span>
-                </button>
-              </div>
             </div>
           </div>
         </CardContent>
@@ -221,8 +189,8 @@ export default function ClientsListPage() {
             </div>
           </CardContent>
         </Card>
-      ) : viewMode === "box" ? (
-        /* Box / Bento Grid View */
+      ) : (
+        /* Box View Only */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {filteredClients.map((client) => {
             const activeServicesCount = allEngagements.filter(
@@ -350,93 +318,6 @@ export default function ClientsListPage() {
             );
           })}
         </div>
-      ) : (
-        /* Table View (Optional toggle) */
-        <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[24px] overflow-hidden">
-          <CardHeader className="p-5 pb-3 border-b border-[#f3f4f6] flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-bold text-[#111827]">
-              Registered Clients ({filteredClients.length})
-            </CardTitle>
-            <span className="text-xs text-[#9ca3af]">
-              Showing all verified client master records
-            </span>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-28">Client ID</TableHead>
-                  <TableHead>Client & Legal Name</TableHead>
-                  <TableHead>Constitution</TableHead>
-                  <TableHead>PAN / GSTIN</TableHead>
-                  <TableHead>Relationship Mgr</TableHead>
-                  <TableHead className="text-right">Total Invoiced</TableHead>
-                  <TableHead className="text-right">Outstanding</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClients.map((client) => (
-                  <TableRow key={client.id} className="hover:bg-[#f9fafb]">
-                    <TableCell>
-                      <span className="font-mono text-xs font-bold text-[#111827] bg-[#f3f4f6] px-2 py-0.5 rounded-lg">
-                        {client.client_code}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        to={`/clients/${client.id}`}
-                        className="font-bold text-[#111827] hover:text-[#84cc16] block text-xs leading-tight transition-colors"
-                      >
-                        {client.client_name}
-                      </Link>
-                      <span className="text-[11px] text-[#9ca3af] block mt-0.5 truncate max-w-xs">
-                        {client.legal_name}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="text-[10px] font-semibold rounded-full">
-                        {client.constitution}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs font-mono">
-                      <div className="font-semibold text-[#111827]">{client.registration?.pan || "—"}</div>
-                      <div className="text-[#9ca3af] text-[10px]">
-                        {client.registration?.gstin || "No GST"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-[#6b7280]">
-                      {client.relationship_manager_name || "Unassigned"}
-                    </TableCell>
-                    <TableCell className="text-right text-xs font-semibold text-[#111827]">
-                      {formatCurrency(client.total_invoiced_amount || 0)}
-                    </TableCell>
-                    <TableCell className="text-right text-xs font-bold text-[#f97316]">
-                      {formatCurrency(client.outstanding_amount || 0)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={client.status === "Active" ? "lime" : "secondary"}
-                        className="text-[10px] rounded-full"
-                      >
-                        {client.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link to={`/clients/${client.id}`}>
-                        <Button variant="ghost" size="sm" className="h-8 gap-1 rounded-xl text-xs font-bold text-[#111827] hover:bg-[#f3f4f6]">
-                          <Eye className="h-3.5 w-3.5" />
-                          <span>360° Profile</span>
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
       )}
     </div>
   );

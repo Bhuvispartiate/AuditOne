@@ -29,7 +29,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { pmsStore } from "@/lib/data/store";
 import { formatCurrency, formatDate, formatDateTime, formatBytes } from "@/lib/utils";
 import { toast } from "sonner";
@@ -456,35 +455,43 @@ export default function Client360ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Table of Contracted Services */}
+          {/* Box Grid of Contracted Services */}
           <Card className="shadow-xs">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Service Code</TableHead>
-                    <TableHead>Service Name</TableHead>
-                    <TableHead>Agreed Fee</TableHead>
-                    <TableHead>Billing Frequency</TableHead>
-                    <TableHead>Start Date</TableHead>
-                    <TableHead>Responsible Dept</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <CardContent className="p-5">
+              {engagements.length === 0 ? (
+                <p className="text-center py-8 text-xs text-slate-500">No services contracted for this client yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {engagements.map((eng) => (
-                    <TableRow key={eng.id}>
-                      <TableCell className="font-mono text-xs font-semibold text-blue-700">{eng.service_code}</TableCell>
-                      <TableCell className="font-medium text-slate-900">{eng.service_name}</TableCell>
-                      <TableCell className="font-semibold text-slate-900">{formatCurrency(eng.agreed_fee)}</TableCell>
-                      <TableCell><Badge variant="secondary">{eng.billing_frequency}</Badge></TableCell>
-                      <TableCell className="text-xs">{formatDate(eng.start_date)}</TableCell>
-                      <TableCell className="text-xs">{eng.department_name}</TableCell>
-                      <TableCell><Badge variant="success">{eng.status}</Badge></TableCell>
-                    </TableRow>
+                    <div key={eng.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                          {eng.service_code}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-[10px]">{eng.billing_frequency}</Badge>
+                          <Badge variant="success" className="text-[10px]">{eng.status}</Badge>
+                        </div>
+                      </div>
+                      <h4 className="font-bold text-sm text-slate-900">{eng.service_name}</h4>
+                      <div className="grid grid-cols-3 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Agreed Fee</span>
+                          <span className="font-bold text-slate-900">{formatCurrency(eng.agreed_fee)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Start Date</span>
+                          <span className="font-semibold text-slate-800">{formatDate(eng.start_date)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Department</span>
+                          <span className="font-semibold text-slate-800 truncate block">{eng.department_name}</span>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -492,7 +499,7 @@ export default function Client360ProfilePage() {
         {/* 6. PROJECTS TAB */}
         <TabsContent value="projects">
           <Card className="shadow-xs">
-            <CardHeader className="p-4 border-b border-slate-100 flex flex-row items-center justify-between">
+            <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold">Client Projects ({clientProjects.length})</CardTitle>
               <Link to={`/projects/new?clientId=${client.id}`}>
                 <Button size="sm" className="bg-blue-600 text-white gap-1">
@@ -500,42 +507,41 @@ export default function Client360ProfilePage() {
                 </Button>
               </Link>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Project Name</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Progress</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <CardContent className="p-5">
+              {clientProjects.length === 0 ? (
+                <p className="text-center py-8 text-xs text-slate-500">No projects linked yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {clientProjects.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-mono text-xs font-bold text-blue-700">{p.project_code}</TableCell>
-                      <TableCell className="font-semibold text-slate-900">{p.project_name}</TableCell>
-                      <TableCell><Badge variant={p.priority === "Urgent" ? "destructive" : "warning"}>{p.priority}</Badge></TableCell>
-                      <TableCell className="text-xs">{formatDate(p.due_date)}</TableCell>
-                      <TableCell>
-                        <span className="text-xs font-bold">{p.progress_percentage}%</span>
-                        <div className="w-16 bg-slate-200 h-1.5 rounded-full mt-1">
+                    <div key={p.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                          {p.project_code}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant={p.priority === "Urgent" ? "destructive" : "warning"} className="text-[10px]">{p.priority}</Badge>
+                          <Badge variant="outline" className="text-[10px]">{p.status}</Badge>
+                        </div>
+                      </div>
+                      <h4 className="font-bold text-sm text-slate-900">{p.project_name}</h4>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500">Due {formatDate(p.due_date)}</span>
+                          <span className="font-bold">{p.progress_percentage}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 h-1.5 rounded-full">
                           <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${p.progress_percentage}%` }} />
                         </div>
-                      </TableCell>
-                      <TableCell><Badge variant="outline">{p.status}</Badge></TableCell>
-                      <TableCell className="text-right">
+                      </div>
+                      <div className="pt-2 border-t border-slate-200 flex justify-end">
                         <Link to={`/projects`}>
-                          <Button variant="ghost" size="sm" className="text-blue-600">View</Button>
+                          <Button variant="outline" size="sm" className="h-7 text-xs border-slate-300">Open Projects</Button>
                         </Link>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -543,35 +549,31 @@ export default function Client360ProfilePage() {
         {/* 7. TASKS TAB */}
         <TabsContent value="tasks">
           <Card className="shadow-xs">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Task Code</TableHead>
-                    <TableHead>Task Title</TableHead>
-                    <TableHead>Assignee</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clientTasks.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-slate-500">No tasks created yet for this client.</TableCell></TableRow>
-                  ) : (
-                    clientTasks.map((t) => (
-                      <TableRow key={t.id}>
-                        <TableCell className="font-mono text-xs text-blue-700 font-bold">{t.task_code}</TableCell>
-                        <TableCell className="font-medium text-slate-900">{t.title}</TableCell>
-                        <TableCell className="text-xs">{t.assigned_employee_name || "Unassigned"}</TableCell>
-                        <TableCell className="text-xs">{formatDate(t.due_date)}</TableCell>
-                        <TableCell><Badge variant={t.priority === "Urgent" ? "destructive" : "outline"}>{t.priority}</Badge></TableCell>
-                        <TableCell><Badge variant={t.status === "Completed" ? "success" : "secondary"}>{t.status}</Badge></TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+            <CardContent className="p-5">
+              {clientTasks.length === 0 ? (
+                <p className="text-center py-8 text-xs text-slate-500">No tasks created yet for this client.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {clientTasks.map((t) => (
+                    <div key={t.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-2.5 hover:border-neutral-900 transition-all">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs text-blue-700 font-bold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                          {t.task_code}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant={t.priority === "Urgent" ? "destructive" : "outline"} className="text-[10px]">{t.priority}</Badge>
+                          <Badge variant={t.status === "Completed" ? "success" : "secondary"} className="text-[10px]">{t.status}</Badge>
+                        </div>
+                      </div>
+                      <h4 className="font-bold text-sm text-slate-900">{t.title}</h4>
+                      <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-200">
+                        <span>Assignee: <strong className="text-slate-800">{t.assigned_employee_name || "Unassigned"}</strong></span>
+                        <span>Due {formatDate(t.due_date)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -633,7 +635,7 @@ export default function Client360ProfilePage() {
           </div>
 
           <Card className="shadow-xs">
-            <CardHeader className="p-4 border-b border-slate-100 flex flex-row items-center justify-between">
+            <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold">Payment Receipts & Remittances ({clientPayments.length})</CardTitle>
               <Link to={`/finance?action=record&clientId=${client.id}`}>
                 <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1">
@@ -641,33 +643,38 @@ export default function Client360ProfilePage() {
                 </Button>
               </Link>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Payment Ref</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Mode</TableHead>
-                    <TableHead>Txn Reference</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Received By</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <CardContent className="p-5">
+              {clientPayments.length === 0 ? (
+                <p className="text-center py-8 text-xs text-slate-500">No payments recorded for this client yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {clientPayments.map((pay) => (
-                    <TableRow key={pay.id}>
-                      <TableCell className="font-mono text-xs font-bold text-emerald-700">{pay.payment_number}</TableCell>
-                      <TableCell className="text-xs">{formatDate(pay.payment_date)}</TableCell>
-                      <TableCell><Badge variant="outline">{pay.payment_mode}</Badge></TableCell>
-                      <TableCell className="font-mono text-xs">{pay.transaction_reference || "—"}</TableCell>
-                      <TableCell className="text-right font-bold text-slate-900">{formatCurrency(pay.amount)}</TableCell>
-                      <TableCell className="text-xs">{pay.received_by_name}</TableCell>
-                      <TableCell><Badge variant="success">{pay.status}</Badge></TableCell>
-                    </TableRow>
+                    <div key={pay.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-2.5 hover:border-neutral-900 transition-all">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                          {pay.payment_number}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="text-[10px]">{pay.payment_mode}</Badge>
+                          <Badge variant="success" className="text-[10px]">{pay.status}</Badge>
+                        </div>
+                      </div>
+                      <div className="text-lg font-extrabold text-slate-900">{formatCurrency(pay.amount)}</div>
+                      <div className="grid grid-cols-2 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Date</span>
+                          <span className="font-semibold text-slate-800">{formatDate(pay.payment_date)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Txn Ref</span>
+                          <span className="font-mono font-semibold text-slate-800 truncate block">{pay.transaction_reference || "—"}</span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500">Received by {pay.received_by_name}</p>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -675,7 +682,7 @@ export default function Client360ProfilePage() {
         {/* 10. INVOICES TAB */}
         <TabsContent value="invoices">
           <Card className="shadow-xs">
-            <CardHeader className="p-4 border-b border-slate-100 flex flex-row items-center justify-between">
+            <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold">Client Tax Invoices ({clientInvoices.length})</CardTitle>
               <Link to={`/invoices/new?clientId=${client.id}`}>
                 <Button size="sm" className="bg-blue-600 text-white gap-1">
@@ -683,39 +690,43 @@ export default function Client360ProfilePage() {
                 </Button>
               </Link>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead className="text-right">Grand Total</TableHead>
-                    <TableHead className="text-right">Paid</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <CardContent className="p-5">
+              {clientInvoices.length === 0 ? (
+                <p className="text-center py-8 text-xs text-slate-500">No invoices generated yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {clientInvoices.map((inv) => (
-                    <TableRow key={inv.id}>
-                      <TableCell className="font-mono text-xs font-bold text-blue-700">{inv.invoice_number}</TableCell>
-                      <TableCell className="text-xs">{formatDate(inv.invoice_date)}</TableCell>
-                      <TableCell className="text-xs">{formatDate(inv.due_date)}</TableCell>
-                      <TableCell className="text-right font-bold text-slate-900">{formatCurrency(inv.grand_total)}</TableCell>
-                      <TableCell className="text-right font-semibold text-emerald-700">{formatCurrency(inv.paid_amount)}</TableCell>
-                      <TableCell className="text-right font-semibold text-amber-700">{formatCurrency(inv.outstanding_balance)}</TableCell>
-                      <TableCell><Badge variant={inv.status === "Paid" ? "success" : "warning"}>{inv.status}</Badge></TableCell>
-                      <TableCell className="text-right">
+                    <div key={inv.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                          {inv.invoice_number}
+                        </span>
+                        <Badge variant={inv.status === "Paid" ? "success" : "warning"} className="text-[10px]">{inv.status}</Badge>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Total</span>
+                          <span className="font-bold text-slate-900">{formatCurrency(inv.grand_total)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Paid</span>
+                          <span className="font-bold text-emerald-700">{formatCurrency(inv.paid_amount)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Balance</span>
+                          <span className="font-bold text-amber-700">{formatCurrency(inv.outstanding_balance)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200">
+                        <span className="text-slate-500">Due {formatDate(inv.due_date)}</span>
                         <Link to={`/invoices/${inv.id}`}>
-                          <Button variant="ghost" size="sm" className="text-blue-600">View / PDF</Button>
+                          <Button variant="outline" size="sm" className="h-7 text-xs border-slate-300">View / PDF</Button>
                         </Link>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -723,7 +734,7 @@ export default function Client360ProfilePage() {
         {/* 11. DOCUMENTS TAB (Cloudflare R2) */}
         <TabsContent value="documents" className="space-y-4">
           <Card className="shadow-xs">
-            <CardHeader className="p-4 border-b border-slate-100 flex flex-row items-center justify-between">
+            <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-base font-semibold">Client Cloudflare R2 Documents</CardTitle>
                 <CardDescription className="text-xs">Secure private bucket storage with presigned link access</CardDescription>
@@ -734,49 +745,36 @@ export default function Client360ProfilePage() {
                 </Button>
               </Link>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>File Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead>Uploaded By</TableHead>
-                    <TableHead>Upload Date</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clientDocuments.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-500">No documents uploaded for this client yet.</TableCell></TableRow>
-                  ) : (
-                    clientDocuments.map((doc) => (
-                      <TableRow key={doc.id}>
-                        <TableCell className="font-semibold text-slate-900 flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-blue-600" />
-                          <span>{doc.file_name}</span>
-                        </TableCell>
-                        <TableCell><Badge variant="secondary">{doc.category}</Badge></TableCell>
-                        <TableCell className="text-xs">{formatBytes(doc.file_size)}</TableCell>
-                        <TableCell className="text-xs font-mono">v{doc.version_number}</TableCell>
-                        <TableCell className="text-xs">{doc.uploaded_by_name}</TableCell>
-                        <TableCell className="text-xs">{formatDate(doc.created_at)}</TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toast.success(`Simulating presigned Cloudflare R2 download for ${doc.file_name}`)}
-                            className="gap-1 text-xs"
-                          >
-                            <Download className="h-3.5 w-3.5" /> Download
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+            <CardContent className="p-5">
+              {clientDocuments.length === 0 ? (
+                <p className="text-center py-8 text-xs text-slate-500">No documents uploaded for this client yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {clientDocuments.map((doc) => (
+                    <div key={doc.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge variant="secondary" className="text-[10px]">{doc.category}</Badge>
+                        <span className="font-mono text-[11px] font-bold bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg">v{doc.version_number}</span>
+                      </div>
+                      <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
+                        <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                        <span className="truncate">{doc.file_name}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-200">
+                        <span>{formatBytes(doc.file_size)} &bull; {formatDate(doc.created_at)}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toast.success(`Simulating presigned Cloudflare R2 download for ${doc.file_name}`)}
+                          className="h-7 gap-1 text-xs border-slate-300"
+                        >
+                          <Download className="h-3.5 w-3.5" /> Download
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -784,26 +782,26 @@ export default function Client360ProfilePage() {
         {/* 12. ACTIVITY HISTORY TAB */}
         <TabsContent value="activity">
           <Card className="shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
+            <CardHeader className="pb-3 border-b border-slate-200">
               <CardTitle className="text-base font-semibold text-slate-900">
                 Audit Trail & Historic Activity
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <div className="flex items-start gap-3 text-xs border-b pb-3 border-slate-100">
-                  <div className="h-2 w-2 rounded-full bg-blue-600 mt-1 shrink-0" />
+            <CardContent className="p-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start gap-3 text-xs">
+                  <div className="h-2.5 w-2.5 rounded-full bg-blue-600 mt-1 shrink-0" />
                   <div>
-                    <span className="font-semibold text-slate-900">Client Onboarded & Master Record Created</span>
+                    <span className="font-bold text-slate-900">Client Onboarded & Master Record Created</span>
                     <p className="text-slate-500 text-[11px] mt-0.5">By {client.relationship_manager_name || "Admin"}</p>
                     <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(client.created_at)}</span>
                   </div>
                 </div>
                 {clientInvoices.map((inv) => (
-                  <div key={inv.id} className="flex items-start gap-3 text-xs border-b pb-3 border-slate-100">
-                    <div className="h-2 w-2 rounded-full bg-emerald-600 mt-1 shrink-0" />
+                  <div key={inv.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start gap-3 text-xs">
+                    <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 mt-1 shrink-0" />
                     <div>
-                      <span className="font-semibold text-slate-900">Invoice {inv.invoice_number} Raised for {formatCurrency(inv.grand_total)}</span>
+                      <span className="font-bold text-slate-900">Invoice {inv.invoice_number} Raised for {formatCurrency(inv.grand_total)}</span>
                       <p className="text-slate-500 text-[11px] mt-0.5">Place of supply: {inv.place_of_supply}</p>
                       <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(inv.created_at)}</span>
                     </div>

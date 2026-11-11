@@ -13,9 +13,8 @@ import {
   Percent
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -195,45 +194,51 @@ export default function ReportsPage() {
           </div>
 
           <Card className="shadow-xs">
-            <CardHeader className="p-4 border-b flex flex-row items-center justify-between">
+            <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold">Statutory GST Sales Register</CardTitle>
-              <Button size="sm" variant="outline" onClick={exportFinanceExcel} className="text-xs gap-1">
+              <Button size="sm" variant="outline" onClick={exportFinanceExcel} className="text-xs gap-1 rounded-xl border-slate-300">
                 <Download className="h-3.5 w-3.5" /> Export Excel
               </Button>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Client Legal Entity</TableHead>
-                    <TableHead>GSTIN</TableHead>
-                    <TableHead className="text-right">Taxable</TableHead>
-                    <TableHead className="text-right">CGST</TableHead>
-                    <TableHead className="text-right">SGST</TableHead>
-                    <TableHead className="text-right">IGST</TableHead>
-                    <TableHead className="text-right">Grand Total</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <CardContent className="p-5">
+              {invoices.length === 0 ? (
+                <p className="text-center py-8 text-xs text-slate-500">No invoices available.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {invoices.map((inv) => (
-                    <TableRow key={inv.id}>
-                      <TableCell className="font-mono text-xs font-bold text-blue-700">{inv.invoice_number}</TableCell>
-                      <TableCell className="text-xs">{formatDate(inv.invoice_date)}</TableCell>
-                      <TableCell className="font-medium text-slate-900 text-xs">{inv.client_legal_name}</TableCell>
-                      <TableCell className="font-mono text-xs">{inv.client_gstin || "Unregistered"}</TableCell>
-                      <TableCell className="text-right text-xs">{formatCurrency(inv.taxable_amount)}</TableCell>
-                      <TableCell className="text-right text-xs">{formatCurrency(inv.cgst_amount)}</TableCell>
-                      <TableCell className="text-right text-xs">{formatCurrency(inv.sgst_amount)}</TableCell>
-                      <TableCell className="text-right text-xs">{formatCurrency(inv.igst_amount)}</TableCell>
-                      <TableCell className="text-right text-xs font-bold">{formatCurrency(inv.grand_total)}</TableCell>
-                      <TableCell><Badge variant="outline">{inv.status}</Badge></TableCell>
-                    </TableRow>
+                    <div key={inv.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                          {inv.invoice_number}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] rounded-full">{inv.status}</Badge>
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-slate-900 truncate">{inv.client_legal_name}</p>
+                        <p className="font-mono text-[11px] text-slate-500">{inv.client_gstin || "Unregistered"} &bull; {formatDate(inv.invoice_date)}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Taxable</span>
+                          <span className="font-bold text-slate-800">{formatCurrency(inv.taxable_amount)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Grand Total</span>
+                          <span className="font-bold text-slate-900">{formatCurrency(inv.grand_total)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">CGST / SGST</span>
+                          <span className="font-semibold text-blue-700">{formatCurrency(inv.cgst_amount + inv.sgst_amount)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">IGST</span>
+                          <span className="font-semibold text-indigo-700">{formatCurrency(inv.igst_amount)}</span>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -241,39 +246,47 @@ export default function ReportsPage() {
         {/* CLIENT MASTER REPORTS */}
         <TabsContent value="clients" className="space-y-6">
           <Card className="shadow-xs">
-            <CardHeader className="p-4 border-b flex flex-row items-center justify-between">
+            <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold">Client Commercial & Compliance Summary</CardTitle>
-              <Button size="sm" variant="outline" onClick={exportClientExcel} className="text-xs gap-1">
+              <Button size="sm" variant="outline" onClick={exportClientExcel} className="text-xs gap-1 rounded-xl border-slate-300">
                 <Download className="h-3.5 w-3.5" /> Export Excel
               </Button>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Client ID</TableHead>
-                    <TableHead>Client Name</TableHead>
-                    <TableHead>Constitution</TableHead>
-                    <TableHead className="text-right">Total Invoiced</TableHead>
-                    <TableHead className="text-right">Total Received</TableHead>
-                    <TableHead className="text-right">Outstanding</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <CardContent className="p-5">
+              {clients.length === 0 ? (
+                <p className="text-center py-8 text-xs text-slate-500">No clients registered.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {clients.map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-mono text-xs font-bold text-blue-700">{c.client_code}</TableCell>
-                      <TableCell className="font-medium text-slate-900">{c.client_name}</TableCell>
-                      <TableCell><Badge variant="secondary">{c.constitution}</Badge></TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(c.total_invoiced_amount || 0)}</TableCell>
-                      <TableCell className="text-right font-semibold text-emerald-700">{formatCurrency(c.total_payments_received || 0)}</TableCell>
-                      <TableCell className="text-right font-semibold text-amber-700">{formatCurrency(c.outstanding_amount || 0)}</TableCell>
-                      <TableCell><Badge variant="success">{c.status}</Badge></TableCell>
-                    </TableRow>
+                    <div key={c.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg">
+                          {c.client_code}
+                        </span>
+                        <Badge variant="success" className="text-[10px] rounded-full">{c.status}</Badge>
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-slate-900 truncate">{c.client_name}</p>
+                        <Badge variant="secondary" className="text-[10px] mt-1">{c.constitution}</Badge>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Invoiced</span>
+                          <span className="font-bold text-slate-900">{formatCurrency(c.total_invoiced_amount || 0)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Received</span>
+                          <span className="font-bold text-emerald-700">{formatCurrency(c.total_payments_received || 0)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Balance</span>
+                          <span className="font-bold text-amber-700">{formatCurrency(c.outstanding_amount || 0)}</span>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -281,36 +294,44 @@ export default function ReportsPage() {
         {/* PROJECT DELIVERY REPORTS */}
         <TabsContent value="projects" className="space-y-6">
           <Card className="shadow-xs">
-            <CardHeader className="p-4 border-b">
+            <CardHeader className="p-4 border-b border-slate-200">
               <CardTitle className="text-base font-semibold">Active Project Delivery Pipeline</CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Project ID</TableHead>
-                    <TableHead>Project Title</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Manager</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Progress</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <CardContent className="p-5">
+              {projects.length === 0 ? (
+                <p className="text-center py-8 text-xs text-slate-500">No projects found.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {projects.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-mono text-xs font-bold text-blue-700">{p.project_code}</TableCell>
-                      <TableCell className="font-semibold text-slate-900">{p.project_name}</TableCell>
-                      <TableCell className="text-xs">{p.client_name || "Internal"}</TableCell>
-                      <TableCell className="text-xs">{p.project_manager_name}</TableCell>
-                      <TableCell className="text-xs">{formatDate(p.due_date)}</TableCell>
-                      <TableCell className="font-bold text-xs">{p.progress_percentage}%</TableCell>
-                      <TableCell><Badge variant="outline">{p.status}</Badge></TableCell>
-                    </TableRow>
+                    <div key={p.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                          {p.project_code}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] rounded-full">{p.status}</Badge>
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-slate-900 truncate">{p.project_name}</p>
+                        <p className="text-xs text-slate-500 truncate">{p.client_name || "Internal"}</p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Manager</span>
+                          <span className="font-semibold text-slate-900 truncate block">{p.project_manager_name}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Due Date</span>
+                          <span className="font-semibold text-slate-900">{formatDate(p.due_date)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Progress</span>
+                          <span className="font-bold text-blue-700">{p.progress_percentage}%</span>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -318,36 +339,44 @@ export default function ReportsPage() {
         {/* EMPLOYEE WORKLOAD REPORTS */}
         <TabsContent value="employees" className="space-y-6">
           <Card className="shadow-xs">
-            <CardHeader className="p-4 border-b">
+            <CardHeader className="p-4 border-b border-slate-200">
               <CardTitle className="text-base font-semibold">Employee Workload & Capacity Analysis</CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Emp ID</TableHead>
-                    <TableHead>Employee Name</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Assigned Projects</TableHead>
-                    <TableHead>Pending Tasks</TableHead>
-                    <TableHead>Completed Tasks</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <CardContent className="p-5">
+              {employees.length === 0 ? (
+                <p className="text-center py-8 text-xs text-slate-500">No employees found.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {employees.map((emp) => (
-                    <TableRow key={emp.id}>
-                      <TableCell className="font-mono text-xs font-bold text-blue-700">{emp.employee_code}</TableCell>
-                      <TableCell className="font-semibold text-slate-900">{emp.full_name}</TableCell>
-                      <TableCell className="text-xs">{emp.department_name}</TableCell>
-                      <TableCell className="text-xs font-bold">{emp.assigned_projects_count || 3}</TableCell>
-                      <TableCell className="text-xs font-bold text-amber-700">{emp.assigned_tasks_count || 4}</TableCell>
-                      <TableCell className="text-xs font-bold text-emerald-700">{emp.completed_tasks_count || 12}</TableCell>
-                      <TableCell><Badge variant="success">{emp.employment_status}</Badge></TableCell>
-                    </TableRow>
+                    <div key={emp.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                          {emp.employee_code}
+                        </span>
+                        <Badge variant="success" className="text-[10px] rounded-full">{emp.employment_status}</Badge>
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-slate-900 truncate">{emp.full_name}</p>
+                        <p className="text-xs text-slate-500 truncate">{emp.department_name}</p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-center">
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Projects</span>
+                          <span className="font-bold text-slate-900">{emp.assigned_projects_count || 3}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Pending</span>
+                          <span className="font-bold text-amber-700">{emp.assigned_tasks_count || 4}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-slate-400 block">Done</span>
+                          <span className="font-bold text-emerald-700">{emp.completed_tasks_count || 12}</span>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

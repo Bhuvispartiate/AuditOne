@@ -19,8 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
@@ -204,77 +203,90 @@ function DocumentsContent() {
         </CardContent>
       </Card>
 
-      {/* Documents Table */}
-      <Card className="shadow-xs overflow-hidden">
-        <CardHeader className="p-4 border-b border-slate-100 flex flex-row items-center justify-between">
-          <CardTitle className="text-base font-semibold text-slate-900">
-            Document Repository ({filteredDocs.length})
-          </CardTitle>
-          <span className="text-xs text-slate-500">Secure Cloudflare R2 objects</span>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>File Name & Object Key</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>File Size</TableHead>
-                <TableHead>Version</TableHead>
-                <TableHead>Uploaded By</TableHead>
-                <TableHead>Upload Date</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredDocs.map((doc) => (
-                <TableRow key={doc.id} className="hover:bg-slate-50/80">
-                  <TableCell>
-                    <div className="flex items-center gap-2.5">
-                      <FileText className="h-4 w-4 text-blue-600 shrink-0" />
-                      <div>
-                        <span className="font-semibold text-slate-900 text-xs block">
-                          {doc.file_name}
-                        </span>
-                        <span className="font-mono text-[10px] text-slate-400 block truncate max-w-sm">
-                          r2://{doc.bucket_name}/{doc.r2_object_key}
-                        </span>
-                      </div>
+      {/* Documents Box View */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-sm font-bold text-[#111827]">
+          Document Repository ({filteredDocs.length})
+        </span>
+        <span className="text-xs text-[#9ca3af]">Secure Cloudflare R2 objects</span>
+      </div>
+
+      {filteredDocs.length === 0 ? (
+        <Card className="rounded-[24px] border-[1.5px] border-slate-300">
+          <CardContent className="py-16 text-center space-y-2">
+            <FileText className="h-8 w-8 mx-auto text-slate-400" />
+            <p className="text-sm font-bold text-[#111827]">No documents uploaded</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {filteredDocs.map((doc) => (
+            <Card
+              key={doc.id}
+              className="group rounded-[24px] border-[1.5px] border-slate-300 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(17,24,39,0.07)] hover:border-neutral-900 transition-all duration-200 flex flex-col justify-between"
+            >
+              <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                      <FileText className="h-4 w-4" />
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-[10px] rounded-full">
                       {doc.category}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs font-mono">
-                    {formatBytes(doc.file_size)}
-                  </TableCell>
-                  <TableCell className="text-xs font-mono font-semibold">
+                  </div>
+                  <span className="font-mono text-[11px] font-bold bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg">
                     v{doc.version_number}.0
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-700">
-                    {doc.uploaded_by_name}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {formatDate(doc.created_at)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      onClick={() => handleDownload(doc)}
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1 text-xs"
-                    >
-                      <Download className="h-3.5 w-3.5 text-blue-600" />
-                      <span>Signed URL</span>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-extrabold text-[#111827] truncate">
+                    {doc.file_name}
+                  </h3>
+                  <p className="font-mono text-[10px] text-[#6b7280] mt-1 truncate">
+                    r2://{doc.bucket_name}/{doc.r2_object_key}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-slate-50/80 border border-slate-300 p-3 text-xs">
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
+                      File Size
+                    </span>
+                    <span className="font-mono font-bold text-[#111827] mt-0.5 block">
+                      {formatBytes(doc.file_size)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
+                      Uploaded Date
+                    </span>
+                    <span className="font-semibold text-[#111827] mt-0.5 block">
+                      {formatDate(doc.created_at)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-[#f3f4f6]">
+                  <span className="text-[11px] text-[#6b7280] truncate">
+                    By <strong className="text-[#111827]">{doc.uploaded_by_name}</strong>
+                  </span>
+                  <Button
+                    onClick={() => handleDownload(doc)}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1 text-xs rounded-xl border-slate-300"
+                  >
+                    <Download className="h-3.5 w-3.5 text-blue-600" />
+                    <span>Signed URL</span>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Upload Modal */}
       <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>

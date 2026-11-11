@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { pmsStore } from "@/lib/data/store";
@@ -177,36 +176,41 @@ export default function EmployeeProfilePage() {
         </Card>
       </div>
 
-      {/* Assigned Deliverable Tasks */}
+      {/* Assigned Deliverable Tasks Box View */}
       <Card className="shadow-xs">
-        <CardHeader className="p-4 border-b">
+        <CardHeader className="p-4 border-b border-slate-200">
           <CardTitle className="text-base font-semibold">Assigned Tasks ({assignedTasks.length})</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Task Title</TableHead>
-                <TableHead>Project</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+        <CardContent className="p-5">
+          {assignedTasks.length === 0 ? (
+            <p className="text-center py-6 text-xs text-slate-500">No tasks assigned yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {assignedTasks.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-mono text-xs font-bold text-blue-700">{t.task_code}</TableCell>
-                  <TableCell className="font-medium text-slate-900">{t.title}</TableCell>
-                  <TableCell className="text-xs text-slate-600">{t.project_name}</TableCell>
-                  <TableCell className="text-xs">{formatDate(t.due_date)}</TableCell>
-                  <TableCell><Badge variant="outline">{t.priority}</Badge></TableCell>
-                  <TableCell><Badge variant={t.status === "Completed" ? "success" : "secondary"}>{t.status}</Badge></TableCell>
-                </TableRow>
+                <div
+                  key={t.id}
+                  className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-2.5 hover:border-neutral-900 transition-all"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                      {t.task_code}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-[10px]">{t.priority}</Badge>
+                      <Badge variant={t.status === "Completed" ? "success" : "secondary"} className="text-[10px]">
+                        {t.status}
+                      </Badge>
+                    </div>
+                  </div>
+                  <p className="font-bold text-sm text-slate-900">{t.title}</p>
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-200">
+                    <span>{t.project_name || "General"}</span>
+                    <span>Due {formatDate(t.due_date)}</span>
+                  </div>
+                </div>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

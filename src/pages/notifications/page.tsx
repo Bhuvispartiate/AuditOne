@@ -103,54 +103,56 @@ export default function NotificationsPage() {
         </button>
       </div>
 
-      {/* Notifications List */}
-      <Card className="shadow-xs overflow-hidden">
-        <CardContent className="p-0 divide-y divide-slate-100">
-          {filtered.length === 0 ? (
-            <div className="py-16 text-center text-slate-500 text-sm">
-              No notifications to display.
-            </div>
-          ) : (
-            filtered.map((notif) => (
-              <div
-                key={notif.id}
-                onClick={() => pmsStore.markNotificationAsRead(notif.id)}
-                className={`p-4 flex items-start gap-3.5 hover:bg-slate-50 cursor-pointer transition-colors ${
-                  !notif.is_read ? "bg-blue-50/30" : ""
-                }`}
-              >
-                <div className="p-2.5 rounded-xl bg-slate-100 shrink-0 mt-0.5">
+      {/* Notifications Box View */}
+      {filtered.length === 0 ? (
+        <Card className="rounded-[24px] border-[1.5px] border-slate-300">
+          <CardContent className="py-16 text-center text-slate-500 text-sm">
+            No notifications to display.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filtered.map((notif) => (
+            <Card
+              key={notif.id}
+              onClick={() => pmsStore.markNotificationAsRead(notif.id)}
+              className={`rounded-[24px] border-[1.5px] cursor-pointer transition-all hover:border-neutral-900 ${
+                !notif.is_read ? "border-blue-400 bg-blue-50/30" : "border-slate-300 bg-white"
+              }`}
+            >
+              <CardContent className="p-4 flex items-start gap-3.5">
+                <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-300 shrink-0 mt-0.5">
                   {getIcon(notif.type)}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="font-semibold text-sm text-slate-900 leading-snug">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="font-bold text-sm text-slate-900 leading-snug">
                       {notif.title}
                     </h4>
-                    <span className="text-[11px] text-slate-400 shrink-0">
-                      {formatDateTime(notif.created_at)}
-                    </span>
+                    {!notif.is_read && (
+                      <span className="h-2 w-2 rounded-full bg-blue-600 shrink-0 mt-1" />
+                    )}
                   </div>
 
                   <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                     {notif.message}
                   </p>
 
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="outline" className="text-[10px] text-slate-500 uppercase font-mono">
+                  <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-slate-200">
+                    <Badge variant="outline" className="text-[10px] text-slate-600 uppercase font-mono">
                       {notif.type.replace(/_/g, " ")}
                     </Badge>
-                    {!notif.is_read && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
-                    )}
+                    <span className="text-[10px] text-slate-400">
+                      {formatDateTime(notif.created_at)}
+                    </span>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -16,8 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/utils";
@@ -144,49 +143,31 @@ export default function ProjectsPage() {
         </CardContent>
       </Card>
 
-      {/* Projects Master Table */}
-      <Card className="shadow-xs overflow-hidden">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-28">Project ID</TableHead>
-                <TableHead>Project Name & Scope</TableHead>
-                <TableHead>Client & Service</TableHead>
-                <TableHead>Manager & Team</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProjects.map((p) => (
-                <TableRow key={p.id} className="hover:bg-slate-50/80">
-                  <TableCell className="font-mono text-xs font-bold text-blue-700">
-                    {p.project_code}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-semibold text-slate-900 block text-sm">
-                      {p.project_name}
+      {/* Projects Box View */}
+      {filteredProjects.length === 0 ? (
+        <Card className="rounded-[24px] border-[1.5px] border-slate-300">
+          <CardContent className="py-16 text-center space-y-2">
+            <FolderGit2 className="h-8 w-8 mx-auto text-slate-400" />
+            <p className="text-sm font-bold text-[#111827]">No projects found</p>
+            <p className="text-xs text-[#6b7280]">
+              Adjust filters or create a new project deliverable.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {filteredProjects.map((p) => (
+            <Card
+              key={p.id}
+              className="group rounded-[24px] border-[1.5px] border-slate-300 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(17,24,39,0.07)] hover:border-neutral-900 transition-all duration-200 flex flex-col justify-between"
+            >
+              <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                {/* Top Row */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-[11px] font-bold text-[#111827] bg-slate-100 border border-slate-300 px-2.5 py-1 rounded-xl">
+                      {p.project_code}
                     </span>
-                    <span className="text-xs text-slate-500 block mt-0.5 line-clamp-1 max-w-sm">
-                      {p.description}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium text-slate-800 text-xs block">
-                      {p.client_name || "Internal Organization"}
-                    </span>
-                    <span className="text-[11px] text-slate-500 block">
-                      {p.service_name || p.project_type}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    <span className="font-medium text-slate-900 block">{p.project_manager_name}</span>
-                    <span className="text-slate-500 text-[11px] block">{p.department_name}</span>
-                  </TableCell>
-                  <TableCell>
                     <Badge
                       variant={
                         p.priority === "Urgent"
@@ -195,40 +176,79 @@ export default function ProjectsPage() {
                           ? "warning"
                           : "outline"
                       }
-                      className="text-[10px]"
+                      className="text-[10px] rounded-full"
                     >
                       {p.priority}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs font-medium">
-                    <div className="flex items-center gap-1.5">
+                  </div>
+                  <Badge
+                    variant={p.status === "Completed" ? "success" : "secondary"}
+                    className="text-[10px] rounded-full shrink-0"
+                  >
+                    {p.status}
+                  </Badge>
+                </div>
+
+                {/* Title & Scope */}
+                <div>
+                  <h3 className="text-base font-extrabold text-[#111827] leading-snug">
+                    {p.project_name}
+                  </h3>
+                  <p className="text-xs text-[#6b7280] mt-1 line-clamp-2 leading-relaxed">
+                    {p.description || "Project execution scope"}
+                  </p>
+                </div>
+
+                {/* Client & Lead Box */}
+                <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-slate-50/80 border border-slate-300 p-3">
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
+                      Client / Type
+                    </span>
+                    <span className="text-xs font-bold text-[#111827] mt-0.5 block truncate">
+                      {p.client_name || "Internal Organization"}
+                    </span>
+                    <span className="text-[10px] text-[#6b7280] block truncate">
+                      {p.service_name || p.project_type}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
+                      Lead & Dept
+                    </span>
+                    <span className="text-xs font-bold text-[#111827] mt-0.5 block truncate">
+                      {p.project_manager_name || "Unassigned"}
+                    </span>
+                    <span className="text-[10px] text-[#6b7280] block truncate">
+                      {p.department_name || "Practice"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress & Due Date Footer */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-[#6b7280]">Progress</span>
+                    <span className="font-bold text-[#111827]">{p.progress_percentage}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all"
+                      style={{ width: `${p.progress_percentage}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-[#f3f4f6] text-xs text-[#6b7280]">
+                    <div className="flex items-center gap-1.5 font-medium">
                       <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                      <span>{formatDate(p.due_date)}</span>
+                      <span>Due {formatDate(p.due_date)}</span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs font-bold text-slate-800">{p.progress_percentage}%</span>
-                    <div className="w-20 bg-slate-200 h-1.5 rounded-full mt-1 overflow-hidden">
-                      <div
-                        className="bg-blue-600 h-1.5 rounded-full"
-                        style={{ width: `${p.progress_percentage}%` }}
-                      />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={p.status === "Completed" ? "success" : "secondary"}
-                      className="text-[11px]"
-                    >
-                      {p.status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

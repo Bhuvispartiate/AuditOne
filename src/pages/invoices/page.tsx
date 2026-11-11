@@ -15,8 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -128,97 +127,107 @@ export default function InvoicesListPage() {
         </CardContent>
       </Card>
 
-      {/* Invoices Master Table */}
-      <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[24px] overflow-hidden">
-        <CardHeader className="p-5 pb-3 border-b border-[#f3f4f6] flex flex-row items-center justify-between">
-          <CardTitle className="text-sm font-bold text-[#111827]">
-            Issued Invoices ({filteredInvoices.length})
-          </CardTitle>
-          <span className="text-xs text-[#9ca3af]">Official tax documents</span>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-36">Invoice Number</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Client Legal Entity</TableHead>
-                <TableHead>Place of Supply</TableHead>
-                <TableHead className="text-right">Taxable (₹)</TableHead>
-                <TableHead className="text-right">Total GST (₹)</TableHead>
-                <TableHead className="text-right">Grand Total (₹)</TableHead>
-                <TableHead className="text-right">Balance Due (₹)</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredInvoices.map((inv) => (
-                <TableRow key={inv.id} className="hover:bg-slate-50/80">
-                  <TableCell className="font-mono text-xs font-bold text-blue-700">
-                    <Link to={`/invoices/${inv.id}`} className="hover:underline">
+      {/* Invoices Box View */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-sm font-bold text-[#111827]">
+          Issued Invoices ({filteredInvoices.length})
+        </span>
+        <span className="text-xs text-[#9ca3af]">Official tax documents</span>
+      </div>
+
+      {filteredInvoices.length === 0 ? (
+        <Card className="rounded-[24px] border-[1.5px] border-slate-300">
+          <CardContent className="py-16 text-center space-y-2">
+            <Receipt className="h-8 w-8 mx-auto text-slate-400" />
+            <p className="text-sm font-bold text-[#111827]">No invoices found</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {filteredInvoices.map((inv) => (
+            <Card
+              key={inv.id}
+              className="group rounded-[24px] border-[1.5px] border-slate-300 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(17,24,39,0.07)] hover:border-neutral-900 transition-all duration-200 flex flex-col justify-between"
+            >
+              <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Link
+                      to={`/invoices/${inv.id}`}
+                      className="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-xl hover:underline"
+                    >
                       {inv.invoice_number}
                     </Link>
-                  </TableCell>
-                  <TableCell className="text-xs font-medium">
-                    {formatDate(inv.invoice_date)}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-semibold text-slate-900 text-xs block">
-                      {inv.client_legal_name}
+                    <span className="text-[11px] font-semibold text-[#6b7280]">
+                      {formatDate(inv.invoice_date)}
                     </span>
-                    <span className="font-mono text-[10px] text-slate-500 block">
-                      {inv.client_gstin || "Unregistered"}
+                  </div>
+                  <Badge
+                    variant={
+                      inv.status === "Paid"
+                        ? "success"
+                        : inv.status === "Cancelled"
+                        ? "destructive"
+                        : inv.status === "Draft"
+                        ? "secondary"
+                        : "warning"
+                    }
+                    className="text-[10px] rounded-full shrink-0"
+                  >
+                    {inv.status}
+                  </Badge>
+                </div>
+
+                <div>
+                  <Link
+                    to={`/invoices/${inv.id}`}
+                    className="text-base font-extrabold text-[#111827] hover:text-blue-600 transition-colors block truncate"
+                  >
+                    {inv.client_legal_name}
+                  </Link>
+                  <p className="font-mono text-[11px] text-[#6b7280] mt-0.5 truncate">
+                    GSTIN: {inv.client_gstin || "Unregistered"} &bull; {inv.place_of_supply}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="rounded-2xl border border-slate-300 bg-slate-50/80 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
+                      Grand Total
                     </span>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-700">
-                    <div>{inv.place_of_supply}</div>
-                    <span className="text-[10px] text-slate-400">
-                      {inv.is_interstate ? "Inter-state (IGST)" : "Intra-state (CGST+SGST)"}
+                    <span className="text-sm font-extrabold text-[#111827] mt-0.5 block">
+                      {formatCurrency(inv.grand_total)}
                     </span>
-                  </TableCell>
-                  <TableCell className="text-right text-xs font-medium text-slate-800">
-                    {formatCurrency(inv.taxable_amount)}
-                  </TableCell>
-                  <TableCell className="text-right text-xs font-medium text-slate-700">
-                    {formatCurrency(inv.total_gst)}
-                  </TableCell>
-                  <TableCell className="text-right text-xs font-bold text-slate-900">
-                    {formatCurrency(inv.grand_total)}
-                  </TableCell>
-                  <TableCell className="text-right text-xs font-bold text-amber-700">
-                    {formatCurrency(inv.outstanding_balance)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        inv.status === "Paid"
-                          ? "success"
-                          : inv.status === "Cancelled"
-                            ? "destructive"
-                            : inv.status === "Draft"
-                              ? "secondary"
-                              : "warning"
-                      }
-                      className="text-[10px]"
+                  </div>
+                  <div className="rounded-2xl border border-slate-300 bg-white px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] block">
+                      Balance Due
+                    </span>
+                    <span className="text-sm font-extrabold text-[#f97316] mt-0.5 block">
+                      {formatCurrency(inv.outstanding_balance)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-[#f3f4f6]">
+                  <span className="text-[11px] text-[#6b7280] font-medium">
+                    Taxable: {formatCurrency(inv.taxable_amount)} + GST {formatCurrency(inv.total_gst)}
+                  </span>
+                  <Link to={`/invoices/${inv.id}`}>
+                    <Button
+                      size="sm"
+                      className="h-8 px-3 rounded-xl bg-[#f3f4f6] hover:bg-neutral-900 text-[#111827] hover:text-white text-xs font-bold gap-1.5 transition-colors shadow-none"
                     >
-                      {inv.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Link to={`/invoices/${inv.id}`}>
-                      <Button variant="ghost" size="sm" className="h-8 gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>View / PDF</span>
-                      </Button>
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>View / PDF</span>
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

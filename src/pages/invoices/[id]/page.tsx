@@ -457,37 +457,30 @@ export default function InvoiceDetailsPage() {
         </div>
       </Card>
 
-      {/* Payment Allocation History */}
+      {/* Payment Allocation History Box View */}
       {clientPayments.length > 0 && (
         <Card className="shadow-xs print:hidden">
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-sm font-semibold">Allocated Payments Ledger</CardTitle>
+          <CardHeader className="pb-3 border-b border-slate-200">
+            <CardTitle className="text-sm font-semibold">Allocated Payments Ledger ({clientPayments.length})</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Payment #</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Mode</TableHead>
-                  <TableHead>Transaction Reference</TableHead>
-                  <TableHead className="text-right">Amount (₹)</TableHead>
-                  <TableHead>Received By</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {clientPayments.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-xs font-bold text-emerald-700">{p.payment_number}</TableCell>
-                    <TableCell className="text-xs">{formatDate(p.payment_date)}</TableCell>
-                    <TableCell><Badge variant="outline">{p.payment_mode}</Badge></TableCell>
-                    <TableCell className="font-mono text-xs">{p.transaction_reference || "—"}</TableCell>
-                    <TableCell className="text-right font-bold text-slate-900">{formatCurrency(p.amount)}</TableCell>
-                    <TableCell className="text-xs">{p.received_by_name}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <CardContent className="p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {clientPayments.map((p) => (
+                <div key={p.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                      {p.payment_number}
+                    </span>
+                    <Badge variant="outline" className="text-[10px]">{p.payment_mode}</Badge>
+                  </div>
+                  <div className="text-base font-extrabold text-slate-900">{formatCurrency(p.amount)}</div>
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-200">
+                    <span className="font-mono">{p.transaction_reference || "—"}</span>
+                    <span>{formatDate(p.payment_date)} &bull; {p.received_by_name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

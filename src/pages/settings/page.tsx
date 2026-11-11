@@ -16,7 +16,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
@@ -78,37 +77,44 @@ export default function SettingsPage() {
                 Role capabilities enforced at UI, Server Actions and Supabase Row-Level Security (RLS) layers
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Role Name</TableHead>
-                    <TableHead>Hierarchy Level</TableHead>
-                    <TableHead>Client 360°</TableHead>
-                    <TableHead>Finance & Invoices</TableHead>
-                    <TableHead>Workflow Engine</TableHead>
-                    <TableHead>Cloudflare R2</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {roles.map((r) => (
-                    <TableRow key={r.code}>
-                      <TableCell className="font-semibold text-slate-900 text-xs">
-                        <div className="flex items-center gap-2">
+            <CardContent className="p-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {roles.map((r) => (
+                  <div
+                    key={r.code}
+                    className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5 font-bold text-sm text-slate-900">
                           <Lock className="h-3.5 w-3.5 text-blue-600" />
                           <span>{r.name}</span>
                         </div>
-                        <span className="font-mono text-[10px] text-slate-400 block mt-0.5">{r.code}</span>
-                      </TableCell>
-                      <TableCell><Badge variant="outline" className="text-[10px]">{r.level}</Badge></TableCell>
-                      <TableCell className="text-xs font-medium text-slate-800">{r.clients}</TableCell>
-                      <TableCell className="text-xs font-medium text-slate-800">{r.finance}</TableCell>
-                      <TableCell className="text-xs font-medium text-slate-800">{r.workflows}</TableCell>
-                      <TableCell className="text-xs font-medium text-slate-800">{r.r2}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        <span className="font-mono text-[10px] text-slate-500 block mt-0.5">{r.code}</span>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] rounded-full">{r.level}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
+                      <div>
+                        <span className="text-[10px] uppercase text-slate-400 block">Client 360°</span>
+                        <span className="font-semibold text-slate-800">{r.clients}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase text-slate-400 block">Finance</span>
+                        <span className="font-semibold text-slate-800">{r.finance}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase text-slate-400 block">Workflows</span>
+                        <span className="font-semibold text-slate-800">{r.workflows}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase text-slate-400 block">Cloudflare R2</span>
+                        <span className="font-semibold text-slate-800">{r.r2}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
