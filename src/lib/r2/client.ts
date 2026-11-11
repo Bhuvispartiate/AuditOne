@@ -1,100 +1,85 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+// Client-side Cloudflare R2 Presign Helper
+// Delegates presigned URL generation to a Supabase Edge Function when configured,
+// and falls back safely to simulated local handling during development.
 
-const accountId = process.env.R2_ACCOUNT_ID || "";
-const accessKeyId = process.env.R2_ACCESS_KEY_ID || "";
-const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || "";
-export const R2_BUCKET = process.env.R2_BUCKET_NAME || "pms-documents";
+export const R2_BUCKET = "pms-documents";
 
-const isR2Configured = Boolean(
-  accountId &&
-  accessKeyId &&
-  secretAccessKey &&
-  !accessKeyId.includes("placeholder")
-);
+const presignFunctionUrl = import.meta.env.VITE_R2_PRESIGN_FUNCTION_URL || "";
 
-// S3 Client configured for Cloudflare R2
-export const r2Client = new S3Client({
-  region: "auto",
-  endpoint: process.env.R2_ENDPOINT || `https://${accountId}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId,
-    secretAccessKey,
-  },
-});
+export interface PresignUploadResult {
+  uploadUrl: string;
+  objectKey: string;
+  isSimulated?: boolean;
+}
 
 /**
- * Generates a presigned upload URL for Cloudflare R2
+ * Requests a presigned upload URL for Cloudflare R2 (via Edge Function or safe stub)
  */
 export async function generatePresignedUploadUrl(
   objectKey: string,
-  contentType: string,
-  expiresInSeconds = 3600
-): Promise<{ uploadUrl: string; objectKey: string; isSimulated?: boolean }> {
-  if (!isR2Configured) {
-    // Return safe development upload endpoint
+  contentType: string
+): Promise<PresignUploadResult> {
+  if (!presignFunctionUrl) {
     return {
-      uploadUrl: `/api/r2/mock-upload?key=${encodeURIComponent(objectKey)}`,
+      uploadUrl: `#simulated-r2-upload:${encodeURIComponent(objectKey)}`,
       objectKey,
       isSimulated: true,
     };
   }
 
-  const command = new PutObjectCommand({
-    Bucket: R2_BUCKET,
-    Key: objectKey,
-    ContentType: contentType,
+  const response = await fetch(presignFunctionUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "upload", objectKey, contentType, bucket: R2_BUCKET }),
   });
 
-  const uploadUrl = await getSignedUrl(r2Client, command, {
-    expiresIn: expiresInSeconds,
-  });
+  if (!response.ok) {
+    throw new Error("Failed to generate R2 presigned upload URL from Edge Function");
+  }
 
-  return { uploadUrl, objectKey };
+  return await response.json();
 }
 
 /**
- * Generates a secure presigned download URL for Cloudflare R2
+ * Requests a presigned download URL for Cloudflare R2 (via Edge Function or safe stub)
  */
 export async function generatePresignedDownloadUrl(
   objectKey: string,
-  fileName?: string,
-  expiresInSeconds = 3600
+  fileName?: string
 ): Promise<string> {
-  if (!isR2Configured) {
-    // Return development preview/mock URL
-    return `/api/r2/mock-download?key=${encodeURIComponent(objectKey)}&name=${encodeURIComponent(fileName || "document")}`;
+  if (!presignFunctionUrl) {
+    return `#simulated-r2-download:${encodeURIComponent(objectKey)}:${encodeURIComponent(fileName || "document")}`;
   }
 
-  const command = new GetObjectCommand({
-    Bucket: R2_BUCKET,
-    Key: objectKey,
-    ResponseContentDisposition: fileName
-      ? `inline; filename="${fileName}"`
-      : undefined,
+  const response = await fetch(presignFunctionUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "download", objectKey, fileName, bucket: R2_BUCKET }),
   });
 
-  return await getSignedUrl(r2Client, command, {
-    expiresIn: expiresInSeconds,
-  });
+  if (!response.ok) {
+    throw new Error("Failed to generate R2 presigned download URL from Edge Function");
+  }
+
+  const data = await response.json();
+  return data.downloadUrl;
 }
 
 /**
- * Deletes an object from Cloudflare R2
+ * Requests deletion of an object from Cloudflare R2 (via Edge Function or safe stub)
  */
 export async function deleteR2Object(objectKey: string): Promise<boolean> {
-  if (!isR2Configured) return true;
+  if (!presignFunctionUrl) return true;
 
   try {
-    const command = new DeleteObjectCommand({
-      Bucket: R2_BUCKET,
-      Key: objectKey,
+    const response = await fetch(presignFunctionUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", objectKey, bucket: R2_BUCKET }),
     });
-    await r2Client.send(command);
-    return true;
+    return response.ok;
   } catch (error) {
     console.error("Failed to delete R2 object:", error);
     return false;
   }
 }
-

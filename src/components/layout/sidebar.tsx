@@ -1,8 +1,5 @@
-"use client";
-
 import React, { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link, useLocation } from "react-router-dom";
 import {
   LayoutGrid,
   Users2,
@@ -57,7 +54,7 @@ const navItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [showPromo, setShowPromo] = useState(true);
 
@@ -73,7 +70,7 @@ export function AppSidebar() {
     >
       {/* Brand Header — ACRU Style */}
       <div className="flex h-20 items-center justify-between px-6 border-b border-transparent">
-        <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
+        <Link to="/dashboard" className="flex items-center gap-3 overflow-hidden">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-neutral-900 text-white shadow-sm font-black text-lg tracking-wider">
             A
           </div>
@@ -102,7 +99,7 @@ export function AppSidebar() {
           return (
             <Link
               key={item.href}
-              href={item.href}
+              to={item.href}
               className={cn(
                 "group flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-150 relative",
                 isActive
@@ -149,7 +146,7 @@ export function AppSidebar() {
           <p className="text-[11px] text-[#6b7280] mt-1 leading-snug">
             Full compliance analytics, Cloudflare R2 vaults and GST auto-filing.
           </p>
-          <Link href="/settings">
+          <Link to="/settings">
             <button className="mt-3 w-full rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-semibold py-2 px-3 transition-colors shadow-xs">
               System Settings
             </button>

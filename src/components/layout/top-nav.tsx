@@ -1,8 +1,5 @@
-"use client";
-
 import React, { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Search,
   Bell,
@@ -36,7 +33,7 @@ import { QuickCreateModal } from "@/components/layout/quick-create-modal";
 import { formatDateTime } from "@/lib/utils";
 
 export function TopNav() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const currentUser = pmsStore.getCurrentUser();
@@ -46,15 +43,15 @@ export function TopNav() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-    router.push(`/clients?search=${encodeURIComponent(searchQuery)}`);
+    navigate(`/clients?search=${encodeURIComponent(searchQuery)}`);
   };
 
   const handleNotificationClick = (id: string, refType?: string, refId?: string) => {
     pmsStore.markNotificationAsRead(id);
-    if (refType === "project" && refId) router.push(`/projects`);
-    else if (refType === "task" && refId) router.push(`/tasks`);
-    else if (refType === "payment" && refId) router.push(`/finance`);
-    else if (refType === "invoice" && refId) router.push(`/invoices`);
+    if (refType === "project" && refId) navigate(`/projects`);
+    else if (refType === "task" && refId) navigate(`/tasks`);
+    else if (refType === "payment" && refId) navigate(`/finance`);
+    else if (refType === "invoice" && refId) navigate(`/invoices`);
   };
 
   return (
@@ -132,7 +129,7 @@ export function TopNav() {
               </div>
               <div className="p-2 border-t border-[#f3f4f6] text-center">
                 <Link
-                  href="/notifications"
+                  to="/notifications"
                   className="text-xs font-semibold text-[#111827] hover:text-[#84cc16] transition-colors"
                 >
                   View all notifications
@@ -142,7 +139,7 @@ export function TopNav() {
           </DropdownMenu>
 
           {/* Settings Icon Button */}
-          <Link href="/settings">
+          <Link to="/settings">
             <button
               className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f9fafb] transition-all shadow-xs"
               title="Settings"
@@ -176,20 +173,20 @@ export function TopNav() {
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-[#f3f4f6]" />
               <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium">
-                <Link href={`/employees/${currentUser?.id || ""}`}>
+                <Link to={`/employees/${currentUser?.id || ""}`}>
                   <User className="mr-2 h-4 w-4" />
                   <span>My Directory Profile</span>
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium">
-                <Link href="/settings">
+                <Link to="/settings">
                   <Settings className="mr-2 h-4 w-4" />
                   <span>System Permissions</span>
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-[#f3f4f6]" />
               <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium text-rose-600 focus:text-rose-700">
-                <Link href="/login">
+                <Link to="/login">
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Sign Out</span>
                 </Link>

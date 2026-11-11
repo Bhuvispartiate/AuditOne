@@ -1,7 +1,5 @@
-"use client";
-
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Users2,
   FolderGit2,
@@ -28,7 +26,7 @@ interface QuickCreateModalProps {
 }
 
 export function QuickCreateModal({ open, isOpen, onClose, onOpenChange }: QuickCreateModalProps) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const isModalOpen = open !== undefined ? open : !!isOpen;
   const handleClose = () => {
     if (onClose) onClose();
@@ -82,7 +80,7 @@ export function QuickCreateModal({ open, isOpen, onClose, onOpenChange }: QuickC
 
   const handleSelect = (href: string) => {
     handleClose();
-    router.push(href);
+    navigate(href);
   };
 
   return (

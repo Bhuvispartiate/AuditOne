@@ -1,7 +1,5 @@
-"use client";
-
 import React from "react";
-import { usePathname } from "next/navigation";
+import { useLocation } from "react-router-dom";
 import { AppSidebar } from "./sidebar";
 import { TopNav } from "./top-nav";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,7 +15,7 @@ const queryClient = new QueryClient({
 });
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const isAuthPage = pathname ? (pathname.startsWith("/login") || pathname.startsWith("/auth")) : false;
 
   if (isAuthPage) {
