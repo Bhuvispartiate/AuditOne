@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { AppSidebar } from "./sidebar";
 import { TopNav } from "./top-nav";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
+import { pmsStore } from "@/lib/data/store";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,6 +17,12 @@ const queryClient = new QueryClient({
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
+  const [, setStoreTick] = useState(0);
+
+  useEffect(() => {
+    return pmsStore.subscribe(() => setStoreTick((t) => t + 1));
+  }, []);
+
   const isAuthPage = pathname ? (pathname.startsWith("/login") || pathname.startsWith("/auth")) : false;
 
   if (isAuthPage) {

@@ -57,8 +57,19 @@ const DEFAULT_SYSTEM_ADMIN: Employee = {
   created_at: new Date().toISOString(),
 };
 
+import { createClient } from "@/lib/supabase/client";
+
+function generateId(prefix: string): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+const STORAGE_KEY = "acru_pms_store_v1";
+
 class PMSDataStore {
-  // PURE EMPTY PRODUCTION REPOSITORIES — ZERO MOCK DATA
+  // PURE PRODUCTION REPOSITORIES — ZERO MOCK DATA (PERSISTED TO LOCALSTORAGE + SUPABASE SYNC)
   private clients: Client[] = [];
   private services: Service[] = [];
   private engagements: ServiceEngagement[] = [];
@@ -74,6 +85,202 @@ class PMSDataStore {
   private notifications: Notification[] = [];
   private activityLogs: ActivityLog[] = [];
   private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
+  private listeners: Set<() => void> = new Set();
+
+  constructor() {
+    this.hydrate();
+    void this.syncClientsFromSupabase();
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify() {
+    this.listeners.forEach((listener) => {
+      try {
+        listener();
+      } catch {
+        // Ignore subscriber errors
+      }
+    });
+  }
+
+  private hydrate() {
+    if (typeof window === "undefined" || !window.localStorage) return;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.clients)) this.clients = parsed.clients;
+      if (Array.isArray(parsed.services)) this.services = parsed.services;
+      if (Array.isArray(parsed.engagements)) this.engagements = parsed.engagements;
+      if (Array.isArray(parsed.projects)) this.projects = parsed.projects;
+      if (Array.isArray(parsed.tasks)) this.tasks = parsed.tasks;
+      if (Array.isArray(parsed.workflows)) this.workflows = parsed.workflows;
+      if (Array.isArray(parsed.employees) && parsed.employees.length > 0) {
+        this.employees = parsed.employees;
+      }
+      if (Array.isArray(parsed.departments)) this.departments = parsed.departments;
+      if (Array.isArray(parsed.teams)) this.teams = parsed.teams;
+      if (Array.isArray(parsed.invoices)) this.invoices = parsed.invoices;
+      if (Array.isArray(parsed.payments)) this.payments = parsed.payments;
+      if (Array.isArray(parsed.documents)) this.documents = parsed.documents;
+      if (Array.isArray(parsed.notifications)) this.notifications = parsed.notifications;
+      if (Array.isArray(parsed.activityLogs)) this.activityLogs = parsed.activityLogs;
+      if (parsed.currentUser && parsed.currentUser.id) {
+        this.currentUser = parsed.currentUser;
+      }
+    } catch (error) {
+      console.error("Failed to hydrate PMS store from localStorage:", error);
+    }
+  }
+
+  private persist() {
+    if (typeof window !== "undefined" && window.localStorage) {
+      try {
+        const snapshot = {
+          clients: this.clients,
+          services: this.services,
+          engagements: this.engagements,
+          projects: this.projects,
+          tasks: this.tasks,
+          workflows: this.workflows,
+          employees: this.employees,
+          departments: this.departments,
+          teams: this.teams,
+          invoices: this.invoices,
+          payments: this.payments,
+          documents: this.documents,
+          notifications: this.notifications,
+          activityLogs: this.activityLogs,
+          currentUser: this.currentUser,
+        };
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+      } catch (error) {
+        console.error("Failed to persist PMS store to localStorage:", error);
+      }
+    }
+    this.notify();
+  }
+
+  private async syncClientsFromSupabase() {
+    if (typeof window === "undefined") return;
+    try {
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) return;
+
+      const { data, error } = await supabase
+        .from("clients")
+        .select("*, client_contacts(*), client_addresses(*), client_registrations(*)")
+        .order("created_at", { ascending: false });
+
+      if (error || !Array.isArray(data) || data.length === 0) return;
+
+      const remoteClients: Client[] = data.map((row: any) => {
+        const reg = Array.isArray(row.client_registrations)
+          ? row.client_registrations[0]
+          : row.client_registrations;
+        const contacts = Array.isArray(row.client_contacts) ? row.client_contacts : [];
+        const primaryContact = contacts.find((c: any) => c.is_primary) || contacts[0];
+        const addresses = Array.isArray(row.client_addresses) ? row.client_addresses : [];
+
+        return {
+          id: row.id,
+          client_code: row.client_code,
+          client_name: row.client_name,
+          legal_name: row.legal_name,
+          reference_name: row.reference_name || undefined,
+          constitution: row.constitution,
+          category: row.category || undefined,
+          nature_of_income: row.nature_of_income || undefined,
+          remarks: row.remarks || undefined,
+          relationship_manager_id: row.relationship_manager_id || undefined,
+          status: row.status,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          contact: primaryContact,
+          addresses,
+          registration: reg,
+        };
+      });
+
+      const localOnly = this.clients.filter(
+        (lc) => !remoteClients.some((rc) => rc.id === lc.id || rc.client_code === lc.client_code)
+      );
+      this.clients = [...localOnly, ...remoteClients];
+      this.persist();
+    } catch {
+      // Non-fatal if offline or Supabase RLS denies unauthenticated read
+    }
+  }
+
+  private async pushClientToSupabase(client: Client) {
+    if (typeof window === "undefined") return;
+    try {
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) return;
+
+      const { error } = await supabase.from("clients").upsert({
+        id: client.id,
+        client_code: client.client_code,
+        client_name: client.client_name,
+        legal_name: client.legal_name,
+        reference_name: client.reference_name || null,
+        constitution: client.constitution,
+        category: client.category || null,
+        nature_of_income: client.nature_of_income || null,
+        remarks: client.remarks || null,
+        status: client.status,
+      });
+
+      if (error) return;
+
+      if (client.contact) {
+        await supabase.from("client_contacts").upsert({
+          client_id: client.id,
+          contact_person: client.contact.contact_person,
+          designation: client.contact.designation || null,
+          mobile_number: client.contact.mobile_number,
+          email: client.contact.email,
+          is_primary: true,
+        });
+      }
+
+      if (client.addresses && client.addresses.length > 0) {
+        await supabase.from("client_addresses").insert(
+          client.addresses.map((addr) => ({
+            client_id: client.id,
+            address_type: addr.address_type,
+            street_address: addr.street_address,
+            city: addr.city,
+            state: addr.state,
+            pin_code: addr.pin_code,
+            country: addr.country,
+            is_primary: addr.is_primary,
+          }))
+        );
+      }
+
+      if (client.registration) {
+        await supabase.from("client_registrations").upsert({
+          client_id: client.id,
+          pan: client.registration.pan,
+          gstin: client.registration.gstin || null,
+          cin: client.registration.cin || null,
+          dob_or_doi: client.registration.dob_or_doi || null,
+          additional_registrations: client.registration.additional_registrations || [],
+        });
+      }
+    } catch {
+      // Local persistence already succeeded
+    }
+  }
 
   // Active Session User
   getCurrentUser(): Employee {
@@ -82,7 +289,10 @@ class PMSDataStore {
 
   setCurrentUser(empId: string) {
     const found = this.employees.find(e => e.id === empId);
-    if (found) this.currentUser = found;
+    if (found) {
+      this.currentUser = found;
+      this.persist();
+    }
   }
 
   // Dashboard KPIs (100% Dynamically Calculated from Real Database State)
@@ -157,12 +367,15 @@ class PMSDataStore {
     const nextNum = this.clients.length + 1;
     const year = new Date().getFullYear();
     const client_code = `CLI-${year}-${String(nextNum).padStart(3, "0")}`;
-    const id = `cli-${Date.now()}`;
+    const id = generateId("cli");
     
     const client: Client = {
       ...newClient,
       id,
       client_code,
+      contact: newClient.contact ? { ...newClient.contact, client_id: id } : undefined,
+      addresses: newClient.addresses?.map((addr) => ({ ...addr, client_id: id })),
+      registration: newClient.registration ? { ...newClient.registration, client_id: id } : undefined,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       active_services_count: 0,
@@ -176,6 +389,8 @@ class PMSDataStore {
 
     this.clients.unshift(client);
     this.addActivityLog(`Onboarded new client: ${client.client_name}`, "client", id);
+    this.persist();
+    void this.pushClientToSupabase(client);
     return client;
   }
 
@@ -188,6 +403,8 @@ class PMSDataStore {
       updated_at: new Date().toISOString()
     };
     this.addActivityLog(`Updated client profile: ${this.clients[index].client_name}`, "client", id);
+    this.persist();
+    void this.pushClientToSupabase(this.clients[index]);
     return this.clients[index];
   }
 
@@ -269,6 +486,7 @@ class PMSDataStore {
     const index = this.projects.findIndex(p => p.id === id);
     if (index === -1) return null;
     this.projects[index] = { ...this.projects[index], ...updates, updated_at: new Date().toISOString() };
+    this.persist();
     return this.projects[index];
   }
 
@@ -510,6 +728,7 @@ class PMSDataStore {
     if (notif) {
       notif.is_read = true;
       notif.read_at = new Date().toISOString();
+      this.persist();
     }
   }
 
@@ -533,6 +752,7 @@ class PMSDataStore {
       created_at: new Date().toISOString()
     };
     this.notifications.unshift(newNotif);
+    this.persist();
   }
 
   // Activity Logs
@@ -552,6 +772,7 @@ class PMSDataStore {
       created_at: new Date().toISOString()
     };
     this.activityLogs.unshift(newLog);
+    this.persist();
   }
 }
 
