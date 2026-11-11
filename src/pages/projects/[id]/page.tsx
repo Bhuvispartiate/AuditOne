@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Plus,
   User,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -444,20 +445,36 @@ export default function ProjectDetailPage() {
                   </div>
 
                   {/* Footer Actions */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200 gap-2">
                     <span className="text-xs font-semibold text-slate-600 inline-flex items-center gap-1.5">
                       <MessageSquare className="h-3.5 w-3.5 text-sky-600" />
                       {task.comments_count || 0} Comment(s)
                     </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => handleOpenTask(task.id)}
-                      className="h-8 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1.5"
-                    >
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>Subtasks, Timeline & Comments</span>
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => handleOpenTask(task.id)}
+                        className="h-8 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1.5"
+                      >
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>Subtasks, Timeline & Comments</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => {
+                          pmsStore.deleteTask(task.id);
+                          toast.success(`Deleted task ${task.task_code}`);
+                          setTick((t) => t + 1);
+                        }}
+                        className="h-8 w-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shrink-0"
+                        title="Delete Task"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

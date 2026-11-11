@@ -10,7 +10,9 @@ import {
   UserCheck,
   Briefcase,
   ArrowUpRight,
-  FileCheck2
+  FileCheck2,
+  LayoutGrid,
+  GanttChart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,14 +21,25 @@ import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import { ProjectTimeline } from "@/components/tasks/project-timeline";
+import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 
 export default function ClientsListPage() {
   const [searchParams] = useSearchParams();
   const initialSearch = searchParams.get("search") || "";
 
+  const [, setTick] = useState(0);
   const [search, setSearch] = useState(initialSearch);
   const [constitutionFilter, setConstitutionFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [viewMode, setViewMode] = useState<"box" | "timeline">("box");
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
+
+  useEffect(() => {
+    const unsub = pmsStore.subscribe(() => setTick((t) => t + 1));
+    return unsub;
+  }, []);
 
   useEffect(() => {
     const querySearch = searchParams.get("search");
@@ -37,6 +50,8 @@ export default function ClientsListPage() {
 
   const allClients = pmsStore.getClients();
   const allEngagements = pmsStore.getAllEngagements();
+  const allProjects = pmsStore.getProjects();
+  const allTasks = pmsStore.getTasks();
 
   const filteredClients = allClients.filter((c) => {
     const matchesSearch =
@@ -91,7 +106,29 @@ export default function ClientsListPage() {
             Central repository of corporate and individual client engagements, registrations and accounts.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-2xl border-[1.5px] border-slate-300 bg-white p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode("box")}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+                viewMode === "box" ? "bg-neutral-900 text-white" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>Box View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("timeline")}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+                viewMode === "timeline" ? "bg-neutral-900 text-white" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <GanttChart className="h-3.5 w-3.5" />
+              <span>Timeline</span>
+            </button>
+          </div>
           <Button
             onClick={exportToExcel}
             variant="outline"
@@ -168,7 +205,7 @@ export default function ClientsListPage() {
         </span>
       </div>
 
-      {/* Empty State */}
+      {/* Box View or Timeline View */}
       {filteredClients.length === 0 ? (
         <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[24px]">
           <CardContent className="py-16 text-center space-y-3">
@@ -189,6 +226,19 @@ export default function ClientsListPage() {
             </div>
           </CardContent>
         </Card>
+      ) : viewMode === "timeline" ? (
+        <ProjectTimeline
+          tasks={allTasks.filter((t) => {
+            const proj = allProjects.find((p) => p.id === t.project_id);
+            return proj && filteredClients.some((c) => c.id === proj.client_id);
+          })}
+          showClientFilter
+          onSelectTask={(tid) => {
+            setActiveTaskId(tid);
+            setIsTaskDetailOpen(true);
+          }}
+          title="All Clients Delivery Timeline (Client -> Project -> Task -> Subtasks)"
+        />
       ) : (
         /* Box View Only */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -288,18 +338,23 @@ export default function ClientsListPage() {
 
                   {/* Footer Action Bar */}
                   <div className="flex items-center justify-between pt-3 border-t border-[#f3f4f6]">
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#6b7280]">
-                      {activeServicesCount > 0 ? (
-                        <>
-                          <Briefcase className="h-3.5 w-3.5 text-[#84cc16]" />
-                          <span>{activeServicesCount} Active Service{activeServicesCount > 1 ? "s" : ""}</span>
-                        </>
-                      ) : (
-                        <>
-                          <FileCheck2 className="h-3.5 w-3.5 text-[#9ca3af]" />
-                          <span className="truncate max-w-[140px]">{client.category || "General Client"}</span>
-                        </>
-                      )}
+                    <div className="flex flex-col gap-0.5 text-[11px] font-semibold text-[#6b7280]">
+                      <div className="flex items-center gap-1.5">
+                        {activeServicesCount > 0 ? (
+                          <>
+                            <Briefcase className="h-3.5 w-3.5 text-[#84cc16]" />
+                            <span>{activeServicesCount} Active Service{activeServicesCount > 1 ? "s" : ""}</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileCheck2 className="h-3.5 w-3.5 text-[#9ca3af]" />
+                            <span className="truncate max-w-[140px]">{client.category || "General Client"}</span>
+                          </>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-500">
+                        {client.total_projects_count || 0} Project(s) • {client.pending_tasks_count || 0} Pending Task(s)
+                      </span>
                     </div>
 
                     <Link to={`/clients/${client.id}`}>
@@ -319,6 +374,13 @@ export default function ClientsListPage() {
           })}
         </div>
       )}
+
+      <TaskDetailDialog
+        taskId={activeTaskId}
+        open={isTaskDetailOpen}
+        onOpenChange={setIsTaskDetailOpen}
+        onUpdated={() => setTick((t) => t + 1)}
+      />
     </div>
   );
 }

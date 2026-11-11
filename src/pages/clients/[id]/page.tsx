@@ -26,6 +26,7 @@ import {
   Clock,
   ListChecks,
   MessageSquare,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -633,18 +634,33 @@ export default function Client360ProfilePage() {
                           <span>
                             {formatDate(t.start_date || t.created_at)} → {formatDate(t.due_date)}
                           </span>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setActiveTaskId(t.id);
-                              setIsTaskDetailOpen(true);
-                            }}
-                            className="h-7 text-[11px] font-bold border-slate-300"
-                          >
-                            Subtasks & Comments
-                          </Button>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setActiveTaskId(t.id);
+                                setIsTaskDetailOpen(true);
+                              }}
+                              className="h-7 text-[11px] font-bold border-slate-300"
+                            >
+                              Subtasks & Comments
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              onClick={() => {
+                                pmsStore.deleteTask(t.id);
+                                toast.success(`Deleted task ${t.task_code}`);
+                              }}
+                              className="h-7 w-7 rounded-lg border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                              title="Delete Task"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -663,27 +679,50 @@ export default function Client360ProfilePage() {
                 Attached Compliance Workflows
               </CardTitle>
               <CardDescription className="text-xs">
-                Active workflow engines executing structured compliance pipelines
+                Real workflow templates linked to this client&apos;s subscribed services
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <GitBranch className="h-4 w-4 text-blue-600" />
-                    <h4 className="font-bold text-slate-900 text-sm">Annual Corporate Tax & ROC Filing Workflow (v1)</h4>
-                  </div>
-                  <Badge variant="success">Active Execution</Badge>
-                </div>
-                <div className="grid grid-cols-6 gap-2 text-center text-xs">
-                  <div className="p-2 bg-emerald-100 text-emerald-800 rounded font-medium">1. Doc Collection ✓</div>
-                  <div className="p-2 bg-emerald-100 text-emerald-800 rounded font-medium">2. Verification ✓</div>
-                  <div className="p-2 bg-blue-100 text-blue-800 rounded font-semibold ring-1 ring-blue-400">3. Draft Prep (Now)</div>
-                  <div className="p-2 bg-slate-100 text-slate-600 rounded">4. Review</div>
-                  <div className="p-2 bg-slate-100 text-slate-600 rounded">5. Portal Filing</div>
-                  <div className="p-2 bg-slate-100 text-slate-600 rounded">6. Archival</div>
-                </div>
-              </div>
+              {(() => {
+                const subscribedServiceIds = new Set(engagements.map((e) => e.service_id));
+                const clientWorkflows = pmsStore
+                  .getWorkflows()
+                  .filter((w) => w.is_active && (!w.service_id || subscribedServiceIds.has(w.service_id)));
+
+                if (clientWorkflows.length === 0) {
+                  return (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-xs text-slate-500">
+                      No custom workflow templates configured yet for this client&apos;s contracted services.
+                    </div>
+                  );
+                }
+
+                return clientWorkflows.map((wf) => {
+                  const stages = wf.versions?.[0]?.stages || [];
+                  return (
+                    <div key={wf.id} className="p-4 bg-slate-50 rounded-2xl border-[1.5px] border-slate-300 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <GitBranch className="h-4 w-4 text-violet-600" />
+                          <h4 className="font-bold text-slate-900 text-sm">
+                            {wf.workflow_name} (v{wf.version})
+                          </h4>
+                        </div>
+                        <Badge variant="success">Active</Badge>
+                      </div>
+                      {stages.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                          {stages.map((st, idx) => (
+                            <div key={st.id} className="p-2.5 bg-white border border-slate-300 rounded-xl font-semibold text-slate-800">
+                              {idx + 1}. {st.stage_name}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
             </CardContent>
           </Card>
         </TabsContent>

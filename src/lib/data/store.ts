@@ -77,6 +77,7 @@ class PMSDataStore {
   private projects: Project[] = [];
   private tasks: Task[] = [];
   private taskComments: TaskComment[] = [];
+  private deletedTaskProjectIds: string[] = [];
   private workflows: WorkflowTemplate[] = [];
   private employees: Employee[] = [DEFAULT_SYSTEM_ADMIN];
   private departments: Department[] = [];
@@ -185,8 +186,9 @@ class PMSDataStore {
       }
     });
 
-    // 3. Every Project without ANY top-level Task gets a deliverable Task
+    // 3. Every Project without ANY top-level Task gets a deliverable Task (unless tasks were explicitly deleted)
     this.projects.forEach((project) => {
+      if (this.deletedTaskProjectIds.includes(project.id)) return;
       const hasTask = this.tasks.some((t) => t.project_id === project.id && !t.parent_task_id);
       if (!hasTask) {
         const nextTaskNum = this.tasks.length + 1;
@@ -281,6 +283,9 @@ class PMSDataStore {
       if (Array.isArray(parsed.projects)) this.projects = parsed.projects;
       if (Array.isArray(parsed.tasks)) this.tasks = parsed.tasks;
       if (Array.isArray(parsed.taskComments)) this.taskComments = parsed.taskComments;
+      if (Array.isArray(parsed.deletedTaskProjectIds)) {
+        this.deletedTaskProjectIds = parsed.deletedTaskProjectIds;
+      }
       if (Array.isArray(parsed.workflows)) this.workflows = parsed.workflows;
       if (Array.isArray(parsed.employees) && parsed.employees.length > 0) {
         this.employees = parsed.employees;
@@ -310,6 +315,7 @@ class PMSDataStore {
           projects: this.projects,
           tasks: this.tasks,
           taskComments: this.taskComments,
+          deletedTaskProjectIds: this.deletedTaskProjectIds,
           workflows: this.workflows,
           employees: this.employees,
           departments: this.departments,
@@ -1066,6 +1072,34 @@ class PMSDataStore {
     task.comments_count = this.taskComments.filter((c) => c.task_id === taskId).length;
     this.addActivityLog(`Commented on ${task.task_code}: "${trimmed.slice(0, 60)}"`, "task", taskId);
     return newComment;
+  }
+
+  deleteTask(taskId: string): boolean {
+    const target = this.tasks.find((t) => t.id === taskId);
+    if (!target) return false;
+
+    const isParent = !target.parent_task_id;
+    const removedIds = new Set<string>([taskId]);
+    if (isParent) {
+      this.tasks.forEach((t) => {
+        if (t.parent_task_id === taskId) {
+          removedIds.add(t.id);
+        }
+      });
+      if (!this.deletedTaskProjectIds.includes(target.project_id)) {
+        this.deletedTaskProjectIds.push(target.project_id);
+      }
+    }
+
+    this.tasks = this.tasks.filter((t) => !removedIds.has(t.id));
+    this.taskComments = this.taskComments.filter((c) => !removedIds.has(c.task_id));
+    this.refreshProjectProgress(target.project_id);
+    this.addActivityLog(
+      `Deleted ${isParent ? "task" : "subtask"} ${target.task_code}: ${target.title}`,
+      "task",
+      taskId
+    );
+    return true;
   }
 
   // Workflows

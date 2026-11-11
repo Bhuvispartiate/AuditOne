@@ -1,7 +1,18 @@
 import React, { useMemo, useState } from "react";
-import { Calendar, ChevronDown, ChevronRight, Clock, MessageSquare, ListChecks } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  Calendar,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  MessageSquare,
+  ListChecks,
+  Building2,
+  FolderGit2,
+} from "lucide-react";
 import { Task, TaskStatus } from "@/types";
 import { Badge } from "@/components/ui/badge";
+import { pmsStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/utils";
 
 interface ProjectTimelineProps {
@@ -10,6 +21,7 @@ interface ProjectTimelineProps {
   projectDueDate?: string;
   onSelectTask?: (taskId: string) => void;
   title?: string;
+  showClientFilter?: boolean;
 }
 
 const STATUS_BAR_STYLES: Record<TaskStatus, string> = {
@@ -42,8 +54,21 @@ export function ProjectTimeline({
   projectDueDate,
   onSelectTask,
   title = "Execution Timeline (Start Date -> Due Date)",
+  showClientFilter = false,
 }: ProjectTimelineProps) {
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const [clientFilter, setClientFilter] = useState("ALL");
+
+  const projects = pmsStore.getProjects();
+  const clients = pmsStore.getClients();
+
+  const visibleTasks = useMemo(() => {
+    if (!showClientFilter || clientFilter === "ALL") return tasks;
+    return tasks.filter((t) => {
+      const proj = projects.find((p) => p.id === t.project_id);
+      return proj?.client_id === clientFilter;
+    });
+  }, [tasks, projects, showClientFilter, clientFilter]);
 
   const toggleExpand = (taskId: string) => {
     setExpandedIds((prev) => ({ ...prev, [taskId]: prev[taskId] === false }));
@@ -54,7 +79,7 @@ export function ProjectTimeline({
     if (projectStartDate) timestamps.push(toMs(projectStartDate));
     if (projectDueDate) timestamps.push(toMs(projectDueDate));
 
-    tasks.forEach((t) => {
+    visibleTasks.forEach((t) => {
       timestamps.push(toMs(t.start_date || t.created_at?.slice(0, 10)));
       timestamps.push(toMs(t.due_date));
       (t.subtasks || []).forEach((st) => {
@@ -85,7 +110,7 @@ export function ProjectTimeline({
       midLabel: new Date(midMs).toISOString().slice(0, 10),
       maxLabel: new Date(maxMs).toISOString().slice(0, 10),
     };
-  }, [tasks, projectStartDate, projectDueDate]);
+  }, [visibleTasks, projectStartDate, projectDueDate]);
 
   const computeBarStyle = (startStr?: string, dueStr?: string) => {
     const sMs = Math.max(timelineRange.minMs, toMs(startStr));
@@ -114,6 +139,20 @@ export function ProjectTimeline({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
+          {showClientFilter && (
+            <select
+              value={clientFilter}
+              onChange={(e) => setClientFilter(e.target.value)}
+              className="h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827] focus:outline-none"
+            >
+              <option value="ALL">All Clients ({clients.length})</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.client_name} ({c.client_code})
+                </option>
+              ))}
+            </select>
+          )}
           {(["To Do", "In Progress", "Under Review", "Completed", "Blocked"] as TaskStatus[]).map((st) => (
             <span
               key={st}
@@ -126,7 +165,7 @@ export function ProjectTimeline({
         </div>
       </div>
 
-      {tasks.length === 0 ? (
+      {visibleTasks.length === 0 ? (
         <div className="py-10 text-center text-xs text-slate-500">
           No tasks scheduled in this timeline yet.
         </div>
@@ -134,7 +173,7 @@ export function ProjectTimeline({
         <div className="space-y-3">
           {/* Date Axis Header */}
           <div className="hidden md:grid grid-cols-12 gap-3 px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            <div className="col-span-5">Task / Subtask & Schedule</div>
+            <div className="col-span-5">Client → Project → Task / Subtask</div>
             <div className="col-span-7 flex items-center justify-between">
               <span>{formatDate(timelineRange.minLabel)}</span>
               <span>{formatDate(timelineRange.midLabel)}</span>
@@ -143,11 +182,14 @@ export function ProjectTimeline({
           </div>
 
           <div className="space-y-2.5">
-            {tasks.map((task) => {
+            {visibleTasks.map((task) => {
               const subtasks = task.subtasks || [];
               const isExpanded = expandedIds[task.id] !== false;
               const startStr = task.start_date || task.created_at.slice(0, 10);
               const bar = computeBarStyle(startStr, task.due_date);
+              const parentProject = projects.find((p) => p.id === task.project_id);
+              const parentClient = clients.find((c) => c.id === parentProject?.client_id);
+              const clientDisplayName = parentClient?.client_name || parentProject?.client_name;
 
               return (
                 <div
@@ -171,42 +213,69 @@ export function ProjectTimeline({
                           )}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => onSelectTask?.(task.id)}
-                        className="text-left min-w-0 flex-1 group"
-                      >
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="font-mono text-[10px] font-bold text-slate-800 bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded-md">
-                            {task.task_code}
-                          </span>
-                          <Badge variant={STATUS_BADGE_VARIANT[task.status] || "secondary"} className="text-[10px]">
-                            {task.status}
-                          </Badge>
-                          {subtasks.length > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600">
-                              <ListChecks className="h-3 w-3 text-violet-600" />
-                              {subtasks.filter((s) => s.status === "Completed").length}/{subtasks.length}
-                            </span>
+                      <div className="text-left min-w-0 flex-1">
+                        {/* Client -> Project Hierarchy Strip */}
+                        <div className="flex flex-wrap items-center gap-1 mb-1">
+                          {clientDisplayName && parentProject?.client_id && (
+                            <>
+                              <Link
+                                to={`/clients/${parentProject.client_id}`}
+                                className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-800 hover:border-violet-500"
+                              >
+                                <Building2 className="h-2.5 w-2.5" />
+                                <span className="truncate max-w-[140px]">{clientDisplayName}</span>
+                              </Link>
+                              <span className="text-[10px] text-slate-400">→</span>
+                            </>
                           )}
-                          {(task.comments_count || 0) > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600">
-                              <MessageSquare className="h-3 w-3 text-sky-600" />
-                              {task.comments_count}
-                            </span>
+                          {parentProject && (
+                            <Link
+                              to={`/projects/${parentProject.id}`}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 hover:border-neutral-900"
+                            >
+                              <FolderGit2 className="h-2.5 w-2.5 text-sky-600" />
+                              <span className="truncate max-w-[140px]">{parentProject.project_code}</span>
+                            </Link>
                           )}
                         </div>
-                        <p className="text-xs font-extrabold text-[#111827] mt-1 truncate group-hover:text-violet-700">
-                          {task.title}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-0.5">
-                          <span>Start: {formatDate(startStr)}</span>
-                          <span>•</span>
-                          <span>Due: {formatDate(task.due_date)}</span>
-                          <span>•</span>
-                          <span className="font-semibold text-slate-700">{task.assigned_employee_name || "Unassigned"}</span>
-                        </div>
-                      </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onSelectTask?.(task.id)}
+                          className="text-left w-full group"
+                        >
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-mono text-[10px] font-bold text-slate-800 bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded-md">
+                              {task.task_code}
+                            </span>
+                            <Badge variant={STATUS_BADGE_VARIANT[task.status] || "secondary"} className="text-[10px]">
+                              {task.status}
+                            </Badge>
+                            {subtasks.length > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600">
+                                <ListChecks className="h-3 w-3 text-violet-600" />
+                                {subtasks.filter((s) => s.status === "Completed").length}/{subtasks.length}
+                              </span>
+                            )}
+                            {(task.comments_count || 0) > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600">
+                                <MessageSquare className="h-3 w-3 text-sky-600" />
+                                {task.comments_count}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-extrabold text-[#111827] mt-1 truncate group-hover:text-violet-700">
+                            {task.title}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                            <span>Start: {formatDate(startStr)}</span>
+                            <span>•</span>
+                            <span>Due: {formatDate(task.due_date)}</span>
+                            <span>•</span>
+                            <span className="font-semibold text-slate-700">{task.assigned_employee_name || "Unassigned"}</span>
+                          </div>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Timeline Bar */}
@@ -298,3 +367,4 @@ export function ProjectTimeline({
     </div>
   );
 }
+

@@ -10,6 +10,7 @@ import {
   User,
   Building2,
   FolderGit2,
+  Trash2,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -176,9 +177,27 @@ export function TaskDetailDialog({
                 {task.description || "Manage task dates, status, nested subtasks, timeline & comments."}
               </DialogDescription>
             </div>
-            <Badge variant={task.status === "Completed" ? "success" : "secondary"} className="self-start text-xs">
-              {task.status}
-            </Badge>
+            <div className="flex items-center gap-2 self-start shrink-0">
+              <Badge variant={task.status === "Completed" ? "success" : "secondary"} className="text-xs">
+                {task.status}
+              </Badge>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  pmsStore.deleteTask(task.id);
+                  toast.success(`Deleted task ${task.task_code}`);
+                  onOpenChange(false);
+                  notifyChange();
+                }}
+                className="h-8 px-2.5 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold gap-1"
+                title="Delete Task"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Delete Task</span>
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
@@ -377,6 +396,20 @@ export function TaskDetailDialog({
                               </option>
                             ))}
                           </select>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => {
+                              pmsStore.deleteTask(sub.id);
+                              toast.success("Subtask deleted.");
+                              notifyChange();
+                            }}
+                            className="h-8 w-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shrink-0"
+                            title="Delete Subtask"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -497,3 +530,4 @@ export function TaskDetailDialog({
     </Dialog>
   );
 }
+

@@ -10,6 +10,7 @@ import {
   MessageSquare,
   LayoutGrid,
   GanttChart,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ function TasksContent() {
   const [, setTick] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [clientFilter, setClientFilter] = useState("ALL");
   const [viewMode, setViewMode] = useState<"box" | "timeline">("box");
   const [isModalOpen, setIsModalOpen] = useState(autoCreate);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
@@ -52,6 +54,7 @@ function TasksContent() {
 
   const tasks = pmsStore.getTasks();
   const projects = pmsStore.getProjects();
+  const clients = pmsStore.getClients();
   const employees = pmsStore.getEmployees();
 
   // New task form state
@@ -81,7 +84,8 @@ function TasksContent() {
       (proj?.client_name && proj.client_name.toLowerCase().includes(search.toLowerCase()));
 
     const matchesStatus = statusFilter === "ALL" || t.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesClient = clientFilter === "ALL" || proj?.client_id === clientFilter;
+    return matchesSearch && matchesStatus && matchesClient;
   });
 
   const handleOpenDetail = (taskId: string) => {
@@ -248,6 +252,19 @@ function TasksContent() {
               className="pl-10 h-10 rounded-2xl border-slate-300 text-xs font-medium"
             />
           </div>
+
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            className="h-10 rounded-2xl border border-slate-300 bg-white px-3.5 text-xs font-semibold text-[#111827] focus:outline-none"
+          >
+            <option value="ALL">All Clients ({clients.length})</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.client_name} ({c.client_code})
+              </option>
+            ))}
+          </select>
 
           <select
             value={statusFilter}
@@ -438,14 +455,29 @@ function TasksContent() {
                         ))}
                       </select>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => handleOpenDetail(task.id)}
-                      className="w-full h-8 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold"
-                    >
-                      Open Subtasks, Timeline & Comments
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => handleOpenDetail(task.id)}
+                        className="flex-1 h-8 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold"
+                      >
+                        Open Subtasks, Timeline & Comments
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => {
+                          pmsStore.deleteTask(task.id);
+                          toast.success(`Deleted task ${task.task_code}`);
+                        }}
+                        className="h-8 w-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shrink-0"
+                        title="Delete Task"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

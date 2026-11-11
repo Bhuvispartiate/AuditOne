@@ -7,6 +7,8 @@ import {
   Calendar,
   ArrowRight,
   ListChecks,
+  LayoutGrid,
+  GanttChart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,12 +16,18 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/utils";
+import { ProjectTimeline } from "@/components/tasks/project-timeline";
+import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 
 export default function ProjectsPage() {
   const [, setTick] = useState(0);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [clientFilter, setClientFilter] = useState("ALL");
+  const [viewMode, setViewMode] = useState<"box" | "timeline">("box");
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
 
   useEffect(() => {
     const unsub = pmsStore.subscribe(() => setTick((t) => t + 1));
@@ -27,6 +35,7 @@ export default function ProjectsPage() {
   }, []);
 
   const projects = pmsStore.getProjects();
+  const clients = pmsStore.getClients();
 
   const filteredProjects = projects.filter((p) => {
     const matchesSearch =
@@ -36,9 +45,12 @@ export default function ProjectsPage() {
 
     const matchesType = typeFilter === "ALL" || p.project_type === typeFilter;
     const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
+    const matchesClient = clientFilter === "ALL" || p.client_id === clientFilter;
 
-    return matchesSearch && matchesType && matchesStatus;
+    return matchesSearch && matchesType && matchesStatus && matchesClient;
   });
+
+  const timelineTasks = filteredProjects.flatMap((p) => p.tasks || []);
 
   const total = projects.length;
   const active = projects.filter((p) => p.status === "In Progress" || p.status === "Under Review").length;
@@ -57,12 +69,36 @@ export default function ProjectsPage() {
             Track client compliance milestones, internal initiatives and cross-departmental delivery teams.
           </p>
         </div>
-        <Link to="/projects/new">
-          <Button size="sm" className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold">
-            <Plus className="h-4 w-4" />
-            <span>Create New Project</span>
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-2xl border-[1.5px] border-slate-300 bg-white p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode("box")}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+                viewMode === "box" ? "bg-neutral-900 text-white" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>Box View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("timeline")}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+                viewMode === "timeline" ? "bg-neutral-900 text-white" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <GanttChart className="h-3.5 w-3.5" />
+              <span>Timeline</span>
+            </button>
+          </div>
+          <Link to="/projects/new">
+            <Button size="sm" className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold">
+              <Plus className="h-4 w-4" />
+              <span>Create New Project</span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -114,7 +150,20 @@ export default function ProjectsPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={clientFilter}
+              onChange={(e) => setClientFilter(e.target.value)}
+              className="h-10 rounded-2xl border border-[#e5e7eb] bg-white px-3.5 text-xs font-semibold text-[#111827] focus:outline-none"
+            >
+              <option value="ALL">All Clients ({clients.length})</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.client_name} ({c.client_code})
+                </option>
+              ))}
+            </select>
+
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
@@ -143,7 +192,7 @@ export default function ProjectsPage() {
         </CardContent>
       </Card>
 
-      {/* Projects Box View */}
+      {/* Projects Box View or Timeline */}
       {filteredProjects.length === 0 ? (
         <Card className="rounded-[24px] border-[1.5px] border-slate-300">
           <CardContent className="py-16 text-center space-y-2">
@@ -154,6 +203,15 @@ export default function ProjectsPage() {
             </p>
           </CardContent>
         </Card>
+      ) : viewMode === "timeline" ? (
+        <ProjectTimeline
+          tasks={timelineTasks}
+          onSelectTask={(tid) => {
+            setActiveTaskId(tid);
+            setIsTaskDetailOpen(true);
+          }}
+          title="Client -> Project -> Tasks Timeline"
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {filteredProjects.map((p) => (
@@ -173,8 +231,8 @@ export default function ProjectsPage() {
                         p.priority === "Urgent"
                           ? "destructive"
                           : p.priority === "High"
-                          ? "warning"
-                          : "outline"
+                            ? "warning"
+                            : "outline"
                       }
                       className="text-[10px] rounded-full"
                     >
@@ -265,6 +323,13 @@ export default function ProjectsPage() {
           ))}
         </div>
       )}
+
+      <TaskDetailDialog
+        taskId={activeTaskId}
+        open={isTaskDetailOpen}
+        onOpenChange={setIsTaskDetailOpen}
+        onUpdated={() => setTick((t) => t + 1)}
+      />
     </div>
   );
 }
