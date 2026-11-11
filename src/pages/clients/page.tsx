@@ -247,7 +247,7 @@ export default function ClientsListPage() {
             return (
               <Card
                 key={client.id}
-                className="group rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-slate-300 hover:shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition-all duration-200"
+                className="group rounded-2xl border-[1.5px] border-slate-300 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-neutral-900 hover:shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition-all duration-200"
               >
                 <CardContent className="p-4 sm:p-5 space-y-4">
                   {/* Top Row: Avatar, Name/Code & Status Pill */}
@@ -285,7 +285,7 @@ export default function ClientsListPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      className="w-full h-9 rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-[#111827] text-xs font-semibold shadow-none"
+                      className="w-full h-9 rounded-xl border-slate-300 bg-white hover:bg-slate-50 text-[#111827] text-xs font-semibold shadow-none"
                     >
                       Open 360° Profile
                     </Button>
