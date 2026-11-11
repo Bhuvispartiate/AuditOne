@@ -444,6 +444,18 @@ class PMSDataStore {
     }
   }
 
+  private async deleteClientFromSupabase(clientId: string) {
+    if (typeof window === "undefined") return;
+    try {
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) return;
+      await supabase.from("clients").delete().eq("id", clientId);
+    } catch {
+      // Local deletion already succeeded
+    }
+  }
+
   // Active Session User
   getCurrentUser(): Employee {
     return this.currentUser;
@@ -626,6 +638,34 @@ class PMSDataStore {
     return this.enrichClient(this.clients[index]);
   }
 
+  deleteClient(id: string): boolean {
+    const target = this.clients.find((c) => c.id === id);
+    if (!target) return false;
+
+    const removedProjectIds = new Set(
+      this.projects.filter((p) => p.client_id === id).map((p) => p.id)
+    );
+    const removedTaskIds = new Set(
+      this.tasks.filter((t) => removedProjectIds.has(t.project_id)).map((t) => t.id)
+    );
+
+    this.clients = this.clients.filter((c) => c.id !== id);
+    this.engagements = this.engagements.filter((e) => e.client_id !== id);
+    this.projects = this.projects.filter((p) => p.client_id !== id);
+    this.tasks = this.tasks.filter((t) => !removedProjectIds.has(t.project_id));
+    this.taskComments = this.taskComments.filter((c) => !removedTaskIds.has(c.task_id));
+    this.deletedTaskProjectIds = this.deletedTaskProjectIds.filter(
+      (pid) => !removedProjectIds.has(pid)
+    );
+    this.invoices = this.invoices.filter((i) => i.client_id !== id);
+    this.payments = this.payments.filter((p) => p.client_id !== id);
+    this.documents = this.documents.filter((d) => d.entity_id !== id);
+
+    this.addActivityLog(`Deleted client: ${target.client_name}`, "client", id);
+    void this.deleteClientFromSupabase(id);
+    return true;
+  }
+
   // Services & Engagements
   getServices(): Service[] {
     return [...this.services];
@@ -648,6 +688,40 @@ class PMSDataStore {
     };
     this.addActivityLog(`Updated service catalog entry: ${this.services[index].service_name}`, "service", id);
     return this.services[index];
+  }
+
+  deleteService(id: string): boolean {
+    const target = this.services.find((s) => s.id === id);
+    if (!target) return false;
+    this.services = this.services.filter((s) => s.id !== id);
+    this.addActivityLog(`Deleted service from catalog: ${target.service_name}`, "service", id);
+    return true;
+  }
+
+  deleteServiceEngagement(engagementId: string): boolean {
+    const target = this.engagements.find((e) => e.id === engagementId);
+    if (!target) return false;
+
+    const linkedProjectIds = new Set(
+      this.projects
+        .filter((p) => p.service_engagement_id === engagementId)
+        .map((p) => p.id)
+    );
+    const linkedTaskIds = new Set(
+      this.tasks.filter((t) => linkedProjectIds.has(t.project_id)).map((t) => t.id)
+    );
+
+    this.engagements = this.engagements.filter((e) => e.id !== engagementId);
+    this.projects = this.projects.filter((p) => p.service_engagement_id !== engagementId);
+    this.tasks = this.tasks.filter((t) => !linkedProjectIds.has(t.project_id));
+    this.taskComments = this.taskComments.filter((c) => !linkedTaskIds.has(c.task_id));
+
+    this.addActivityLog(
+      `Removed service subscription "${target.service_name}" from client ${target.client_name || target.client_id}`,
+      "service_engagement",
+      engagementId
+    );
+    return true;
   }
 
   getEngagementsByClientId(clientId: string): ServiceEngagement[] {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Building2,
@@ -41,6 +41,7 @@ import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 
 export default function Client360ProfilePage() {
   const params = useParams();
+  const navigate = useNavigate();
   const [, setRefreshKey] = useState(0);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
@@ -140,7 +141,7 @@ export default function Client360ProfilePage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link to={`/invoices/new?clientId=${client.id}`}>
             <Button size="sm" variant="outline" className="border-slate-300 gap-1.5 shadow-xs">
               <Receipt className="h-4 w-4 text-blue-600" />
@@ -153,6 +154,27 @@ export default function Client360ProfilePage() {
               <span>New Project</span>
             </Button>
           </Link>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (
+                !window.confirm(
+                  `Delete client "${client.client_name}" along with all linked engagements, projects & tasks?`
+                )
+              ) {
+                return;
+              }
+              pmsStore.deleteClient(client.id);
+              toast.success(`Deleted client "${client.client_name}".`);
+              navigate("/clients");
+            }}
+            className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 gap-1.5 shadow-xs"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span>Delete Client</span>
+          </Button>
         </div>
       </div>
 
@@ -482,6 +504,24 @@ export default function Client360ProfilePage() {
                         <div className="flex items-center gap-1.5">
                           <Badge variant="secondary" className="text-[10px]">{eng.billing_frequency}</Badge>
                           <Badge variant="success" className="text-[10px]">{eng.status}</Badge>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (
+                                !window.confirm(
+                                  `Remove subscribed service "${eng.service_name}" and its linked project/tasks from ${client.client_name}?`
+                                )
+                              ) {
+                                return;
+                              }
+                              pmsStore.deleteServiceEngagement(eng.id);
+                              toast.success(`Removed service "${eng.service_name}".`);
+                            }}
+                            className="p-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
+                            title="Delete Service Subscription"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
                       <h4 className="font-bold text-sm text-slate-900">{eng.service_name}</h4>

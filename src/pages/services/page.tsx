@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Briefcase,
   Plus,
@@ -22,10 +22,17 @@ import { Service } from "@/types";
 import { toast } from "sonner";
 
 export default function ServicesPage() {
+  const [, setTick] = useState(0);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
+
+  useEffect(() => {
+    const unsub = pmsStore.subscribe(() => setTick((t) => t + 1));
+    return unsub;
+  }, []);
+
   const services = pmsStore.getServices();
 
   // Form State for Adding / Editing Service
@@ -268,7 +275,7 @@ export default function ServicesPage() {
                 </div>
 
                 {/* Footer Action */}
-                <div className="flex items-center justify-end pt-3 border-t border-[#f3f4f6]">
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#f3f4f6]">
                   <Button
                     type="button"
                     size="sm"
@@ -277,6 +284,21 @@ export default function ServicesPage() {
                   >
                     <Edit2 className="h-3.5 w-3.5" />
                     <span>Edit Service</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (!window.confirm(`Delete service "${srv.service_name}" from catalog?`)) return;
+                      pmsStore.deleteService(srv.id);
+                      toast.success(`Deleted service "${srv.service_name}".`);
+                    }}
+                    className="h-8 px-2.5 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold gap-1 transition-colors shadow-none"
+                    title="Delete Service"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Delete</span>
                   </Button>
                 </div>
               </CardContent>

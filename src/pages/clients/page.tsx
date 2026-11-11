@@ -13,6 +13,7 @@ import {
   FileCheck2,
   LayoutGrid,
   GanttChart,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -357,16 +358,38 @@ export default function ClientsListPage() {
                       </span>
                     </div>
 
-                    <Link to={`/clients/${client.id}`}>
+                    <div className="flex items-center gap-1.5">
+                      <Link to={`/clients/${client.id}`}>
+                        <Button
+                          size="sm"
+                          className="h-8 px-3 rounded-xl bg-[#f3f4f6] hover:bg-neutral-900 text-[#111827] hover:text-white text-xs font-bold gap-1.5 transition-colors shadow-none"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>360° Profile</span>
+                          <ArrowUpRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
                       <Button
-                        size="sm"
-                        className="h-8 px-3 rounded-xl bg-[#f3f4f6] hover:bg-neutral-900 text-[#111827] hover:text-white text-xs font-bold gap-1.5 transition-colors shadow-none"
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `Delete client "${client.client_name}" along with its engagements, projects & tasks?`
+                            )
+                          ) {
+                            return;
+                          }
+                          pmsStore.deleteClient(client.id);
+                          toast.success(`Deleted client "${client.client_name}".`);
+                        }}
+                        className="h-8 w-8 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shadow-none"
+                        title="Delete Client"
                       >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>360° Profile</span>
-                        <ArrowUpRight className="h-3.5 w-3.5" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
-                    </Link>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
