@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Briefcase,
@@ -16,6 +16,7 @@ import {
   Layers
 } from "lucide-react";
 import { pmsStore } from "@/lib/data/store";
+import { GeoLocationSetupCard } from "@/components/attendance/geo-location-setup-card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -35,6 +36,10 @@ function buildSmoothPath(points: { x: number; y: number }[]) {
 
 export default function DashboardPage() {
   const [serviceSearch, setServiceSearch] = useState("");
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    return pmsStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
   const currentUser = pmsStore.getCurrentUser();
 
   // Real Database Records (Zero Mock Data)
@@ -732,6 +737,9 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Row 5: Admin Geo-Attendance Control & Today's Attendance Hub */}
+      <GeoLocationSetupCard showOpenAttendanceLink />
     </div>
   );
 }

@@ -16,6 +16,7 @@ import {
   Bell,
   BarChart3,
   Settings,
+  MapPin,
   ChevronRight,
   ChevronsLeft,
   Zap,
@@ -42,6 +43,7 @@ const mainNavItems: NavItem[] = [
   { title: "Invoices", href: "/invoices", icon: Receipt },
   { title: "Team", href: "/teams", icon: Users },
   { title: "Employees", href: "/employees", icon: UserCheck },
+  { title: "Attendance", href: "/attendance", icon: MapPin },
   { title: "Documents", href: "/documents", icon: FileText },
   { title: "Reports", href: "/reports", icon: BarChart3 },
 ];

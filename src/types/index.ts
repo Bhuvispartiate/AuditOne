@@ -285,12 +285,19 @@ export interface Task {
   attachments_count?: number;
 }
 
+export interface CommentReadReceipt {
+  employee_id: string;
+  employee_name: string;
+  read_at: string;
+}
+
 export interface TaskComment {
   id: string;
   task_id: string;
   employee_id: string;
   employee_name: string;
   comment: string;
+  read_by?: CommentReadReceipt[];
   created_at: string;
 }
 
@@ -583,4 +590,36 @@ export interface DashboardKPIs {
   totalPaymentsReceived: number;
   outstandingReceivables: number;
 }
+
+export interface OfficeGeoConfig {
+  location_name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  updated_at: string;
+  updated_by_name?: string;
+}
+
+export type AttendanceStatus = 'Present' | 'Checked Out' | 'Out of Range';
+
+export interface AttendanceRecord {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  employee_code?: string;
+  date: string;
+  check_in_at: string;
+  check_out_at?: string;
+  latitude: number;
+  longitude: number;
+  accuracy_meters?: number;
+  distance_meters: number;
+  allowed_radius_meters: number;
+  status: AttendanceStatus;
+  matched: boolean;
+  location_name?: string;
+  created_at: string;
+}
+
 

@@ -48,6 +48,20 @@ function toMs(dateStr?: string): number {
   return Number.isNaN(parsed) ? Date.now() : parsed;
 }
 
+function flattenSubtasksTree(
+  subtasks: Task[] = [],
+  depth = 0
+): Array<{ task: Task; depth: number }> {
+  const result: Array<{ task: Task; depth: number }> = [];
+  subtasks.forEach((st) => {
+    result.push({ task: st, depth });
+    if (st.subtasks && st.subtasks.length > 0) {
+      result.push(...flattenSubtasksTree(st.subtasks, depth + 1));
+    }
+  });
+  return result;
+}
+
 export function ProjectTimeline({
   tasks,
   projectStartDate,
@@ -82,7 +96,7 @@ export function ProjectTimeline({
     visibleTasks.forEach((t) => {
       timestamps.push(toMs(t.start_date || t.created_at?.slice(0, 10)));
       timestamps.push(toMs(t.due_date));
-      (t.subtasks || []).forEach((st) => {
+      flattenSubtasksTree(t.subtasks || []).forEach(({ task: st }) => {
         timestamps.push(toMs(st.start_date || t.start_date));
         timestamps.push(toMs(st.due_date || t.due_date));
       });
@@ -302,10 +316,10 @@ export function ProjectTimeline({
                     </div>
                   </div>
 
-                  {/* Nested Subtasks Rows */}
+                  {/* Nested Subtasks Rows (supports multi-level nesting) */}
                   {isExpanded && subtasks.length > 0 && (
                     <div className="bg-slate-50/70 border-t border-slate-200 divide-y divide-slate-200">
-                      {subtasks.map((sub) => {
+                      {flattenSubtasksTree(subtasks).map(({ task: sub, depth }) => {
                         const subStart = sub.start_date || startStr;
                         const subDue = sub.due_date || task.due_date;
                         const subBar = computeBarStyle(subStart, subDue);
@@ -314,7 +328,8 @@ export function ProjectTimeline({
                           <div
                             key={sub.id}
                             onClick={() => onSelectTask?.(task.id)}
-                            className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center px-3 py-2 pl-8 hover:bg-white cursor-pointer transition-colors"
+                            className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center pr-3 py-2 hover:bg-white cursor-pointer transition-colors"
+                            style={{ paddingLeft: `${32 + depth * 18}px` }}
                           >
                             <div className="md:col-span-5 min-w-0">
                               <div className="flex items-center gap-1.5">

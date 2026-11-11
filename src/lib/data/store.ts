@@ -15,6 +15,7 @@ import {
   Task,
   TaskStatus,
   TaskComment,
+  CommentReadReceipt,
   WorkflowTemplate,
   Invoice,
   Payment,
@@ -23,9 +24,12 @@ import {
   Notification,
   ActivityLog,
   DashboardKPIs,
-  RoleCode
+  RoleCode,
+  OfficeGeoConfig,
+  AttendanceRecord
 } from "@/types";
 import { createClient } from "@/lib/supabase/client";
+import { calculateDistanceMeters } from "@/lib/geo";
 
 // Standard System Designations (Reference Master)
 export const SYSTEM_DESIGNATIONS: Designation[] = [
@@ -86,6 +90,8 @@ class PMSDataStore {
   private documents: FileObject[] = [];
   private notifications: Notification[] = [];
   private activityLogs: ActivityLog[] = [];
+  private officeGeoConfig: OfficeGeoConfig | null = null;
+  private attendanceRecords: AttendanceRecord[] = [];
   private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
   private listeners: Set<() => void> = new Set();
 
@@ -292,6 +298,12 @@ class PMSDataStore {
       if (Array.isArray(parsed.documents)) this.documents = parsed.documents;
       if (Array.isArray(parsed.notifications)) this.notifications = parsed.notifications;
       if (Array.isArray(parsed.activityLogs)) this.activityLogs = parsed.activityLogs;
+      if (parsed.officeGeoConfig && typeof parsed.officeGeoConfig.latitude === "number") {
+        this.officeGeoConfig = parsed.officeGeoConfig;
+      }
+      if (Array.isArray(parsed.attendanceRecords)) {
+        this.attendanceRecords = parsed.attendanceRecords;
+      }
       if (parsed.currentUser && parsed.currentUser.id) {
         this.currentUser = parsed.currentUser;
       }
@@ -319,6 +331,8 @@ class PMSDataStore {
           documents: this.documents,
           notifications: this.notifications,
           activityLogs: this.activityLogs,
+          officeGeoConfig: this.officeGeoConfig,
+          attendanceRecords: this.attendanceRecords,
           currentUser: this.currentUser,
         };
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
@@ -506,21 +520,33 @@ class PMSDataStore {
     };
   }
 
+  private computeTaskProgressScore(task: Task, visited = new Set<string>()): number {
+    if (task.status === "Completed") return 100;
+    if (visited.has(task.id)) return 0;
+    const nextVisited = new Set(visited);
+    nextVisited.add(task.id);
+
+    const subtasks = this.tasks.filter((st) => st.parent_task_id === task.id);
+    if (subtasks.length > 0) {
+      const subSum = subtasks.reduce(
+        (acc, st) => acc + this.computeTaskProgressScore(st, nextVisited),
+        0
+      );
+      return subSum / subtasks.length;
+    }
+    if (task.status === "Under Review") return 75;
+    if (task.status === "In Progress") return 40;
+    return 0;
+  }
+
   private computeProjectProgress(projectId: string): number {
     const projectTasks = this.tasks.filter((t) => t.project_id === projectId && !t.parent_task_id);
     if (projectTasks.length === 0) return 0;
 
-    const totalScore = projectTasks.reduce((acc, task) => {
-      if (task.status === "Completed") return acc + 100;
-      const subtasks = this.tasks.filter((st) => st.parent_task_id === task.id);
-      if (subtasks.length > 0) {
-        const doneCount = subtasks.filter((st) => st.status === "Completed").length;
-        return acc + (doneCount / subtasks.length) * 100;
-      }
-      if (task.status === "Under Review") return acc + 75;
-      if (task.status === "In Progress") return acc + 40;
-      return acc;
-    }, 0);
+    const totalScore = projectTasks.reduce(
+      (acc, task) => acc + this.computeTaskProgressScore(task),
+      0
+    );
 
     return Math.round(totalScore / projectTasks.length);
   }
@@ -1025,13 +1051,26 @@ class PMSDataStore {
   }
 
   // Tasks, Subtasks & Task Comments
-  private enrichTask(task: Task): Task {
-    const subtasks = this.tasks.filter((st) => st.parent_task_id === task.id);
+  private enrichTask(task: Task, visited = new Set<string>()): Task {
+    if (visited.has(task.id)) {
+      return { ...task, subtasks: [] };
+    }
+    const nextVisited = new Set(visited);
+    nextVisited.add(task.id);
+
+    const subtasks = this.tasks
+      .filter((st) => st.parent_task_id === task.id)
+      .map((st) => this.enrichTask(st, nextVisited));
     const commentsCount = this.taskComments.filter((c) => c.task_id === task.id).length;
+    const attachmentsCount = this.documents.filter(
+      (d) => d.entity_type === "task" && d.entity_id === task.id
+    ).length;
+
     return {
       ...task,
       subtasks,
       comments_count: commentsCount,
+      attachments_count: attachmentsCount,
     };
   }
 
@@ -1056,7 +1095,9 @@ class PMSDataStore {
   }
 
   getSubtasks(parentTaskId: string): Task[] {
-    return this.tasks.filter((t) => t.parent_task_id === parentTaskId);
+    return this.tasks
+      .filter((t) => t.parent_task_id === parentTaskId)
+      .map((t) => this.enrichTask(t));
   }
 
   addTask(
@@ -1141,7 +1182,7 @@ class PMSDataStore {
     this.refreshProjectProgress(parent.project_id);
     this.addActivityLog(`Added subtask "${sub.title}" to ${parent.task_code}`, "task", parent.id);
     this.persist();
-    return sub;
+    return this.enrichTask(sub);
   }
 
   updateTask(taskId: string, updates: Partial<Task>): Task | null {
@@ -1189,6 +1230,12 @@ class PMSDataStore {
   getTaskComments(taskId: string): TaskComment[] {
     return this.taskComments
       .filter((c) => c.task_id === taskId)
+      .map((c) => ({
+        ...c,
+        read_by: c.read_by
+          ? [...c.read_by]
+          : [{ employee_id: c.employee_id, employee_name: c.employee_name, read_at: c.created_at }],
+      }))
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }
 
@@ -1197,13 +1244,21 @@ class PMSDataStore {
     const trimmed = commentText.trim();
     if (!task || !trimmed) return null;
 
+    const now = new Date().toISOString();
     const newComment: TaskComment = {
       id: generateId("cmt"),
       task_id: taskId,
       employee_id: this.currentUser.id,
       employee_name: this.currentUser.full_name,
       comment: trimmed,
-      created_at: new Date().toISOString(),
+      read_by: [
+        {
+          employee_id: this.currentUser.id,
+          employee_name: this.currentUser.full_name,
+          read_at: now,
+        },
+      ],
+      created_at: now,
     };
 
     this.taskComments.push(newComment);
@@ -1212,25 +1267,87 @@ class PMSDataStore {
     return newComment;
   }
 
+  markTaskCommentsRead(taskId: string, reader?: { id: string; full_name: string }): boolean {
+    const actor = reader || this.currentUser;
+    if (!actor?.id) return false;
+
+    const now = new Date().toISOString();
+    let changed = false;
+
+    this.taskComments.forEach((c) => {
+      if (c.task_id !== taskId) return;
+      if (!c.read_by) {
+        c.read_by = [{ employee_id: c.employee_id, employee_name: c.employee_name, read_at: c.created_at }];
+      }
+      if (!c.read_by.some((r) => r.employee_id === actor.id)) {
+        c.read_by.push({
+          employee_id: actor.id,
+          employee_name: actor.full_name,
+          read_at: now,
+        });
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      this.persist();
+    }
+    return changed;
+  }
+
+  toggleCommentReadReceipt(commentId: string, employee: { id: string; full_name: string }): TaskComment | null {
+    const comment = this.taskComments.find((c) => c.id === commentId);
+    if (!comment) return null;
+
+    if (!comment.read_by) {
+      comment.read_by = [
+        { employee_id: comment.employee_id, employee_name: comment.employee_name, read_at: comment.created_at },
+      ];
+    }
+
+    const existingIdx = comment.read_by.findIndex((r) => r.employee_id === employee.id);
+    if (existingIdx >= 0) {
+      comment.read_by.splice(existingIdx, 1);
+    } else {
+      comment.read_by.push({
+        employee_id: employee.id,
+        employee_name: employee.full_name,
+        read_at: new Date().toISOString(),
+      });
+    }
+
+    this.persist();
+    return comment;
+  }
+
   deleteTask(taskId: string): boolean {
     const target = this.tasks.find((t) => t.id === taskId);
     if (!target) return false;
 
     const isParent = !target.parent_task_id;
     const removedIds = new Set<string>([taskId]);
-    if (isParent) {
+    const queue: string[] = [taskId];
+
+    // Recursively collect all nested child subtasks (children, grandchildren, ...)
+    while (queue.length > 0) {
+      const currId = queue.shift()!;
       this.tasks.forEach((t) => {
-        if (t.parent_task_id === taskId) {
+        if (t.parent_task_id === currId && !removedIds.has(t.id)) {
           removedIds.add(t.id);
+          queue.push(t.id);
         }
       });
-      if (!this.deletedTaskProjectIds.includes(target.project_id)) {
-        this.deletedTaskProjectIds.push(target.project_id);
-      }
+    }
+
+    if (isParent && !this.deletedTaskProjectIds.includes(target.project_id)) {
+      this.deletedTaskProjectIds.push(target.project_id);
     }
 
     this.tasks = this.tasks.filter((t) => !removedIds.has(t.id));
     this.taskComments = this.taskComments.filter((c) => !removedIds.has(c.task_id));
+    this.documents = this.documents.filter(
+      (d) => !(d.entity_type === "task" && d.entity_id && removedIds.has(d.entity_id))
+    );
     this.refreshProjectProgress(target.project_id);
     this.addActivityLog(
       `Deleted ${isParent ? "task" : "subtask"} ${target.task_code}: ${target.title}`,
@@ -1614,12 +1731,24 @@ class PMSDataStore {
     return [...this.documents];
   }
 
+  getDocumentsByEntity(entityType: string, entityId: string): FileObject[] {
+    return this.documents.filter((d) => d.entity_type === entityType && d.entity_id === entityId);
+  }
+
   addDocument(docData: Omit<FileObject, "id" | "created_at">): FileObject {
-    const id = `doc-${Date.now()}`;
+    const id = generateId("doc");
     const newDoc: FileObject = { ...docData, id, created_at: new Date().toISOString() };
     this.documents.unshift(newDoc);
-    this.addActivityLog(`Uploaded object: ${newDoc.file_name} to Cloudflare R2`, "document", id);
+    this.addActivityLog(`Uploaded document: ${newDoc.file_name}`, "document", id);
     return newDoc;
+  }
+
+  deleteDocument(docId: string): boolean {
+    const target = this.documents.find((d) => d.id === docId);
+    if (!target) return false;
+    this.documents = this.documents.filter((d) => d.id !== docId);
+    this.addActivityLog(`Removed document: ${target.file_name}`, "document", docId);
+    return true;
   }
 
   // Notifications
@@ -1677,6 +1806,188 @@ class PMSDataStore {
     };
     this.activityLogs.unshift(newLog);
     this.persist();
+  }
+
+  // Geo-Fenced Attendance Engine
+  getOfficeGeoConfig(): OfficeGeoConfig | null {
+    return this.officeGeoConfig ? { ...this.officeGeoConfig } : null;
+  }
+
+  setOfficeGeoConfig(
+    config: Omit<OfficeGeoConfig, "updated_at" | "updated_by_name">
+  ): OfficeGeoConfig {
+    const nextConfig: OfficeGeoConfig = {
+      location_name: config.location_name.trim() || "Head Office",
+      address: config.address?.trim() || "",
+      latitude: Number(config.latitude),
+      longitude: Number(config.longitude),
+      radius_meters: Math.max(10, Number(config.radius_meters) || 50),
+      updated_at: new Date().toISOString(),
+      updated_by_name: this.currentUser?.full_name || "System Administrator",
+    };
+    this.officeGeoConfig = nextConfig;
+    this.addActivityLog(
+      `Configured Geo-Attendance Location "${nextConfig.location_name}" (${nextConfig.latitude.toFixed(6)}, ${nextConfig.longitude.toFixed(6)}) within ±${nextConfig.radius_meters}m`,
+      "attendance"
+    );
+    return nextConfig;
+  }
+
+  getAttendanceRecords(date?: string): AttendanceRecord[] {
+    const list = date
+      ? this.attendanceRecords.filter((r) => r.date === date)
+      : [...this.attendanceRecords];
+    return list.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }
+
+  markAttendanceByGeo(params: {
+    employee_id: string;
+    latitude: number;
+    longitude: number;
+    accuracy_meters?: number;
+    action?: "check-in" | "check-out";
+  }): {
+    matched: boolean;
+    distanceMeters: number;
+    radiusMeters: number;
+    record?: AttendanceRecord;
+    error?: string;
+  } {
+    const config = this.officeGeoConfig;
+    if (!config) {
+      return {
+        matched: false,
+        distanceMeters: 0,
+        radiusMeters: 50,
+        error: "Admin has not configured the office geo-location yet.",
+      };
+    }
+
+    const emp = this.employees.find((e) => e.id === params.employee_id);
+    if (!emp) {
+      return {
+        matched: false,
+        distanceMeters: 0,
+        radiusMeters: config.radius_meters || 50,
+        error: "Employee record not found.",
+      };
+    }
+
+    const radiusMeters = config.radius_meters || 50;
+    const rawDistance = calculateDistanceMeters(
+      params.latitude,
+      params.longitude,
+      config.latitude,
+      config.longitude
+    );
+    const distanceMeters = Math.round(rawDistance);
+    const matched = distanceMeters <= radiusMeters;
+    const today = new Date().toISOString().slice(0, 10);
+    const nowIso = new Date().toISOString();
+
+    if (!matched) {
+      const attempt: AttendanceRecord = {
+        id: generateId("att"),
+        employee_id: emp.id,
+        employee_name: emp.full_name,
+        employee_code: emp.employee_code,
+        date: today,
+        check_in_at: nowIso,
+        latitude: params.latitude,
+        longitude: params.longitude,
+        accuracy_meters: params.accuracy_meters ? Math.round(params.accuracy_meters) : undefined,
+        distance_meters: distanceMeters,
+        allowed_radius_meters: radiusMeters,
+        status: "Out of Range",
+        matched: false,
+        location_name: config.location_name,
+        created_at: nowIso,
+      };
+      this.attendanceRecords.unshift(attempt);
+      this.addActivityLog(
+        `Out-of-range attendance attempt by ${emp.full_name} (${distanceMeters}m away; limit ±${radiusMeters}m)`,
+        "attendance",
+        attempt.id
+      );
+      return {
+        matched: false,
+        distanceMeters,
+        radiusMeters,
+        record: attempt,
+        error: `Location mismatch: ${distanceMeters}m away from ${config.location_name} (must be within ±${radiusMeters}m).`,
+      };
+    }
+
+    if (params.action === "check-out") {
+      const existingPresent = this.attendanceRecords.find(
+        (r) => r.employee_id === emp.id && r.date === today && r.matched && r.status === "Present"
+      );
+      if (existingPresent) {
+        existingPresent.check_out_at = nowIso;
+        existingPresent.status = "Checked Out";
+        existingPresent.distance_meters = distanceMeters;
+        this.addActivityLog(
+          `${emp.full_name} checked out (${distanceMeters}m from ${config.location_name})`,
+          "attendance",
+          existingPresent.id
+        );
+        return {
+          matched: true,
+          distanceMeters,
+          radiusMeters,
+          record: existingPresent,
+        };
+      }
+    }
+
+    const alreadyCheckedIn = this.attendanceRecords.find(
+      (r) =>
+        r.employee_id === emp.id &&
+        r.date === today &&
+        r.matched &&
+        (r.status === "Present" || r.status === "Checked Out")
+    );
+    if (alreadyCheckedIn) {
+      return {
+        matched: true,
+        distanceMeters,
+        radiusMeters,
+        record: alreadyCheckedIn,
+      };
+    }
+
+    const record: AttendanceRecord = {
+      id: generateId("att"),
+      employee_id: emp.id,
+      employee_name: emp.full_name,
+      employee_code: emp.employee_code,
+      date: today,
+      check_in_at: nowIso,
+      latitude: params.latitude,
+      longitude: params.longitude,
+      accuracy_meters: params.accuracy_meters ? Math.round(params.accuracy_meters) : undefined,
+      distance_meters: distanceMeters,
+      allowed_radius_meters: radiusMeters,
+      status: "Present",
+      matched: true,
+      location_name: config.location_name,
+      created_at: nowIso,
+    };
+
+    this.attendanceRecords.unshift(record);
+    this.addActivityLog(
+      `Marked Present for ${emp.full_name} via Geo-Attendance (${distanceMeters}m from ${config.location_name})`,
+      "attendance",
+      record.id
+    );
+    return {
+      matched: true,
+      distanceMeters,
+      radiusMeters,
+      record,
+    };
   }
 }
 
