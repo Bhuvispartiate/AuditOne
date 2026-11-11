@@ -12,6 +12,7 @@ import NewProjectPage from "@/pages/projects/new/page";
 import ProjectDetailPage from "@/pages/projects/[id]/page";
 import TasksPage from "@/pages/tasks/page";
 import WorkflowsPage from "@/pages/workflows/page";
+import WorkflowKanbanPage from "@/pages/workflows/[id]/page";
 import FinancePage from "@/pages/finance/page";
 import InvoicesPage from "@/pages/invoices/page";
 import NewInvoicePage from "@/pages/invoices/new/page";
@@ -46,6 +47,7 @@ export default function App() {
 
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/workflows" element={<WorkflowsPage />} />
+          <Route path="/workflows/:id" element={<WorkflowKanbanPage />} />
           <Route path="/finance" element={<FinancePage />} />
 
           <Route path="/invoices" element={<InvoicesPage />} />

@@ -1201,6 +1201,158 @@ class PMSDataStore {
     return true;
   }
 
+  /**
+   * Ensures every client engagement / project matching this workflow's service
+   * has tasks generated for every template task in workflow.template_tasks.
+   */
+  syncWorkflowTasksToSubscribedClients(workflowId: string): {
+    updatedProjects: number;
+    createdTasks: number;
+  } {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    const tplTasks = wf?.template_tasks || [];
+    if (!wf || tplTasks.length === 0) {
+      return { updatedProjects: 0, createdTasks: 0 };
+    }
+
+    const serviceNameLower = (wf.service_name || "").trim().toLowerCase();
+    const matchingEngagements = this.engagements.filter(
+      (e) =>
+        e.status === "Active" &&
+        ((wf.service_id && e.service_id === wf.service_id) ||
+          (serviceNameLower && (e.service_name || "").trim().toLowerCase() === serviceNameLower))
+    );
+
+    const candidateProjectIds = new Set<string>();
+    matchingEngagements.forEach((eng) => {
+      let proj = this.projects.find(
+        (p) =>
+          p.service_engagement_id === eng.id ||
+          (p.client_id === eng.client_id &&
+            (p.service_name || "").trim().toLowerCase() === (eng.service_name || "").trim().toLowerCase())
+      );
+      if (!proj) {
+        const startDate = eng.start_date || new Date().toISOString().slice(0, 10);
+        const dueDate = eng.end_date || this.addDaysIso(startDate, 30);
+        proj = this.addProject(
+          {
+            project_name: `${eng.client_name || "Client"} — ${eng.service_name}`,
+            project_type: "Client Project",
+            client_id: eng.client_id,
+            client_name: eng.client_name,
+            service_engagement_id: eng.id,
+            service_name: eng.service_name,
+            project_manager_id: eng.relationship_manager_id || this.currentUser.id,
+            project_manager_name: eng.relationship_manager_name || this.currentUser.full_name,
+            description: wf.description || `Service delivery project for ${eng.service_name}`,
+            priority: "Medium",
+            start_date: startDate,
+            due_date: dueDate,
+            status: "In Progress",
+          },
+          { skipDefaultTask: true }
+        );
+      }
+      candidateProjectIds.add(proj.id);
+    });
+
+    // Also include standalone client projects tagged with this workflow's service name
+    if (serviceNameLower) {
+      this.projects.forEach((p) => {
+        if ((p.service_name || "").trim().toLowerCase() === serviceNameLower) {
+          candidateProjectIds.add(p.id);
+        }
+      });
+    }
+
+    let updatedProjects = 0;
+    let createdTasks = 0;
+
+    candidateProjectIds.forEach((projectId) => {
+      const proj = this.projects.find((p) => p.id === projectId);
+      if (!proj) return;
+
+      const existingTopTasks = this.tasks.filter(
+        (t) => t.project_id === projectId && !t.parent_task_id
+      );
+      const existingTitles = new Set(
+        existingTopTasks.map((t) => t.title.trim().toLowerCase())
+      );
+
+      let addedHere = 0;
+      const baseStart = proj.start_date || new Date().toISOString().slice(0, 10);
+
+      tplTasks.forEach((tplTask) => {
+        if (existingTitles.has(tplTask.task_name.trim().toLowerCase())) return;
+
+        const taskStart = this.addDaysIso(baseStart, Math.max(0, tplTask.start_day_offset || 0));
+        const taskDue = this.addDaysIso(taskStart, Math.max(0, (tplTask.duration_days || 1) - 1));
+        const createdTask = this.addTask({
+          title: tplTask.task_name,
+          project_id: proj.id,
+          project_name: proj.project_name,
+          assigned_employee_id:
+            tplTask.assigned_employee_id || proj.project_manager_id || this.currentUser.id,
+          assigned_employee_name:
+            tplTask.assigned_employee_name ||
+            proj.project_manager_name ||
+            this.currentUser.full_name,
+          priority: tplTask.priority || "Medium",
+          start_date: taskStart,
+          due_date: taskDue,
+          status: tplTask.status || "To Do",
+          description: tplTask.description || `Workflow deliverable under ${wf.workflow_name}.`,
+          created_by: this.currentUser.id,
+          created_by_name: this.currentUser.full_name,
+        });
+
+        (tplTask.subtasks || []).forEach((tplSub) => {
+          const subStart = this.addDaysIso(
+            baseStart,
+            Math.max(0, tplSub.start_day_offset ?? tplTask.start_day_offset ?? 0)
+          );
+          const subDue = this.addDaysIso(subStart, Math.max(0, (tplSub.duration_days || 1) - 1));
+          this.addSubtask(createdTask.id, {
+            title: tplSub.title,
+            description: tplSub.description,
+            start_date: subStart,
+            due_date: subDue,
+            priority: tplSub.priority || tplTask.priority,
+            status: tplSub.status || "To Do",
+            assigned_employee_id:
+              tplSub.assigned_employee_id ||
+              tplTask.assigned_employee_id ||
+              proj.project_manager_id ||
+              this.currentUser.id,
+            assigned_employee_name:
+              tplSub.assigned_employee_name ||
+              tplTask.assigned_employee_name ||
+              proj.project_manager_name ||
+              this.currentUser.full_name,
+          });
+        });
+
+        (tplTask.default_comments || []).forEach((cmt) => {
+          if (cmt.trim()) {
+            this.addTaskComment(createdTask.id, cmt.trim());
+          }
+        });
+
+        addedHere += 1;
+        createdTasks += 1;
+      });
+
+      if (addedHere > 0) {
+        updatedProjects += 1;
+      }
+    });
+
+    if (createdTasks > 0) {
+      this.persist();
+    }
+    return { updatedProjects, createdTasks };
+  }
+
   // Invoices & Financials
   getInvoices(): Invoice[] {
     return [...this.invoices];

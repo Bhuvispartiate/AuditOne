@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutGrid,
@@ -7,6 +7,7 @@ import {
   FolderGit2,
   CheckSquare,
   GitBranch,
+  Columns3,
   CreditCard,
   Receipt,
   UserCheck,
@@ -53,9 +54,17 @@ const footerNavItems: NavItem[] = [
 export function AppSidebar() {
   const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const unsub = pmsStore.subscribe(() => setTick((t) => t + 1));
+    return unsub;
+  }, []);
 
   const currentUser = pmsStore.getCurrentUser();
   const tasks = pmsStore.getTasks();
+  const workflows = pmsStore.getWorkflows().filter((w) => w.is_active !== false);
+  const engagements = pmsStore.getAllEngagements();
   const notifications = pmsStore.getNotifications();
   const pendingTasksCount = tasks.filter((t) => t.status !== "Completed").length;
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -123,45 +132,104 @@ export function AppSidebar() {
       <div className="flex-1 overflow-y-auto px-3 py-1 space-y-1 scrollbar-none">
         {mainNavItems.map((item) => {
           const Icon = item.icon;
+          const isWorkflowRoot = item.href === "/workflows";
           const isActive = pathname
-            ? pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
+            ? isWorkflowRoot
+              ? pathname === "/workflows"
+              : pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
             : false;
           const taskBadge = item.href === "/tasks" && pendingTasksCount > 0 ? pendingTasksCount : undefined;
 
           return (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={cn(
-                "group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[13px] font-medium transition-all duration-150 relative",
-                isActive
-                  ? "bg-gradient-to-r from-[#6c5ce7] to-[#5b4cdb] text-white font-semibold shadow-[0_6px_18px_rgba(108,92,231,0.38)]"
-                  : "text-[#a3a8c3] hover:bg-white/[0.06] hover:text-white"
-              )}
-              title={collapsed ? item.title : undefined}
-            >
-              <Icon
+            <React.Fragment key={item.href}>
+              <Link
+                to={item.href}
                 className={cn(
-                  "h-[17px] w-[17px] shrink-0 transition-transform duration-200 group-hover:scale-105",
-                  isActive ? "text-white" : "text-[#858bb0] group-hover:text-white"
+                  "group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[13px] font-medium transition-all duration-150 relative",
+                  isActive
+                    ? "bg-gradient-to-r from-[#6c5ce7] to-[#5b4cdb] text-white font-semibold shadow-[0_6px_18px_rgba(108,92,231,0.38)]"
+                    : "text-[#a3a8c3] hover:bg-white/[0.06] hover:text-white"
                 )}
-              />
-              {!collapsed && (
-                <span className="truncate flex-1 tracking-tight">{item.title}</span>
-              )}
-              {!collapsed && taskBadge !== undefined && (
-                <span
+                title={collapsed ? item.title : undefined}
+              >
+                <Icon
                   className={cn(
-                    "ml-auto flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
-                    isActive
-                      ? "bg-white/20 text-white"
-                      : "bg-[#2a2d4e] text-[#c7d2fe]"
+                    "h-[17px] w-[17px] shrink-0 transition-transform duration-200 group-hover:scale-105",
+                    isActive ? "text-white" : "text-[#858bb0] group-hover:text-white"
                   )}
-                >
-                  {taskBadge}
-                </span>
+                />
+                {!collapsed && (
+                  <span className="truncate flex-1 tracking-tight">{item.title}</span>
+                )}
+                {!collapsed && taskBadge !== undefined && (
+                  <span
+                    className={cn(
+                      "ml-auto flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
+                      isActive
+                        ? "bg-white/20 text-white"
+                        : "bg-[#2a2d4e] text-[#c7d2fe]"
+                    )}
+                  >
+                    {taskBadge}
+                  </span>
+                )}
+              </Link>
+
+              {/* Dynamic Sidebar Pages Created Automatically for Each Workflow */}
+              {isWorkflowRoot && workflows.length > 0 && (
+                <div className={cn("space-y-0.5 py-0.5", !collapsed && "ml-3 pl-2.5 border-l border-white/10")}>
+                  {workflows.map((wf) => {
+                    const wfHref = `/workflows/${wf.id}`;
+                    const wfActive = pathname === wfHref;
+                    const serviceClientsCount = new Set(
+                      engagements
+                        .filter(
+                          (e) =>
+                            e.status === "Active" &&
+                            ((wf.service_id && e.service_id === wf.service_id) ||
+                              (wf.service_name &&
+                                e.service_name?.trim().toLowerCase() === wf.service_name.trim().toLowerCase()))
+                        )
+                        .map((e) => e.client_id)
+                    ).size;
+
+                    return (
+                      <Link
+                        key={wf.id}
+                        to={wfHref}
+                        title={collapsed ? wf.workflow_name : undefined}
+                        className={cn(
+                          "group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[12px] font-medium transition-all duration-150",
+                          wfActive
+                            ? "bg-gradient-to-r from-[#6c5ce7] to-[#5b4cdb] text-white font-semibold shadow-[0_6px_18px_rgba(108,92,231,0.35)]"
+                            : "text-[#a3a8c3] hover:bg-white/[0.06] hover:text-white"
+                        )}
+                      >
+                        <Columns3
+                          className={cn(
+                            "h-[15px] w-[15px] shrink-0",
+                            wfActive ? "text-white" : "text-[#8b5cf6] group-hover:text-white"
+                          )}
+                        />
+                        {!collapsed && (
+                          <span className="truncate flex-1 tracking-tight">{wf.workflow_name}</span>
+                        )}
+                        {!collapsed && (
+                          <span
+                            className={cn(
+                              "ml-auto flex h-4.5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
+                              wfActive ? "bg-white/20 text-white" : "bg-[#2a2d4e] text-[#c7d2fe]"
+                            )}
+                          >
+                            {serviceClientsCount}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
-            </Link>
+            </React.Fragment>
           );
         })}
       </div>

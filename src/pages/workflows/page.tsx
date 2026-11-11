@@ -12,6 +12,8 @@ import {
   Briefcase,
   CheckSquare,
   ArrowRight,
+  Columns3,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,7 +110,7 @@ export default function WorkflowsPage() {
     if (!serviceId && services.length > 0) {
       const first = services[0];
       setServiceId(first.id);
-      setWfName(`${first.service_name} Workflow`);
+      setWfName(first.service_name);
       setWfCode(`WF-${first.service_code}`);
     }
   }, [services, serviceId]);
@@ -194,7 +196,7 @@ export default function WorkflowsPage() {
     }
     const first = services[0];
     setServiceId(first.id);
-    setWfName(`${first.service_name} Workflow`);
+    setWfName(first.service_name);
     setWfCode(`WF-${first.service_code}`);
     setDescription("");
     setIsNewModalOpen(true);
@@ -204,7 +206,7 @@ export default function WorkflowsPage() {
     setServiceId(nextServiceId);
     const srv = services.find((s) => s.id === nextServiceId);
     if (srv) {
-      setWfName(`${srv.service_name} Workflow`);
+      setWfName(srv.service_name);
       setWfCode(`WF-${srv.service_code}`);
     }
   };
@@ -436,9 +438,19 @@ export default function WorkflowsPage() {
                         <span>
                           {tCount} Task(s) • {sCount} Subtask(s)
                         </span>
-                        <span className="inline-flex items-center gap-1 text-slate-800">
-                          Configure <ArrowRight className="h-3 w-3" />
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            to={`/workflows/${wf.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-800 hover:border-neutral-900"
+                            title="Open Workflow Kanban Board"
+                          >
+                            <Columns3 className="h-3 w-3 text-violet-600" /> Kanban
+                          </Link>
+                          <span className="inline-flex items-center gap-1 text-slate-800">
+                            Edit <ArrowRight className="h-3 w-3" />
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -490,6 +502,33 @@ export default function WorkflowsPage() {
                     <p className="text-xs text-[#6b7280] mt-0.5">
                       {selectedWorkflow.description}
                     </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const res = pmsStore.syncWorkflowTasksToSubscribedClients(selectedWorkflow.id);
+                        if (res.createdTasks > 0) {
+                          toast.success(`Synced ${res.createdTasks} task(s) across ${res.updatedProjects} client project(s).`);
+                        } else {
+                          toast.info("All subscribed clients already have these workflow tasks.");
+                        }
+                      }}
+                      className="rounded-xl border-[1.5px] border-slate-300 text-xs font-bold gap-1.5"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" /> Sync to Clients
+                    </Button>
+                    <Link to={`/workflows/${selectedWorkflow.id}`}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-neutral-900 hover:bg-black text-white rounded-xl text-xs font-bold gap-1.5"
+                      >
+                        <Columns3 className="h-3.5 w-3.5" /> Open Kanban Board
+                      </Button>
+                    </Link>
                   </div>
                 </div>
 
