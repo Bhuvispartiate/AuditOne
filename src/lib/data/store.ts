@@ -217,17 +217,29 @@ class PMSDataStore {
       }
     });
 
-    // 4. Every top-level Task gets start_date and starter Subtasks if none exist yet
+    // 4. Every top-level Task gets start_date (zero mock subtasks) and purge any legacy auto-seeded mock subtasks
+    const mockSubtaskTitles = new Set([
+      "1. Client Inputs & Source Document Verification",
+      "2. Working Paper Preparation, Review & Completion",
+    ]);
+    const beforeSubCount = this.tasks.length;
+    this.tasks = this.tasks.filter(
+      (t) =>
+        !(
+          t.parent_task_id &&
+          mockSubtaskTitles.has(t.title) &&
+          (t.description?.startsWith("Subtask step under ") || t.description?.startsWith("Subtask under "))
+        )
+    );
+    if (this.tasks.length !== beforeSubCount) {
+      changed = true;
+    }
+
     const topLevelTasks = this.tasks.filter((t) => !t.parent_task_id);
     topLevelTasks.forEach((task) => {
       const proj = this.projects.find((p) => p.id === task.project_id);
       if (!task.start_date) {
         task.start_date = proj?.start_date || (task.created_at || today).slice(0, 10);
-        changed = true;
-      }
-      const existingSubtasks = this.tasks.filter((st) => st.parent_task_id === task.id);
-      if (existingSubtasks.length === 0) {
-        this.appendStarterSubtasks(task);
         changed = true;
       }
     });
@@ -508,50 +520,6 @@ class PMSDataStore {
     proj.updated_at = new Date().toISOString();
   }
 
-  private appendStarterSubtasks(task: Task) {
-    const today = new Date().toISOString().slice(0, 10);
-    const startDate = task.start_date || today;
-    const dueDate = task.due_date || this.addDaysIso(startDate, 14);
-    const midDate = this.addDaysIso(startDate, 5);
-    const splitDate = midDate > dueDate ? dueDate : midDate;
-
-    const templates = [
-      {
-        title: "1. Client Inputs & Source Document Verification",
-        start_date: startDate,
-        due_date: splitDate,
-      },
-      {
-        title: "2. Working Paper Preparation, Review & Completion",
-        start_date: splitDate,
-        due_date: dueDate,
-      },
-    ];
-
-    templates.forEach((tpl, idx) => {
-      this.tasks.push({
-        id: generateId("sub"),
-        task_code: `${task.task_code}.${idx + 1}`,
-        project_id: task.project_id,
-        project_name: task.project_name,
-        parent_task_id: task.id,
-        title: tpl.title,
-        description: `Subtask step under ${task.task_code}: ${task.title}`,
-        assigned_employee_id: task.assigned_employee_id || this.currentUser.id,
-        assigned_employee_name: task.assigned_employee_name || this.currentUser.full_name,
-        priority: task.priority,
-        start_date: tpl.start_date,
-        due_date: tpl.due_date,
-        status: task.status === "Completed" ? "Completed" : "To Do",
-        created_by: this.currentUser.id,
-        created_by_name: this.currentUser.full_name,
-        comments_count: 0,
-        attachments_count: 0,
-        created_at: new Date().toISOString(),
-      });
-    });
-  }
-
   private enrichClient(client: Client): Client {
     const clientEngagements = this.engagements.filter((e) => e.client_id === client.id);
     const clientProjects = this.projects.filter((p) => p.client_id === client.id);
@@ -777,55 +745,47 @@ class PMSDataStore {
                   description: stTask.description || stage.description,
                   created_by: this.currentUser.id,
                   created_by_name: this.currentUser.full_name,
-                },
-                { createDefaultSubtasks: true }
-              )
+                })
             );
           });
         } else {
           createdTasks.push(
-            this.addTask(
-              {
-                title: `${stage.stage_name} — ${engagement.service_name}`,
-                project_id: project.id,
-                project_name: project.project_name,
-                assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
-                assigned_employee_name:
-                  engagement.relationship_manager_name || this.currentUser.full_name,
-                priority: "Medium",
-                start_date: runningStart,
-                due_date: stageDue,
-                status: "To Do",
-                description: stage.description,
-                created_by: this.currentUser.id,
-                created_by_name: this.currentUser.full_name,
-              },
-              { createDefaultSubtasks: true }
-            )
+            this.addTask({
+              title: `${stage.stage_name} — ${engagement.service_name}`,
+              project_id: project.id,
+              project_name: project.project_name,
+              assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
+              assigned_employee_name:
+                engagement.relationship_manager_name || this.currentUser.full_name,
+              priority: "Medium",
+              start_date: runningStart,
+              due_date: stageDue,
+              status: "To Do",
+              description: stage.description,
+              created_by: this.currentUser.id,
+              created_by_name: this.currentUser.full_name,
+            })
           );
         }
         runningStart = stageDue;
       });
     } else {
       createdTasks.push(
-        this.addTask(
-          {
-            title: `${engagement.service_name} — ${engagement.billing_frequency} Execution`,
-            project_id: project.id,
-            project_name: project.project_name,
-            assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
-            assigned_employee_name:
-              engagement.relationship_manager_name || this.currentUser.full_name,
-            priority: "Medium",
-            start_date: startDate,
-            due_date: computedDueDate,
-            status: "To Do",
-            description: `Auto-generated deliverable task for ${engagement.client_name || "client"} under ${engagement.service_code}.`,
-            created_by: this.currentUser.id,
-            created_by_name: this.currentUser.full_name,
-          },
-          { createDefaultSubtasks: true }
-        )
+        this.addTask({
+          title: `${engagement.service_name} — ${engagement.billing_frequency} Execution`,
+          project_id: project.id,
+          project_name: project.project_name,
+          assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
+          assigned_employee_name:
+            engagement.relationship_manager_name || this.currentUser.full_name,
+          priority: "Medium",
+          start_date: startDate,
+          due_date: computedDueDate,
+          status: "To Do",
+          description: `Auto-generated deliverable task for ${engagement.client_name || "client"} under ${engagement.service_code}.`,
+          created_by: this.currentUser.id,
+          created_by_name: this.currentUser.full_name,
+        })
       );
     }
 
@@ -888,23 +848,20 @@ class PMSDataStore {
     }
 
     if (!options?.skipDefaultTask) {
-      this.addTask(
-        {
-          title: `${newProject.project_name} — Execution Deliverable`,
-          project_id: newProject.id,
-          project_name: newProject.project_name,
-          assigned_employee_id: newProject.project_manager_id || this.currentUser.id,
-          assigned_employee_name: newProject.project_manager_name || this.currentUser.full_name,
-          priority: newProject.priority || "Medium",
-          start_date: newProject.start_date,
-          due_date: newProject.due_date,
-          status: "To Do",
-          description: newProject.description || `Deliverable task for ${newProject.project_name}.`,
-          created_by: this.currentUser.id,
-          created_by_name: this.currentUser.full_name,
-        },
-        { createDefaultSubtasks: true }
-      );
+      this.addTask({
+        title: `${newProject.project_name} — Execution Deliverable`,
+        project_id: newProject.id,
+        project_name: newProject.project_name,
+        assigned_employee_id: newProject.project_manager_id || this.currentUser.id,
+        assigned_employee_name: newProject.project_manager_name || this.currentUser.full_name,
+        priority: newProject.priority || "Medium",
+        start_date: newProject.start_date,
+        due_date: newProject.due_date,
+        status: "To Do",
+        description: newProject.description || `Deliverable task for ${newProject.project_name}.`,
+        created_by: this.currentUser.id,
+        created_by_name: this.currentUser.full_name,
+      });
     }
 
     this.persist();
@@ -959,8 +916,7 @@ class PMSDataStore {
   }
 
   addTask(
-    taskData: Omit<Task, "id" | "task_code" | "created_at" | "comments_count" | "attachments_count">,
-    options?: { createDefaultSubtasks?: boolean }
+    taskData: Omit<Task, "id" | "task_code" | "created_at" | "comments_count" | "attachments_count">
   ): Task {
     const topCount = this.tasks.filter((t) => !t.parent_task_id).length + 1;
     const task_code = `TSK-${String(topCount).padStart(3, "0")}`;
@@ -980,10 +936,6 @@ class PMSDataStore {
     };
 
     this.tasks.unshift(newTask);
-
-    if (options?.createDefaultSubtasks !== false && !newTask.parent_task_id) {
-      this.appendStarterSubtasks(newTask);
-    }
 
     this.refreshProjectProgress(newTask.project_id);
     this.addActivityLog(`Created task: ${newTask.title}`, "task", id);

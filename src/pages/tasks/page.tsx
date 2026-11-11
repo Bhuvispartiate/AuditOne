@@ -63,7 +63,8 @@ function TasksContent() {
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
-  const [firstSubtaskTitle, setFirstSubtaskTitle] = useState("");
+  const [draftSubtaskInput, setDraftSubtaskInput] = useState("");
+  const [draftSubtasks, setDraftSubtasks] = useState<string[]>([]);
 
   useEffect(() => {
     if (!projectId && projects[0]?.id) {
@@ -88,6 +89,17 @@ function TasksContent() {
     setIsDetailOpen(true);
   };
 
+  const handleAddDraftSubtask = () => {
+    const trimmed = draftSubtaskInput.trim();
+    if (!trimmed) return;
+    setDraftSubtasks((prev) => [...prev, trimmed]);
+    setDraftSubtaskInput("");
+  };
+
+  const handleRemoveDraftSubtask = (idx: number) => {
+    setDraftSubtasks((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskTitle.trim()) {
@@ -102,39 +114,45 @@ function TasksContent() {
     const proj = projects.find((p) => p.id === projectId);
     const emp = employees.find((e) => e.id === assignedEmployeeId);
 
-    const created = pmsStore.addTask(
-      {
-        title: taskTitle.trim(),
-        project_id: projectId,
-        project_name: proj?.project_name,
-        assigned_employee_id: assignedEmployeeId,
-        assigned_employee_name: emp?.full_name,
-        priority,
-        start_date: startDate,
-        due_date: dueDate,
-        status: initialStatus,
-        description,
-        created_by: pmsStore.getCurrentUser().id,
-        created_by_name: pmsStore.getCurrentUser().full_name,
-      },
-      { createDefaultSubtasks: !firstSubtaskTitle.trim() }
-    );
+    const created = pmsStore.addTask({
+      title: taskTitle.trim(),
+      project_id: projectId,
+      project_name: proj?.project_name,
+      assigned_employee_id: assignedEmployeeId,
+      assigned_employee_name: emp?.full_name,
+      priority,
+      start_date: startDate,
+      due_date: dueDate,
+      status: initialStatus,
+      description,
+      created_by: pmsStore.getCurrentUser().id,
+      created_by_name: pmsStore.getCurrentUser().full_name,
+    });
 
-    if (firstSubtaskTitle.trim()) {
+    const subtasksToAdd = [...draftSubtasks];
+    if (draftSubtaskInput.trim()) {
+      subtasksToAdd.push(draftSubtaskInput.trim());
+    }
+    subtasksToAdd.forEach((subTitle) => {
       pmsStore.addSubtask(created.id, {
-        title: firstSubtaskTitle.trim(),
+        title: subTitle,
         start_date: startDate,
         due_date: dueDate,
         assigned_employee_id: assignedEmployeeId,
         assigned_employee_name: emp?.full_name,
       });
-    }
+    });
 
-    toast.success(`Task ${created.task_code} created with dates & subtasks.`);
+    toast.success(
+      subtasksToAdd.length > 0
+        ? `Task ${created.task_code} created with ${subtasksToAdd.length} subtask(s).`
+        : `Task ${created.task_code} created.`
+    );
     setIsModalOpen(false);
     setTaskTitle("");
     setDescription("");
-    setFirstSubtaskTitle("");
+    setDraftSubtaskInput("");
+    setDraftSubtasks([]);
   };
 
   const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
@@ -364,35 +382,41 @@ function TasksContent() {
                         {task.comments_count || 0}
                       </span>
                     </div>
-                    {subtasks.slice(0, 2).map((sub) => (
-                      <button
-                        key={sub.id}
-                        type="button"
-                        onClick={() => {
-                          const next: TaskStatus = sub.status === "Completed" ? "To Do" : "Completed";
-                          pmsStore.updateTaskStatus(sub.id, next);
-                          setTick((t) => t + 1);
-                        }}
-                        className="w-full flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-left text-[11px] hover:border-neutral-900 transition-colors"
-                      >
-                        <span
-                          className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
-                            sub.status === "Completed"
-                              ? "bg-emerald-600 border-emerald-600 text-white"
-                              : "border-slate-400"
-                          }`}
-                        >
-                          {sub.status === "Completed" ? "✓" : ""}
-                        </span>
-                        <span
-                          className={`truncate font-semibold flex-1 ${
-                            sub.status === "Completed" ? "line-through text-slate-400" : "text-slate-800"
-                          }`}
-                        >
-                          {sub.title}
-                        </span>
-                      </button>
-                    ))}
+                    {subtasks.length === 0 ? (
+                      <p className="text-[11px] text-slate-400">No subtasks added yet.</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+                        {subtasks.map((sub) => (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => {
+                              const next: TaskStatus = sub.status === "Completed" ? "To Do" : "Completed";
+                              pmsStore.updateTaskStatus(sub.id, next);
+                              setTick((t) => t + 1);
+                            }}
+                            className="w-full flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-left text-[11px] hover:border-neutral-900 transition-colors"
+                          >
+                            <span
+                              className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${
+                                sub.status === "Completed"
+                                  ? "bg-emerald-600 border-emerald-600 text-white"
+                                  : "border-slate-400"
+                              }`}
+                            >
+                              {sub.status === "Completed" ? "✓" : ""}
+                            </span>
+                            <span
+                              className={`truncate font-semibold flex-1 ${
+                                sub.status === "Completed" ? "line-through text-slate-400" : "text-slate-800"
+                              }`}
+                            >
+                              {sub.title}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Dates + Status + Subtasks/Comments Button */}
@@ -534,15 +558,47 @@ function TasksContent() {
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-700">
-                Initial Subtask (optional — default subtasks added automatically if blank)
+                Subtasks (optional — add any number of subtasks)
               </label>
-              <Input
-                placeholder="e.g. Collect monthly bank statements & reconciliation file"
-                value={firstSubtaskTitle}
-                onChange={(e) => setFirstSubtaskTitle(e.target.value)}
-              />
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter a subtask title and click Add..."
+                  value={draftSubtaskInput}
+                  onChange={(e) => setDraftSubtaskInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddDraftSubtask();
+                    }
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={handleAddDraftSubtask}>
+                  Add
+                </Button>
+              </div>
+              {draftSubtasks.length > 0 && (
+                <div className="space-y-1.5 max-h-32 overflow-y-auto pt-1">
+                  {draftSubtasks.map((st, idx) => (
+                    <div
+                      key={`${st}-${idx}`}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs"
+                    >
+                      <span className="font-medium text-slate-800 truncate">
+                        {idx + 1}. {st}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDraftSubtask(idx)}
+                        className="text-rose-600 hover:underline text-[11px] font-bold shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">

@@ -267,7 +267,7 @@ export default function NewClientOnboardingPage() {
     toast.success(
       retainersToCreate.length > 0
         ? `Client ${newClient.client_name} (${newClient.client_code}) created with ${retainersToCreate.length} service(s), ${createdProjectsCount} project(s) & ${createdTasksCount} task(s).`
-        : `Client ${newClient.client_name} (${newClient.client_code}) created with 1 Project, 1 Task & starter Subtasks.`
+        : `Client ${newClient.client_name} (${newClient.client_code}) created with 1 Project & 1 Task.`
     );
     navigate(`/clients/${newClient.id}`);
   };

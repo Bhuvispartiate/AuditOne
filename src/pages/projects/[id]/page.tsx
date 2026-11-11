@@ -102,25 +102,22 @@ export default function ProjectDetailPage() {
       return;
     }
     const emp = employees.find((item) => item.id === newTaskAssigneeId);
-    pmsStore.addTask(
-      {
-        title: newTaskTitle.trim(),
-        project_id: project.id,
-        project_name: project.project_name,
-        assigned_employee_id: emp?.id || project.project_manager_id,
-        assigned_employee_name: emp?.full_name || project.project_manager_name,
-        priority: newTaskPriority,
-        start_date: newTaskStartDate || project.start_date,
-        due_date: newTaskDueDate || project.due_date,
-        status: "To Do",
-        description: `Deliverable task under ${project.project_name}.`,
-        created_by: pmsStore.getCurrentUser().id,
-        created_by_name: pmsStore.getCurrentUser().full_name,
-      },
-      { createDefaultSubtasks: true }
-    );
+    pmsStore.addTask({
+      title: newTaskTitle.trim(),
+      project_id: project.id,
+      project_name: project.project_name,
+      assigned_employee_id: emp?.id || project.project_manager_id,
+      assigned_employee_name: emp?.full_name || project.project_manager_name,
+      priority: newTaskPriority,
+      start_date: newTaskStartDate || project.start_date,
+      due_date: newTaskDueDate || project.due_date,
+      status: "To Do",
+      description: `Deliverable task under ${project.project_name}.`,
+      created_by: pmsStore.getCurrentUser().id,
+      created_by_name: pmsStore.getCurrentUser().full_name,
+    });
     setNewTaskTitle("");
-    toast.success("Task & starter subtasks created.");
+    toast.success("Task created.");
     setTick((t) => t + 1);
   };
 
@@ -401,10 +398,10 @@ export default function ProjectDetailPage() {
                       </button>
                     </div>
                     {subtasks.length === 0 ? (
-                      <p className="text-[11px] text-slate-400">No subtasks yet.</p>
+                      <p className="text-[11px] text-slate-400">No subtasks yet. Click + Manage Subtasks to add any number of subtasks.</p>
                     ) : (
-                      <div className="space-y-1.5">
-                        {subtasks.slice(0, 3).map((sub) => (
+                      <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
+                        {subtasks.map((sub) => (
                           <div
                             key={sub.id}
                             className="flex items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
@@ -442,11 +439,6 @@ export default function ProjectDetailPage() {
                             </span>
                           </div>
                         ))}
-                        {subtasks.length > 3 && (
-                          <p className="text-[10px] font-semibold text-slate-500 pl-1">
-                            +{subtasks.length - 3} more subtask(s)...
-                          </p>
-                        )}
                       </div>
                     )}
                   </div>
@@ -483,3 +475,4 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
+
