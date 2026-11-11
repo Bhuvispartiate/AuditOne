@@ -101,6 +101,7 @@ function SubtaskNode({
   depth,
 }: SubtaskNodeProps) {
   const [showAddChild, setShowAddChild] = useState(false);
+  const [editingDates, setEditingDates] = useState(false);
   const [childTitle, setChildTitle] = useState("");
   const [childStart, setChildStart] = useState(sub.start_date || fallbackStartDate || "");
   const [childDue, setChildDue] = useState(sub.due_date || "");
@@ -254,35 +255,55 @@ function SubtaskNode({
                 {sub.assigned_employee_name || "Unassigned"}
               </span>
               <span>•</span>
-              <span>
+              <button
+                type="button"
+                onClick={() => setEditingDates((v) => !v)}
+                className="hover:text-[#111827] hover:underline font-medium"
+                title="Click to edit start/due dates"
+              >
                 {formatDate(sub.start_date || fallbackStartDate || sub.created_at)} →{" "}
                 {formatDate(sub.due_date)}
-              </span>
+              </button>
             </div>
+
+            {editingDates && (
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <Input
+                  type="date"
+                  value={sub.start_date || fallbackStartDate || ""}
+                  onChange={(e) => {
+                    pmsStore.updateTask(sub.id, { start_date: e.target.value });
+                    triggerChanged();
+                  }}
+                  className="h-7 w-32 rounded-lg border-slate-300 bg-white text-[11px]"
+                  title="Start Date"
+                />
+                <span className="text-slate-400 text-[11px]">→</span>
+                <Input
+                  type="date"
+                  value={sub.due_date}
+                  onChange={(e) => {
+                    pmsStore.updateTask(sub.id, { due_date: e.target.value });
+                    triggerChanged();
+                  }}
+                  className="h-7 w-32 rounded-lg border-slate-300 bg-white text-[11px]"
+                  title="Due Date"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setEditingDates(false)}
+                  className="h-7 px-2 text-[11px] font-bold text-slate-600"
+                >
+                  Done
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-          <Input
-            type="date"
-            value={sub.start_date || fallbackStartDate || ""}
-            onChange={(e) => {
-              pmsStore.updateTask(sub.id, { start_date: e.target.value });
-              triggerChanged();
-            }}
-            className="h-8 w-32 rounded-xl border-slate-300 bg-white text-[11px]"
-            title="Start Date"
-          />
-          <Input
-            type="date"
-            value={sub.due_date}
-            onChange={(e) => {
-              pmsStore.updateTask(sub.id, { due_date: e.target.value });
-              triggerChanged();
-            }}
-            className="h-8 w-32 rounded-xl border-slate-300 bg-white text-[11px]"
-            title="Due Date"
-          />
           <select
             value={sub.status}
             onChange={(e) => {

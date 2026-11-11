@@ -42,6 +42,7 @@ export function TaskDetailDialog({
   onUpdated,
 }: TaskDetailDialogProps) {
   const [, setTick] = useState(0);
+  const [showAddSubtaskForm, setShowAddSubtaskForm] = useState(false);
   const [subTitle, setSubTitle] = useState("");
   const [subStartDate, setSubStartDate] = useState("");
   const [subDueDate, setSubDueDate] = useState("");
@@ -58,6 +59,8 @@ export function TaskDetailDialog({
 
   useEffect(() => {
     if (task) {
+      setShowAddSubtaskForm(false);
+      setSubTitle("");
       setSubStartDate(task.start_date || new Date().toISOString().slice(0, 10));
       setSubDueDate(task.due_date || new Date().toISOString().slice(0, 10));
       setSubAssigneeId(task.assigned_employee_id || employees[0]?.id || "");
@@ -107,6 +110,7 @@ export function TaskDetailDialog({
       assigned_employee_name: emp?.full_name || task.assigned_employee_name,
     });
     setSubTitle("");
+    setShowAddSubtaskForm(false);
     toast.success("Subtask added.");
     notifyChange();
   };
@@ -283,14 +287,20 @@ export function TaskDetailDialog({
                   Subtasks ({completedNestedSubtasks}/{totalNestedSubtasks} Completed)
                 </span>
               </h4>
-              <span className="text-[11px] font-semibold text-slate-500">
-                Supports nested sub-subtasks &amp; document attachments per subtask
-              </span>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setShowAddSubtaskForm((v) => !v)}
+                className="h-8 px-3 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add Subtask</span>
+              </Button>
             </div>
 
             {subtasks.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500">
-                No subtasks yet. Add one below.
+                No subtasks yet.
               </div>
             ) : (
               <SubtaskTree
@@ -301,55 +311,67 @@ export function TaskDetailDialog({
               />
             )}
 
-            {/* Add Top-Level Subtask Form */}
-            <form
-              onSubmit={handleAddSubtask}
-              className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-3 border-t border-slate-200 items-end"
-            >
-              <div className="sm:col-span-5 space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  New Subtask Title
-                </label>
-                <Input
-                  placeholder="e.g. Reconcile GSTR-2B purchase register..."
-                  value={subTitle}
-                  onChange={(e) => setSubTitle(e.target.value)}
-                  className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
-                />
-              </div>
-              <div className="sm:col-span-2 space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Start Date
-                </label>
-                <Input
-                  type="date"
-                  value={subStartDate}
-                  onChange={(e) => setSubStartDate(e.target.value)}
-                  className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
-                />
-              </div>
-              <div className="sm:col-span-2 space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Due Date
-                </label>
-                <Input
-                  type="date"
-                  value={subDueDate}
-                  onChange={(e) => setSubDueDate(e.target.value)}
-                  className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
-                />
-              </div>
-              <div className="sm:col-span-3 flex items-center gap-2">
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="w-full h-9 rounded-xl bg-neutral-900 hover:bg-black text-white font-bold gap-1"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Subtask</span>
-                </Button>
-              </div>
-            </form>
+            {/* Add Top-Level Subtask Form (Hidden until Add Subtask clicked) */}
+            {showAddSubtaskForm && (
+              <form
+                onSubmit={handleAddSubtask}
+                className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-3 border-t border-slate-200 items-end"
+              >
+                <div className="sm:col-span-5 space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    New Subtask Title
+                  </label>
+                  <Input
+                    placeholder="Enter subtask title..."
+                    value={subTitle}
+                    onChange={(e) => setSubTitle(e.target.value)}
+                    autoFocus
+                    className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
+                  />
+                </div>
+                <div className="sm:col-span-2 space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Start Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={subStartDate}
+                    onChange={(e) => setSubStartDate(e.target.value)}
+                    className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
+                  />
+                </div>
+                <div className="sm:col-span-2 space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Due Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={subDueDate}
+                    onChange={(e) => setSubDueDate(e.target.value)}
+                    className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
+                  />
+                </div>
+                <div className="sm:col-span-3 flex items-center gap-1.5">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="flex-1 h-9 rounded-xl bg-neutral-900 hover:bg-black text-white font-bold gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Save</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowAddSubtaskForm(false)}
+                    className="h-9 rounded-xl border-slate-300 text-xs font-semibold"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
           </div>
 
           {/* BOX 3: Task & Subtasks Timeline */}
