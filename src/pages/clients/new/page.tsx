@@ -216,8 +216,11 @@ export default function NewClientOnboardingPage() {
       }
     });
 
+    let createdProjectsCount = 0;
+    let createdTasksCount = 0;
+
     selectedRetainers.forEach((ret) => {
-      pmsStore.addServiceEngagement({
+      const result = pmsStore.addServiceEngagementCascade({
         client_id: newClient.id,
         client_name: newClient.client_name,
         service_id: ret.service_id,
@@ -236,11 +239,13 @@ export default function NewClientOnboardingPage() {
         status: "Active",
         remarks: "Subscribed during client onboarding",
       });
+      createdProjectsCount += 1;
+      createdTasksCount += result.tasks.length;
     });
 
     toast.success(
       selectedRetainers.length > 0
-        ? `Client ${newClient.client_name} (${newClient.client_code}) onboarded with ${selectedRetainers.length} retainer service(s).`
+        ? `Client ${newClient.client_name} (${newClient.client_code}) created with ${selectedRetainers.length} service(s), ${createdProjectsCount} project(s) & ${createdTasksCount} task(s).`
         : `Client ${newClient.client_name} onboarded successfully with ID ${newClient.client_code}`
     );
     navigate(`/clients/${newClient.id}`);
@@ -657,7 +662,7 @@ export default function NewClientOnboardingPage() {
               </CardTitle>
             </div>
             <CardDescription className="text-xs font-medium text-slate-600">
-              Stage 2: Retainer Services, Recurring Frequencies &amp; Agreed Pricing
+              Stage 2: Retainer Services, Recurring Frequencies &amp; Agreed Pricing — each added service automatically creates its linked Project &amp; Task.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-5">

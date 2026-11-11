@@ -71,7 +71,7 @@ export default function Client360ProfilePage() {
     const service = allServices.find((s) => s.id === selectedServiceId);
     if (!service) return;
 
-    pmsStore.addServiceEngagement({
+    const { project, tasks: createdTasks } = pmsStore.addServiceEngagementCascade({
       client_id: client.id,
       client_name: client.client_name,
       service_id: service.id,
@@ -90,7 +90,7 @@ export default function Client360ProfilePage() {
       remarks: "Subscribed via Client 360°",
     });
 
-    toast.success(`Subscribed to ${service.service_name}`);
+    toast.success(`Subscribed to ${service.service_name} — created ${project.project_code} & ${createdTasks.length} task(s).`);
     setRefreshKey((k) => k + 1);
   };
 

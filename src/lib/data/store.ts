@@ -413,7 +413,7 @@ class PMSDataStore {
   }
 
   addService(service: Omit<Service, "id" | "created_at">): Service {
-    const id = `srv-${Date.now()}`;
+    const id = generateId("srv");
     const newService: Service = { ...service, id, created_at: new Date().toISOString() };
     this.services.push(newService);
     this.addActivityLog(`Added service to catalog: ${newService.service_name}`, "service", id);
@@ -440,11 +440,126 @@ class PMSDataStore {
   }
 
   addServiceEngagement(engagement: Omit<ServiceEngagement, "id" | "created_at">): ServiceEngagement {
-    const id = `eng-${Date.now()}`;
+    const id = generateId("eng");
     const newEngagement: ServiceEngagement = { ...engagement, id, created_at: new Date().toISOString() };
     this.engagements.push(newEngagement);
     this.addActivityLog(`Contracted service engagement: ${engagement.service_name}`, "service_engagement", id);
     return newEngagement;
+  }
+
+  /**
+   * Subscribes a client to a service and automatically creates the linked
+   * Project -> Task hierarchy for that service delivery.
+   */
+  addServiceEngagementCascade(
+    engagement: Omit<ServiceEngagement, "id" | "created_at">
+  ): { engagement: ServiceEngagement; project: Project; tasks: Task[] } {
+    const createdEngagement = this.addServiceEngagement(engagement);
+    const matchedService = this.services.find((s) => s.id === engagement.service_id);
+
+    const startMs = engagement.start_date ? new Date(engagement.start_date).getTime() : Date.now();
+    const validStartMs = Number.isNaN(startMs) ? Date.now() : startMs;
+    const offsetDays =
+      engagement.billing_frequency === "Monthly"
+        ? 30
+        : engagement.billing_frequency === "Quarterly"
+        ? 90
+        : engagement.billing_frequency === "Half-yearly"
+        ? 180
+        : engagement.billing_frequency === "Annually"
+        ? 365
+        : 15;
+    const computedDueDate =
+      engagement.end_date ||
+      new Date(validStartMs + offsetDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const project = this.addProject({
+      project_name: `${engagement.client_name || "Client"} — ${engagement.service_name}`,
+      project_type: "Client Project",
+      client_id: engagement.client_id,
+      client_name: engagement.client_name,
+      service_engagement_id: createdEngagement.id,
+      service_name: engagement.service_name,
+      department_id: engagement.department_id,
+      department_name: engagement.department_name || "Practice",
+      project_manager_id: engagement.relationship_manager_id || this.currentUser.id,
+      project_manager_name: engagement.relationship_manager_name || this.currentUser.full_name,
+      description:
+        matchedService?.description ||
+        `Service delivery project for ${engagement.service_name} (${engagement.billing_frequency})`,
+      priority: "Medium",
+      start_date: engagement.start_date,
+      due_date: computedDueDate,
+      status: "In Progress",
+    });
+
+    const createdTasks: Task[] = [];
+    const matchingWorkflow = this.workflows.find(
+      (w) => w.is_active && w.service_id === engagement.service_id
+    );
+    const stages = matchingWorkflow?.versions?.[0]?.stages || [];
+
+    if (stages.length > 0) {
+      stages.forEach((stage) => {
+        const stageTasks = stage.tasks || [];
+        if (stageTasks.length > 0) {
+          stageTasks.forEach((stTask) => {
+            createdTasks.push(
+              this.addTask({
+                title: `${stTask.task_name} (${engagement.client_name || engagement.service_code})`,
+                project_id: project.id,
+                project_name: project.project_name,
+                assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
+                assigned_employee_name:
+                  engagement.relationship_manager_name || this.currentUser.full_name,
+                priority: stTask.priority || "Medium",
+                due_date: computedDueDate,
+                status: "To Do",
+                description: stTask.description || stage.description,
+                created_by: this.currentUser.id,
+                created_by_name: this.currentUser.full_name,
+              })
+            );
+          });
+        } else {
+          createdTasks.push(
+            this.addTask({
+              title: `${stage.stage_name} — ${engagement.service_name}`,
+              project_id: project.id,
+              project_name: project.project_name,
+              assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
+              assigned_employee_name:
+                engagement.relationship_manager_name || this.currentUser.full_name,
+              priority: "Medium",
+              due_date: computedDueDate,
+              status: "To Do",
+              description: stage.description,
+              created_by: this.currentUser.id,
+              created_by_name: this.currentUser.full_name,
+            })
+          );
+        }
+      });
+    } else {
+      createdTasks.push(
+        this.addTask({
+          title: `${engagement.service_name} — ${engagement.billing_frequency} Execution`,
+          project_id: project.id,
+          project_name: project.project_name,
+          assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
+          assigned_employee_name:
+            engagement.relationship_manager_name || this.currentUser.full_name,
+          priority: "Medium",
+          due_date: computedDueDate,
+          status: "To Do",
+          description: `Auto-generated deliverable task for ${engagement.client_name || "client"} under ${engagement.service_code}.`,
+          created_by: this.currentUser.id,
+          created_by_name: this.currentUser.full_name,
+        })
+      );
+    }
+
+    return { engagement: createdEngagement, project, tasks: createdTasks };
   }
 
   // Projects
@@ -466,7 +581,7 @@ class PMSDataStore {
     const nextNum = this.projects.length + 1;
     const year = new Date().getFullYear();
     const project_code = `PRJ-${year}-${String(nextNum).padStart(3, "0")}`;
-    const id = `proj-${Date.now()}`;
+    const id = generateId("proj");
 
     const newProject: Project = {
       ...projectData,
@@ -512,7 +627,7 @@ class PMSDataStore {
   addTask(taskData: Omit<Task, "id" | "task_code" | "created_at" | "comments_count" | "attachments_count">): Task {
     const nextNum = this.tasks.length + 1;
     const task_code = `TSK-${String(nextNum).padStart(3, "0")}`;
-    const id = `tsk-${Date.now()}`;
+    const id = generateId("tsk");
 
     const newTask: Task = {
       ...taskData,
