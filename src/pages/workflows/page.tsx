@@ -29,6 +29,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
+import { isEmployeeRestricted, isWorkflowAssignedToEmployee } from "@/lib/access";
 import { formatDate } from "@/lib/utils";
 import {
   ProjectPriority,
@@ -85,7 +86,19 @@ export default function WorkflowsPage() {
     return unsub;
   }, []);
 
-  const workflows = pmsStore.getWorkflows();
+  const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
+  const empId = currentUser?.id || "";
+
+  const allWorkflows = pmsStore.getWorkflows();
+  const allProjects = pmsStore.getProjects();
+  const allTasks = pmsStore.getTasks();
+  const allEngagements = pmsStore.getAllEngagements();
+  const workflows = isEmployee
+    ? allWorkflows.filter((w) =>
+        isWorkflowAssignedToEmployee(w, empId, allProjects, allTasks, allEngagements)
+      )
+    : allWorkflows;
   const services = pmsStore.getServices();
   const employees = pmsStore.getEmployees();
   const statusNames = pmsStore.getTaskStatusNames();
@@ -338,18 +351,29 @@ export default function WorkflowsPage() {
             Workflow Project Templates
           </h1>
           <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Select a Service Name and configure its fixed Project → Tasks → Subtasks → Timeline → Comments structure. Subscribing a client auto-creates this complete project.
+            {isEmployee
+              ? "View-Only workflows linked to your assigned service projects and tasks."
+              : "Select a Service Name and configure its fixed Project → Tasks → Subtasks → Timeline → Comments structure. Subscribing a client auto-creates this complete project."}
           </p>
         </div>
 
-        <Button
-          onClick={handleOpenNewModal}
-          size="sm"
-          className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Create Service Workflow</span>
-        </Button>
+        {isEmployee ? (
+          <Badge
+            variant="outline"
+            className="h-9 px-3.5 rounded-2xl text-xs font-bold bg-amber-50 text-amber-800 border-amber-300 shrink-0"
+          >
+            View-Only Mode
+          </Badge>
+        ) : (
+          <Button
+            onClick={handleOpenNewModal}
+            size="sm"
+            className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create Service Workflow</span>
+          </Button>
+        )}
       </div>
 
       {/* Main Layout */}
@@ -361,17 +385,23 @@ export default function WorkflowsPage() {
               <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
                 Service Workflows ({workflows.length})
               </span>
-              <Link to="/services" className="text-[11px] font-bold text-violet-700 hover:underline">
-                Manage Services
-              </Link>
+              {!isEmployee && (
+                <Link to="/services" className="text-[11px] font-bold text-violet-700 hover:underline">
+                  Manage Services
+                </Link>
+              )}
             </div>
 
             {workflows.length === 0 ? (
               <div className="py-10 text-center space-y-2 text-slate-500">
                 <GitBranch className="h-8 w-8 mx-auto text-slate-300" />
-                <p className="text-xs font-bold text-slate-800">No workflows created yet</p>
+                <p className="text-xs font-bold text-slate-800">
+                  {isEmployee ? "No assigned workflows yet" : "No workflows created yet"}
+                </p>
                 <p className="text-[11px] text-slate-500">
-                  Click &ldquo;Create Service Workflow&rdquo; to attach a fixed project template to a service.
+                  {isEmployee
+                    ? "Workflows for services you are assigned to will appear here."
+                    : 'Click "Create Service Workflow" to attach a fixed project template to a service.'}
                 </p>
               </div>
             ) : (
@@ -402,18 +432,20 @@ export default function WorkflowsPage() {
                           <Badge variant={wf.is_active ? "success" : "secondary"} className="text-[10px]">
                             {wf.is_active ? "Active" : "Paused"}
                           </Badge>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              pmsStore.deleteWorkflow(wf.id);
-                              toast.success(`Deleted workflow "${wf.workflow_name}".`);
-                            }}
-                            className="p-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
-                            title="Delete Workflow"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                          {!isEmployee && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                pmsStore.deleteWorkflow(wf.id);
+                                toast.success(`Deleted workflow "${wf.workflow_name}".`);
+                              }}
+                              className="p-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
+                              title="Delete Workflow"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -496,22 +528,24 @@ export default function WorkflowsPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const res = pmsStore.syncWorkflowTasksToSubscribedClients(selectedWorkflow.id);
-                        if (res.createdTasks > 0) {
-                          toast.success(`Synced ${res.createdTasks} task(s) across ${res.updatedProjects} client project(s).`);
-                        } else {
-                          toast.info("All subscribed clients already have these workflow tasks.");
-                        }
-                      }}
-                      className="rounded-xl border-[1.5px] border-slate-300 text-xs font-bold gap-1.5"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" /> Sync to Clients
-                    </Button>
+                    {!isEmployee && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const res = pmsStore.syncWorkflowTasksToSubscribedClients(selectedWorkflow.id);
+                          if (res.createdTasks > 0) {
+                            toast.success(`Synced ${res.createdTasks} task(s) across ${res.updatedProjects} client project(s).`);
+                          } else {
+                            toast.info("All subscribed clients already have these workflow tasks.");
+                          }
+                        }}
+                        className="rounded-xl border-[1.5px] border-slate-300 text-xs font-bold gap-1.5"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" /> Sync to Clients
+                      </Button>
+                    )}
                     <Link to={`/workflows/${selectedWorkflow.id}`}>
                       <Button
                         type="button"
@@ -554,8 +588,9 @@ export default function WorkflowsPage() {
                 </div>
               </div>
 
-              {/* Add Template Task Box (just like normal Project) */}
-              <Card className="rounded-[24px] border-[1.5px] border-slate-300 bg-white">
+              {/* Add Template Task Box (Admin Only) */}
+              {!isEmployee && (
+                <Card className="rounded-[24px] border-[1.5px] border-slate-300 bg-white">
                 <CardContent className="p-5 space-y-3">
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
                     <Plus className="h-3.5 w-3.5 text-violet-600" />
@@ -655,6 +690,7 @@ export default function WorkflowsPage() {
                   </form>
                 </CardContent>
               </Card>
+              )}
 
               {/* Template Timeline Preview */}
               <div className="space-y-2">
@@ -720,14 +756,16 @@ export default function WorkflowsPage() {
                                   {t.status}
                                 </Badge>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteTemplateTask(t.id)}
-                                className="p-1.5 rounded-xl border border-rose-300 text-rose-600 hover:bg-rose-50"
-                                title="Delete Task"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              {!isEmployee && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTemplateTask(t.id)}
+                                  className="p-1.5 rounded-xl border border-rose-300 text-rose-600 hover:bg-rose-50"
+                                  title="Delete Task"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                             </div>
 
                             <div>
@@ -815,7 +853,11 @@ export default function WorkflowsPage() {
                               className="w-full h-8 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1.5"
                             >
                               <Calendar className="h-3.5 w-3.5" />
-                              <span>Edit Subtasks, Timeline & Comments</span>
+                              <span>
+                                {isEmployee
+                                  ? "View Subtasks, Timeline & Comments"
+                                  : "Edit Subtasks, Timeline & Comments"}
+                              </span>
                             </Button>
                           </CardContent>
                         </Card>
@@ -829,8 +871,9 @@ export default function WorkflowsPage() {
         </div>
       </div>
 
-      {/* Create Service Workflow Modal */}
-      <Dialog open={isNewModalOpen} onOpenChange={setIsNewModalOpen}>
+      {/* Create Service Workflow Modal (Admin Only) */}
+      {!isEmployee && (
+        <Dialog open={isNewModalOpen} onOpenChange={setIsNewModalOpen}>
         <DialogContent className="max-w-lg rounded-[24px] border-[1.5px] border-slate-300">
           <DialogHeader>
             <DialogTitle className="text-lg font-extrabold text-slate-900">
@@ -898,7 +941,8 @@ export default function WorkflowsPage() {
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+        </Dialog>
+      )}
 
       {/* Template Task Detail Modal (Subtasks, Dates/Offsets, Status, Comments) */}
       <Dialog open={isTplTaskModalOpen} onOpenChange={setIsTplTaskModalOpen}>
@@ -912,18 +956,26 @@ export default function WorkflowsPage() {
                       {activeTplTask.task_name}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-slate-500">
-                      Configure fixed task timing, status, subtasks, and default comments for {selectedWorkflow?.service_name}.
+                      {isEmployee
+                        ? `View-only SOP timing, subtasks, and default notes for ${selectedWorkflow?.service_name}.`
+                        : `Configure fixed task timing, status, subtasks, and default comments for ${selectedWorkflow?.service_name}.`}
                     </DialogDescription>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDeleteTemplateTask(activeTplTask.id)}
-                    className="h-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold gap-1"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete Task
-                  </Button>
+                  {isEmployee ? (
+                    <Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-800 border-amber-300">
+                      View Only
+                    </Badge>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDeleteTemplateTask(activeTplTask.id)}
+                      className="h-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold gap-1"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Delete Task
+                    </Button>
+                  )}
                 </div>
               </DialogHeader>
 
@@ -932,91 +984,121 @@ export default function WorkflowsPage() {
                 <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600">Status</label>
-                    <select
-                      value={activeTplTask.status}
-                      onChange={(e) =>
-                        updateTemplateTask(activeTplTask.id, (prev) => ({
-                          ...prev,
-                          status: e.target.value as TaskStatus,
-                        }))
-                      }
-                      className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-bold"
-                    >
-                      {statusNames.map((st) => (
-                        <option key={st} value={st}>
-                          {st}
-                        </option>
-                      ))}
-                    </select>
+                    {isEmployee ? (
+                      <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-bold">
+                        {activeTplTask.status}
+                      </div>
+                    ) : (
+                      <select
+                        value={activeTplTask.status}
+                        onChange={(e) =>
+                          updateTemplateTask(activeTplTask.id, (prev) => ({
+                            ...prev,
+                            status: e.target.value as TaskStatus,
+                          }))
+                        }
+                        className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-bold"
+                      >
+                        {statusNames.map((st) => (
+                          <option key={st} value={st}>
+                            {st}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600">Start Day</label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={(activeTplTask.start_day_offset || 0) + 1}
-                      onChange={(e) =>
-                        updateTemplateTask(activeTplTask.id, (prev) => ({
-                          ...prev,
-                          start_day_offset: Math.max(0, Number(e.target.value) - 1),
-                        }))
-                      }
-                      className="h-9 rounded-xl border-slate-300 text-xs font-semibold"
-                    />
+                    {isEmployee ? (
+                      <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold">
+                        Day {(activeTplTask.start_day_offset || 0) + 1}
+                      </div>
+                    ) : (
+                      <Input
+                        type="number"
+                        min={1}
+                        value={(activeTplTask.start_day_offset || 0) + 1}
+                        onChange={(e) =>
+                          updateTemplateTask(activeTplTask.id, (prev) => ({
+                            ...prev,
+                            start_day_offset: Math.max(0, Number(e.target.value) - 1),
+                          }))
+                        }
+                        className="h-9 rounded-xl border-slate-300 text-xs font-semibold"
+                      />
+                    )}
                   </div>
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600">Duration (Days)</label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={activeTplTask.duration_days || 1}
-                      onChange={(e) =>
-                        updateTemplateTask(activeTplTask.id, (prev) => ({
-                          ...prev,
-                          duration_days: Math.max(1, Number(e.target.value) || 1),
-                        }))
-                      }
-                      className="h-9 rounded-xl border-slate-300 text-xs font-semibold"
-                    />
+                    {isEmployee ? (
+                      <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold">
+                        {activeTplTask.duration_days || 1} day(s)
+                      </div>
+                    ) : (
+                      <Input
+                        type="number"
+                        min={1}
+                        value={activeTplTask.duration_days || 1}
+                        onChange={(e) =>
+                          updateTemplateTask(activeTplTask.id, (prev) => ({
+                            ...prev,
+                            duration_days: Math.max(1, Number(e.target.value) || 1),
+                          }))
+                        }
+                        className="h-9 rounded-xl border-slate-300 text-xs font-semibold"
+                      />
+                    )}
                   </div>
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600">Priority</label>
-                    <select
-                      value={activeTplTask.priority}
-                      onChange={(e) =>
-                        updateTemplateTask(activeTplTask.id, (prev) => ({
-                          ...prev,
-                          priority: e.target.value as ProjectPriority,
-                        }))
-                      }
-                      className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-semibold"
-                    >
-                      <option value="Low">Low</option>
-                      <option value="Medium">Medium</option>
-                      <option value="High">High</option>
-                      <option value="Urgent">Urgent</option>
-                    </select>
+                    {isEmployee ? (
+                      <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold">
+                        {activeTplTask.priority}
+                      </div>
+                    ) : (
+                      <select
+                        value={activeTplTask.priority}
+                        onChange={(e) =>
+                          updateTemplateTask(activeTplTask.id, (prev) => ({
+                            ...prev,
+                            priority: e.target.value as ProjectPriority,
+                          }))
+                        }
+                        className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-semibold"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                      </select>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600">Default Assignee</label>
-                    <select
-                      value={activeTplTask.assigned_employee_id || ""}
-                      onChange={(e) => {
-                        const emp = employees.find((item) => item.id === e.target.value);
-                        updateTemplateTask(activeTplTask.id, (prev) => ({
-                          ...prev,
-                          assigned_employee_id: emp?.id,
-                          assigned_employee_name: emp?.full_name,
-                        }));
-                      }}
-                      className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-semibold"
-                    >
-                      {employees.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.full_name}
-                        </option>
-                      ))}
-                    </select>
+                    {isEmployee ? (
+                      <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold truncate">
+                        {activeTplTask.assigned_employee_name || "Service RM"}
+                      </div>
+                    ) : (
+                      <select
+                        value={activeTplTask.assigned_employee_id || ""}
+                        onChange={(e) => {
+                          const emp = employees.find((item) => item.id === e.target.value);
+                          updateTemplateTask(activeTplTask.id, (prev) => ({
+                            ...prev,
+                            assigned_employee_id: emp?.id,
+                            assigned_employee_name: emp?.full_name,
+                          }));
+                        }}
+                        className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-semibold"
+                      >
+                        {employees.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.full_name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
@@ -1029,7 +1111,7 @@ export default function WorkflowsPage() {
 
                   {(activeTplTask.subtasks || []).length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500">
-                      No subtasks added yet. Add any number of subtasks below.
+                      No subtasks configured.
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -1046,86 +1128,96 @@ export default function WorkflowsPage() {
                             </p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <select
-                              value={st.status || "To Do"}
-                              onChange={(e) =>
-                                updateTemplateTask(activeTplTask.id, (prev) => ({
-                                  ...prev,
-                                  subtasks: (prev.subtasks || []).map((item) =>
-                                    item.id === st.id ? { ...item, status: e.target.value as TaskStatus } : item
-                                  ),
-                                }))
-                              }
-                              className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold"
-                            >
-                              {statusNames.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateTemplateTask(activeTplTask.id, (prev) => ({
-                                  ...prev,
-                                  subtasks: (prev.subtasks || []).filter((item) => item.id !== st.id),
-                                }))
-                              }
-                              className="p-1.5 rounded-xl border border-rose-300 text-rose-600 hover:bg-rose-50"
-                              title="Delete Subtask"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            {isEmployee ? (
+                              <Badge variant="outline" className="text-[11px] font-bold bg-white border-slate-300">
+                                {st.status || "To Do"}
+                              </Badge>
+                            ) : (
+                              <>
+                                <select
+                                  value={st.status || "To Do"}
+                                  onChange={(e) =>
+                                    updateTemplateTask(activeTplTask.id, (prev) => ({
+                                      ...prev,
+                                      subtasks: (prev.subtasks || []).map((item) =>
+                                        item.id === st.id ? { ...item, status: e.target.value as TaskStatus } : item
+                                      ),
+                                    }))
+                                  }
+                                  className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold"
+                                >
+                                  {statusNames.map((opt) => (
+                                    <option key={opt} value={opt}>
+                                      {opt}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateTemplateTask(activeTplTask.id, (prev) => ({
+                                      ...prev,
+                                      subtasks: (prev.subtasks || []).filter((item) => item.id !== st.id),
+                                    }))
+                                  }
+                                  className="p-1.5 rounded-xl border border-rose-300 text-rose-600 hover:bg-rose-50"
+                                  title="Delete Subtask"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  <form
-                    onSubmit={handleAddTemplateSubtask}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-3 border-t border-slate-200 items-end"
-                  >
-                    <div className="sm:col-span-5 space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-slate-500">Subtask Title</label>
-                      <Input
-                        placeholder="e.g. Verify director DSC validity"
-                        value={subTitle}
-                        onChange={(e) => setSubTitle(e.target.value)}
-                        className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
-                      />
-                    </div>
-                    <div className="sm:col-span-2 space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-slate-500">Start Day</label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={subStartDay}
-                        onChange={(e) => setSubStartDay(Math.max(1, Number(e.target.value)))}
-                        className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
-                      />
-                    </div>
-                    <div className="sm:col-span-2 space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-slate-500">Days</label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={subDurationDays}
-                        onChange={(e) => setSubDurationDays(Math.max(1, Number(e.target.value)))}
-                        className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
-                      />
-                    </div>
-                    <div className="sm:col-span-3">
-                      <Button
-                        type="submit"
-                        size="sm"
-                        className="w-full h-9 rounded-xl bg-neutral-900 hover:bg-black text-white font-bold gap-1"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Add Subtask
-                      </Button>
-                    </div>
-                  </form>
+                  {!isEmployee && (
+                    <form
+                      onSubmit={handleAddTemplateSubtask}
+                      className="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-3 border-t border-slate-200 items-end"
+                    >
+                      <div className="sm:col-span-5 space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500">Subtask Title</label>
+                        <Input
+                          placeholder="e.g. Verify director DSC validity"
+                          value={subTitle}
+                          onChange={(e) => setSubTitle(e.target.value)}
+                          className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500">Start Day</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={subStartDay}
+                          onChange={(e) => setSubStartDay(Math.max(1, Number(e.target.value)))}
+                          className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500">Days</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={subDurationDays}
+                          onChange={(e) => setSubDurationDays(Math.max(1, Number(e.target.value)))}
+                          className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <Button
+                          type="submit"
+                          size="sm"
+                          className="w-full h-9 rounded-xl bg-neutral-900 hover:bg-black text-white font-bold gap-1"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Add Subtask
+                        </Button>
+                      </div>
+                    </form>
+                  )}
                 </div>
 
                 {/* Default Template Comments */}
@@ -1137,7 +1229,7 @@ export default function WorkflowsPage() {
 
                   {(activeTplTask.default_comments || []).length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500">
-                      No template comments yet. Any comment added here is copied onto each client task created from this workflow.
+                      No template comments configured.
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -1147,39 +1239,43 @@ export default function WorkflowsPage() {
                           className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs flex items-center justify-between gap-2"
                         >
                           <span className="text-slate-800">{cmt}</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateTemplateTask(activeTplTask.id, (prev) => ({
-                                ...prev,
-                                default_comments: (prev.default_comments || []).filter((_, i) => i !== idx),
-                              }))
-                            }
-                            className="p-1 rounded-lg text-rose-600 hover:bg-rose-50 shrink-0"
-                            title="Delete Comment"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {!isEmployee && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateTemplateTask(activeTplTask.id, (prev) => ({
+                                  ...prev,
+                                  default_comments: (prev.default_comments || []).filter((_, i) => i !== idx),
+                                }))
+                              }
+                              className="p-1 rounded-lg text-rose-600 hover:bg-rose-50 shrink-0"
+                              title="Delete Comment"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
 
-                  <form onSubmit={handleAddTemplateComment} className="flex gap-2 pt-2 border-t border-slate-200">
-                    <Input
-                      placeholder="Add standard SOP comment or checklist reminder..."
-                      value={commentInput}
-                      onChange={(e) => setCommentInput(e.target.value)}
-                      className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs flex-1"
-                    />
-                    <Button
-                      type="submit"
-                      size="sm"
-                      className="h-9 px-4 rounded-xl bg-neutral-900 hover:bg-black text-white font-bold gap-1 shrink-0"
-                    >
-                      <Send className="h-3.5 w-3.5" /> Add Comment
-                    </Button>
-                  </form>
+                  {!isEmployee && (
+                    <form onSubmit={handleAddTemplateComment} className="flex gap-2 pt-2 border-t border-slate-200">
+                      <Input
+                        placeholder="Add standard SOP comment or checklist reminder..."
+                        value={commentInput}
+                        onChange={(e) => setCommentInput(e.target.value)}
+                        className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs flex-1"
+                      />
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="h-9 px-4 rounded-xl bg-neutral-900 hover:bg-black text-white font-bold gap-1 shrink-0"
+                      >
+                        <Send className="h-3.5 w-3.5" /> Add Comment
+                      </Button>
+                    </form>
+                  )}
                 </div>
               </div>
             </>

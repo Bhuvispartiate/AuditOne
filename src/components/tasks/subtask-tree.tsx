@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { pmsStore } from "@/lib/data/store";
+import { isEmployeeRestricted } from "@/lib/access";
 import { Task, TaskStatus } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ interface SubtaskTreeProps {
   onSelectTask?: (taskId: string) => void;
   onChanged?: () => void;
   depth?: number;
+  readOnly?: boolean;
 }
 
 export function SubtaskTree({
@@ -42,7 +44,9 @@ export function SubtaskTree({
   onSelectTask,
   onChanged,
   depth = 0,
+  readOnly,
 }: SubtaskTreeProps) {
+  const isReadOnly = readOnly ?? isEmployeeRestricted(pmsStore.getCurrentUser());
   if (!subtasks || subtasks.length === 0) return null;
 
   return (
@@ -61,6 +65,7 @@ export function SubtaskTree({
           onSelectTask={onSelectTask}
           onChanged={onChanged}
           depth={depth}
+          readOnly={isReadOnly}
         />
       ))}
     </div>
@@ -73,6 +78,7 @@ interface SubtaskRowProps {
   onSelectTask?: (taskId: string) => void;
   onChanged?: () => void;
   depth: number;
+  readOnly: boolean;
 }
 
 function SubtaskRow({
@@ -81,6 +87,7 @@ function SubtaskRow({
   onSelectTask,
   onChanged,
   depth,
+  readOnly,
 }: SubtaskRowProps) {
   const [editingDates, setEditingDates] = useState(false);
 
@@ -116,12 +123,15 @@ function SubtaskRow({
         <div className="flex items-start gap-2.5 min-w-0 flex-1">
           <button
             type="button"
-            onClick={handleToggleDone}
+            disabled={readOnly}
+            onClick={() => {
+              if (!readOnly) handleToggleDone();
+            }}
             className={`mt-0.5 h-5 w-5 rounded-md border-[1.5px] flex items-center justify-center shrink-0 transition-colors ${isDone
                 ? "bg-emerald-600 border-emerald-600 text-white"
-                : "bg-white border-slate-400 text-transparent hover:border-neutral-900"
-              }`}
-            title={isDone ? "Mark To Do" : "Mark Completed"}
+                : "bg-white border-slate-400 text-transparent"
+              } ${readOnly ? "cursor-default opacity-85" : "hover:border-neutral-900"}`}
+            title={readOnly ? sub.status : isDone ? "Mark To Do" : "Mark Completed"}
           >
             <CheckSquare className="h-3.5 w-3.5" />
           </button>
@@ -168,16 +178,19 @@ function SubtaskRow({
               <span>•</span>
               <button
                 type="button"
-                onClick={() => setEditingDates((v) => !v)}
-                className="hover:text-[#111827] hover:underline font-medium"
-                title="Click to adjust dates"
+                disabled={readOnly}
+                onClick={() => {
+                  if (!readOnly) setEditingDates((v) => !v);
+                }}
+                className={readOnly ? "font-medium cursor-default" : "hover:text-[#111827] hover:underline font-medium"}
+                title={readOnly ? "Schedule dates" : "Click to adjust dates"}
               >
                 {formatDate(sub.start_date || fallbackStartDate || sub.created_at)} →{" "}
                 {formatDate(sub.due_date)}
               </button>
             </div>
 
-            {editingDates && (
+            {!readOnly && editingDates && (
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Input
                   type="date"
@@ -213,20 +226,26 @@ function SubtaskRow({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <select
-            value={sub.status}
-            onChange={(e) => {
-              pmsStore.updateTask(sub.id, { status: e.target.value as TaskStatus });
-              triggerChanged();
-            }}
-            className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold text-[#111827]"
-          >
-            {statusNames.map((st) => (
-              <option key={st} value={st}>
-                {st}
-              </option>
-            ))}
-          </select>
+          {readOnly ? (
+            <span className="h-8 inline-flex items-center rounded-xl border border-slate-300 bg-white px-2.5 text-[11px] font-bold text-[#111827]">
+              {sub.status}
+            </span>
+          ) : (
+            <select
+              value={sub.status}
+              onChange={(e) => {
+                pmsStore.updateTask(sub.id, { status: e.target.value as TaskStatus });
+                triggerChanged();
+              }}
+              className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold text-[#111827]"
+            >
+              {statusNames.map((st) => (
+                <option key={st} value={st}>
+                  {st}
+                </option>
+              ))}
+            </select>
+          )}
 
           {onSelectTask && (
             <Button
@@ -242,20 +261,22 @@ function SubtaskRow({
             </Button>
           )}
 
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            onClick={() => {
-              pmsStore.deleteTask(sub.id);
-              toast.success(`Deleted ${sub.task_code}`);
-              triggerChanged();
-            }}
-            className="h-8 w-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shrink-0"
-            title="Delete Subtask"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          {!readOnly && (
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={() => {
+                pmsStore.deleteTask(sub.id);
+                toast.success(`Deleted ${sub.task_code}`);
+                triggerChanged();
+              }}
+              className="h-8 w-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shrink-0"
+              title="Delete Subtask"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -266,6 +287,7 @@ function SubtaskRow({
           onSelectTask={onSelectTask}
           onChanged={onChanged}
           depth={depth + 1}
+          readOnly={readOnly}
         />
       )}
     </div>

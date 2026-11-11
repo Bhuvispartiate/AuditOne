@@ -10,7 +10,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
+import { isEmployeeRestricted, isClientAssignedToEmployee } from "@/lib/access";
 import { getInitials } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -35,7 +37,20 @@ export default function ClientsListPage() {
     }
   }, [searchParams]);
 
-  const allClients = pmsStore.getClients();
+  const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
+  const empId = currentUser?.id || "";
+
+  const rawClients = pmsStore.getClients();
+  const allProjects = pmsStore.getProjects();
+  const allTasks = pmsStore.getTasks();
+  const allEngagements = pmsStore.getAllEngagements();
+
+  const allClients = isEmployee
+    ? rawClients.filter((c) =>
+        isClientAssignedToEmployee(c, empId, allProjects, allTasks, allEngagements)
+      )
+    : rawClients;
 
   const filteredClients = allClients.filter((c) => {
     const matchesSearch =
@@ -87,26 +102,37 @@ export default function ClientsListPage() {
             Client 360° Master Directory
           </h1>
           <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Central repository of corporate and individual client engagements, registrations and accounts.
+            {isEmployee
+              ? "View-only Client 360° accounts assigned to your projects and tasks."
+              : "Central repository of corporate and individual client engagements, registrations and accounts."}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            onClick={exportToExcel}
+        {isEmployee ? (
+          <Badge
             variant="outline"
-            size="sm"
-            className="border-[#e5e7eb] rounded-2xl gap-1.5 shadow-xs font-bold"
+            className="h-9 px-3.5 rounded-2xl text-xs font-bold bg-amber-50 text-amber-800 border-amber-300"
           >
-            <Download className="h-4 w-4 text-[#6b7280]" />
-            <span>Export Excel</span>
-          </Button>
-          <Link to="/clients/new">
-            <Button size="sm" className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold">
-              <Plus className="h-4 w-4" />
-              <span>Onboard New Client</span>
+            View-Only Mode
+          </Badge>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={exportToExcel}
+              variant="outline"
+              size="sm"
+              className="border-[#e5e7eb] rounded-2xl gap-1.5 shadow-xs font-bold"
+            >
+              <Download className="h-4 w-4 text-[#6b7280]" />
+              <span>Export Excel</span>
             </Button>
-          </Link>
-        </div>
+            <Link to="/clients/new">
+              <Button size="sm" className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold">
+                <Plus className="h-4 w-4" />
+                <span>Onboard New Client</span>
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Filter, Search and View Switcher Bar */}
@@ -176,16 +202,20 @@ export default function ClientsListPage() {
             </div>
             <p className="text-sm font-bold text-[#111827]">No clients found</p>
             <p className="text-xs text-[#6b7280] max-w-sm mx-auto">
-              No clients match the current search or filter criteria. Try adjusting filters or onboard a new client.
+              {isEmployee
+                ? "No assigned client accounts match the current search or filter criteria."
+                : "No clients match the current search or filter criteria. Try adjusting filters or onboard a new client."}
             </p>
-            <div className="pt-2">
-              <Link to="/clients/new">
-                <Button size="sm" className="bg-neutral-900 hover:bg-black text-white rounded-2xl gap-1.5 font-bold">
-                  <Plus className="h-4 w-4" />
-                  <span>Onboard New Client</span>
-                </Button>
-              </Link>
-            </div>
+            {!isEmployee && (
+              <div className="pt-2">
+                <Link to="/clients/new">
+                  <Button size="sm" className="bg-neutral-900 hover:bg-black text-white rounded-2xl gap-1.5 font-bold">
+                    <Plus className="h-4 w-4" />
+                    <span>Onboard New Client</span>
+                  </Button>
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

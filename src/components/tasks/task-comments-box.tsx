@@ -69,12 +69,14 @@ interface TaskCommentsBoxProps {
   taskId: string;
   assignedEmployeeId?: string;
   onUpdated?: () => void;
+  readOnly?: boolean;
 }
 
 export function TaskCommentsBox({
   taskId,
   assignedEmployeeId,
   onUpdated,
+  readOnly,
 }: TaskCommentsBoxProps) {
   const [, setTick] = useState(0);
   const [commentText, setCommentText] = useState("");
@@ -93,6 +95,7 @@ export function TaskCommentsBox({
   const comments = pmsStore.getTaskComments(taskId);
   const currentUser = pmsStore.getCurrentUser();
   const isAdmin = currentUser?.role_code === "SUPER_ADMIN";
+  const isReadOnly = readOnly ?? !isAdmin;
   const employees = pmsStore.getEmployees();
 
   // Auto-mark comments as Seen by the active user as soon as they view them
@@ -214,7 +217,9 @@ export function TaskCommentsBox({
 
       {comments.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500">
-          No comments on this task yet. Add notes, review feedback, or client clarifications below.
+          {isReadOnly
+            ? "No comments posted on this task."
+            : "No comments on this task yet. Add notes, review feedback, or client clarifications below."}
         </div>
       ) : (
         <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
@@ -320,6 +325,7 @@ export function TaskCommentsBox({
         </div>
       )}
 
+      {!isReadOnly && (
       <form
         onSubmit={handleAddComment}
         className="relative flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-200"
@@ -385,6 +391,7 @@ export function TaskCommentsBox({
           <span>Post Comment</span>
         </Button>
       </form>
+      )}
     </div>
   );
 }

@@ -20,11 +20,14 @@ import { SubtaskTree } from "./subtask-tree";
 import { TaskCommentsBox } from "./task-comments-box";
 import { TaskDocumentsBox } from "./task-documents-box";
 
+import { isEmployeeRestricted } from "@/lib/access";
+
 interface TaskDetailDialogProps {
   taskId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdated?: () => void;
+  readOnly?: boolean;
 }
 
 export function TaskDetailDialog({
@@ -32,6 +35,7 @@ export function TaskDetailDialog({
   open,
   onOpenChange,
   onUpdated,
+  readOnly,
 }: TaskDetailDialogProps) {
   const [, setTick] = useState(0);
   const [viewingTaskId, setViewingTaskId] = useState<string | null>(taskId);
@@ -59,6 +63,8 @@ export function TaskDetailDialog({
   const project = task ? pmsStore.getProjectById(task.project_id) : undefined;
   const employees = pmsStore.getEmployees();
   const statusNames = pmsStore.getTaskStatusNames();
+  const currentUser = pmsStore.getCurrentUser();
+  const isReadOnly = Boolean(readOnly ?? isEmployeeRestricted(currentUser));
 
   // Build ancestor chain for hierarchical drill-down navigation (Task -> Subtask -> Sub-subtask)
   const ancestors = useMemo(() => {
@@ -177,27 +183,34 @@ export function TaskDetailDialog({
               <Badge variant={task.status === "Completed" ? "success" : "secondary"} className="text-xs">
                 {task.status}
               </Badge>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const parentId = task.parent_task_id;
-                  pmsStore.deleteTask(task.id);
-                  toast.success(`Deleted ${task.task_code}`);
-                  if (parentId) {
-                    setViewingTaskId(parentId);
-                  } else {
-                    onOpenChange(false);
-                  }
-                  notifyChange();
-                }}
-                className="h-8 px-2.5 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold gap-1"
-                title={`Delete ${levelLabel}`}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>Delete</span>
-              </Button>
+              {isReadOnly && (
+                <Badge variant="outline" className="text-[11px] bg-slate-50 text-slate-600 border-slate-300">
+                  View Only
+                </Badge>
+              )}
+              {!isReadOnly && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const parentId = task.parent_task_id;
+                    pmsStore.deleteTask(task.id);
+                    toast.success(`Deleted ${task.task_code}`);
+                    if (parentId) {
+                      setViewingTaskId(parentId);
+                    } else {
+                      onOpenChange(false);
+                    }
+                    notifyChange();
+                  }}
+                  className="h-8 px-2.5 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold gap-1"
+                  title={`Delete ${levelLabel}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete</span>
+                </Button>
+              )}
             </div>
           </div>
         </DialogHeader>
@@ -210,17 +223,25 @@ export function TaskDetailDialog({
                 <Calendar className="h-3.5 w-3.5 text-violet-600" />
                 <span>{levelLabel} Overview &amp; Schedule</span>
               </h4>
-              <button
-                type="button"
-                onClick={() => setEditingNotes((v) => !v)}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-[#111827]"
-              >
-                <Pencil className="h-3 w-3" />
-                <span>{editingNotes ? "Cancel Edit" : "Edit Notes"}</span>
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={() => setEditingNotes((v) => !v)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-[#111827]"
+                >
+                  <Pencil className="h-3 w-3" />
+                  <span>{editingNotes ? "Cancel Edit" : "Edit Notes"}</span>
+                </button>
+              )}
             </div>
 
-            {editingNotes && (
+            {isReadOnly && task.description && (
+              <p className="text-xs text-slate-600 leading-relaxed pb-2 border-b border-slate-100">
+                {task.description}
+              </p>
+            )}
+
+            {!isReadOnly && editingNotes && (
               <div className="space-y-2 pb-2 border-b border-slate-100">
                 <Textarea
                   value={notesDraft}
@@ -245,86 +266,116 @@ export function TaskDetailDialog({
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600">Status</label>
-                <select
-                  value={task.status}
-                  onChange={(e) =>
-                    handleTaskUpdate(
-                      { status: e.target.value as TaskStatus },
-                      `Status updated to ${e.target.value}`
-                    )
-                  }
-                  className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-bold text-[#111827]"
-                >
-                  {statusNames.map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
-                  ))}
-                </select>
+                {isReadOnly ? (
+                  <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-bold text-[#111827]">
+                    {task.status}
+                  </div>
+                ) : (
+                  <select
+                    value={task.status}
+                    onChange={(e) =>
+                      handleTaskUpdate(
+                        { status: e.target.value as TaskStatus },
+                        `Status updated to ${e.target.value}`
+                      )
+                    }
+                    className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-bold text-[#111827]"
+                  >
+                    {statusNames.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600">Start Date</label>
-                <Input
-                  type="date"
-                  value={task.start_date || task.created_at.slice(0, 10)}
-                  onChange={(e) =>
-                    handleTaskUpdate({ start_date: e.target.value }, "Start date updated")
-                  }
-                  className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs font-semibold"
-                />
+                {isReadOnly ? (
+                  <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold text-slate-700">
+                    {task.start_date || task.created_at.slice(0, 10)}
+                  </div>
+                ) : (
+                  <Input
+                    type="date"
+                    value={task.start_date || task.created_at.slice(0, 10)}
+                    onChange={(e) =>
+                      handleTaskUpdate({ start_date: e.target.value }, "Start date updated")
+                    }
+                    className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs font-semibold"
+                  />
+                )}
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600">Due Date</label>
-                <Input
-                  type="date"
-                  value={task.due_date}
-                  onChange={(e) =>
-                    handleTaskUpdate({ due_date: e.target.value }, "Due date updated")
-                  }
-                  className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs font-semibold"
-                />
+                {isReadOnly ? (
+                  <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold text-slate-700">
+                    {task.due_date || "—"}
+                  </div>
+                ) : (
+                  <Input
+                    type="date"
+                    value={task.due_date}
+                    onChange={(e) =>
+                      handleTaskUpdate({ due_date: e.target.value }, "Due date updated")
+                    }
+                    className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs font-semibold"
+                  />
+                )}
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600">Priority</label>
-                <select
-                  value={task.priority}
-                  onChange={(e) =>
-                    handleTaskUpdate({ priority: e.target.value as ProjectPriority }, "Priority updated")
-                  }
-                  className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827]"
-                >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Urgent">Urgent</option>
-                </select>
+                {isReadOnly ? (
+                  <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold text-[#111827]">
+                    {task.priority}
+                  </div>
+                ) : (
+                  <select
+                    value={task.priority}
+                    onChange={(e) =>
+                      handleTaskUpdate({ priority: e.target.value as ProjectPriority }, "Priority updated")
+                    }
+                    className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827]"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Urgent">Urgent</option>
+                  </select>
+                )}
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600">Assignee</label>
-                <select
-                  value={task.assigned_employee_id || ""}
-                  onChange={(e) => {
-                    const emp = employees.find((item) => item.id === e.target.value);
-                    handleTaskUpdate(
-                      {
-                        assigned_employee_id: e.target.value,
-                        assigned_employee_name: emp?.full_name || "Unassigned",
-                      },
-                      "Assignee updated"
-                    );
-                  }}
-                  className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827]"
-                >
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.full_name}
-                    </option>
-                  ))}
-                </select>
+                {isReadOnly ? (
+                  <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold text-[#111827] truncate">
+                    {task.assigned_employee_name || "Unassigned"}
+                  </div>
+                ) : (
+                  <select
+                    value={task.assigned_employee_id || ""}
+                    onChange={(e) => {
+                      const emp = employees.find((item) => item.id === e.target.value);
+                      handleTaskUpdate(
+                        {
+                          assigned_employee_id: e.target.value,
+                          assigned_employee_name: emp?.full_name || "Unassigned",
+                        },
+                        "Assignee updated"
+                      );
+                    }}
+                    className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827]"
+                  >
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.full_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
           </div>
@@ -336,15 +387,17 @@ export function TaskDetailDialog({
                 <ListChecks className="h-4 w-4 text-violet-600" />
                 <span>Subtasks</span>
               </h4>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setShowAddSubtaskForm((v) => !v)}
-                className="h-8 px-3 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add Subtask</span>
-              </Button>
+              {!isReadOnly && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setShowAddSubtaskForm((v) => !v)}
+                  className="h-8 px-3 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Subtask</span>
+                </Button>
+              )}
             </div>
 
             {subtasks.length === 0 ? (
@@ -357,10 +410,11 @@ export function TaskDetailDialog({
                 fallbackStartDate={task.start_date || task.created_at.slice(0, 10)}
                 onSelectTask={(subId) => setViewingTaskId(subId)}
                 onChanged={notifyChange}
+                readOnly={isReadOnly}
               />
             )}
 
-            {showAddSubtaskForm && (
+            {!isReadOnly && showAddSubtaskForm && (
               <form
                 onSubmit={handleAddSubtask}
                 className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-3 border-t border-slate-200 items-end"
@@ -423,7 +477,7 @@ export function TaskDetailDialog({
           </div>
 
           {/* BOX 3: Documents Upload for this Task / Subtask / Sub-subtask */}
-          <TaskDocumentsBox task={task} onChanged={notifyChange} />
+          <TaskDocumentsBox task={task} onChanged={notifyChange} readOnly={isReadOnly} />
 
           {/* BOX 4: Click-to-Expand Timeline for this Task / Subtask / Sub-subtask */}
           <ProjectTimeline
@@ -442,6 +496,7 @@ export function TaskDetailDialog({
             taskId={task.id}
             assignedEmployeeId={task.assigned_employee_id}
             onUpdated={notifyChange}
+            readOnly={isReadOnly}
           />
         </div>
       </DialogContent>

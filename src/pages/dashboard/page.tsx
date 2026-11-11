@@ -15,9 +15,15 @@ import {
   CheckCheck,
   AtSign,
   Sparkles,
-  Layers
+  Layers,
+  Eye
 } from "lucide-react";
 import { pmsStore } from "@/lib/data/store";
+import {
+  isTaskAssignedToEmployee,
+  isProjectAssignedToEmployee,
+  isClientAssignedToEmployee,
+} from "@/lib/access";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 import { renderCommentWithMentions } from "@/components/tasks/task-comments-box";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -50,14 +56,30 @@ export default function DashboardPage() {
   }, []);
   const currentUser = pmsStore.getCurrentUser();
   const isAdmin = currentUser?.role_code === "SUPER_ADMIN";
+  const isEmployee = !isAdmin;
+  const empId = currentUser?.id || "";
 
   // Real Database Records (Zero Mock Data)
   const services = pmsStore.getServices();
-  const clients = pmsStore.getClients();
+  const allClients = pmsStore.getClients();
   const engagements = pmsStore.getAllEngagements();
-  const projects = pmsStore.getProjects();
-  const tasks = pmsStore.getTasks();
+  const allProjects = pmsStore.getProjects();
+  const allTasks = pmsStore.getTasks();
   const employees = pmsStore.getEmployees();
+
+  // Employee View-Only Workspace scoping: strictly show assigned items only
+  const tasks = isEmployee
+    ? allTasks.filter((t) => isTaskAssignedToEmployee(t, empId))
+    : allTasks;
+  const projects = isEmployee
+    ? allProjects.filter((p) => isProjectAssignedToEmployee(p, empId, allTasks))
+    : allProjects;
+  const clients = isEmployee
+    ? allClients.filter((c) =>
+        isClientAssignedToEmployee(c, empId, allProjects, allTasks, engagements)
+      )
+    : allClients;
+
   const unseenMentions = pmsStore.getUnseenMentionsForUser(currentUser?.id || "");
   const mentionTrackingList = isAdmin ? pmsStore.getMentionTrackingList() : [];
   const pendingMentionsCount = mentionTrackingList.reduce(
@@ -70,7 +92,9 @@ export default function DashboardPage() {
   // 1. Catalog & Client Metrics
   const totalServices = services.length;
   const activeServices = services.filter((s) => s.status === "Active").length;
-  const totalClientsWithServices = new Set(engagements.map((e) => e.client_id)).size;
+  const totalClientsWithServices = isEmployee
+    ? clients.length
+    : new Set(engagements.map((e) => e.client_id)).size;
   const activeClientsCount = clients.filter((c) => c.status === "Active").length;
 
   // 2. Work Metrics
@@ -195,55 +219,68 @@ export default function DashboardPage() {
       {/* Top Greeting Row Matching Reference Design */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-[28px] font-extrabold tracking-tight text-[#16172d] flex items-center gap-2">
+          <h1 className="text-2xl sm:text-[28px] font-extrabold tracking-tight text-[#16172d] flex items-center gap-2 flex-wrap">
             <span>Welcome back, {firstName}</span>
             <span aria-hidden="true">👋</span>
+            {isEmployee && (
+              <Badge
+                variant="outline"
+                className="text-[11px] font-bold bg-amber-50 text-amber-800 border-amber-300 gap-1"
+              >
+                <Eye className="h-3 w-3" />
+                <span>Employee View-Only Workspace</span>
+              </Badge>
+            )}
           </h1>
           <p className="text-xs sm:text-sm text-[#6b7280] mt-1 font-medium">
-            Here&apos;s what&apos;s happening with your firm, clients, and projects today.
+            {isEmployee
+              ? "Viewing only your assigned projects, tasks, clients, and service workflows (Read-Only)."
+              : "Here's what's happening with your firm, clients, and projects today."}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
           {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setShowMentionReceiptsModal(true)}
-              className="flex items-center gap-1.5 h-10 px-4 rounded-2xl border-[1.5px] border-slate-300 bg-white text-[#16172d] hover:border-violet-600 text-xs font-bold transition-all shadow-2xs"
-            >
-              <AtSign className="h-3.5 w-3.5 text-violet-600" />
-              <span>Mention Status</span>
-              <span
-                className={`ml-0.5 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                  pendingMentionsCount > 0
-                    ? "bg-amber-100 text-amber-800"
-                    : "bg-emerald-100 text-emerald-800"
-                }`}
+            <>
+              <button
+                type="button"
+                onClick={() => setShowMentionReceiptsModal(true)}
+                className="flex items-center gap-1.5 h-10 px-4 rounded-2xl border-[1.5px] border-slate-300 bg-white text-[#16172d] hover:border-violet-600 text-xs font-bold transition-all shadow-2xs"
               >
-                {pendingMentionsCount > 0
-                  ? `${pendingMentionsCount} Unseen`
-                  : `${mentionTrackingList.length} Tracked`}
-              </span>
-            </button>
+                <AtSign className="h-3.5 w-3.5 text-violet-600" />
+                <span>Mention Status</span>
+                <span
+                  className={`ml-0.5 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                    pendingMentionsCount > 0
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {pendingMentionsCount > 0
+                    ? `${pendingMentionsCount} Unseen`
+                    : `${mentionTrackingList.length} Tracked`}
+                </span>
+              </button>
+              <Link to="/services">
+                <button className="flex items-center gap-1.5 h-10 px-4 rounded-2xl border-[1.5px] border-slate-300 bg-white text-[#16172d] hover:border-[#6c5ce7] text-xs font-bold transition-all shadow-2xs">
+                  <Briefcase className="h-3.5 w-3.5 text-[#6c5ce7]" />
+                  <span>Services ({totalServices})</span>
+                </button>
+              </Link>
+              <Link to="/clients/new">
+                <button className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-gradient-to-r from-[#6c5ce7] to-[#5b4cdb] hover:opacity-95 text-white text-xs font-bold transition-all shadow-[0_6px_18px_rgba(108,92,231,0.32)]">
+                  <Plus className="h-4 w-4" />
+                  <span>Onboard Client</span>
+                </button>
+              </Link>
+            </>
           )}
-          <Link to="/services">
-            <button className="flex items-center gap-1.5 h-10 px-4 rounded-2xl border-[1.5px] border-slate-300 bg-white text-[#16172d] hover:border-[#6c5ce7] text-xs font-bold transition-all shadow-2xs">
-              <Briefcase className="h-3.5 w-3.5 text-[#6c5ce7]" />
-              <span>Services ({totalServices})</span>
-            </button>
-          </Link>
-          <Link to="/clients/new">
-            <button className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-gradient-to-r from-[#6c5ce7] to-[#5b4cdb] hover:opacity-95 text-white text-xs font-bold transition-all shadow-[0_6px_18px_rgba(108,92,231,0.32)]">
-              <Plus className="h-4 w-4" />
-              <span>Onboard Client</span>
-            </button>
-          </Link>
         </div>
       </div>
 
       {/* Row 1: 4 Pastel Tinted Bento KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Card 1: Lavender — Services & Projects */}
+        {/* Card 1: Lavender — Services (Admin) / Assigned Projects (Employee) */}
         <div className="rounded-[22px] bg-[#f6f3ff] border-[1.5px] border-[#dfd6ff] p-5 flex items-center justify-between gap-3 transition-all hover:shadow-md">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#e9e1ff] text-[#6d28d9]">
@@ -251,15 +288,15 @@ export default function DashboardPage() {
             </div>
             <div className="min-w-0">
               <span className="text-xs font-semibold text-[#5b5e7a] block truncate">
-                Total Services
+                {isEmployee ? "Assigned Projects" : "Total Services"}
               </span>
               <span className="text-2xl font-black text-[#16172d] tracking-tight block mt-0.5">
-                {totalServices}
+                {isEmployee ? projects.length : totalServices}
               </span>
             </div>
           </div>
           <span className="text-[11px] font-bold text-[#15803d] bg-white/80 border border-[#d6f5df] px-2.5 py-1 rounded-full shrink-0">
-            {activeServices} Active
+            {isEmployee ? `${pendingProjects.length} Active` : `${activeServices} Active`}
           </span>
         </div>
 
@@ -271,7 +308,7 @@ export default function DashboardPage() {
             </div>
             <div className="min-w-0">
               <span className="text-xs font-semibold text-[#5b5e7a] block truncate">
-                Completed Works
+                {isEmployee ? "My Completed Works" : "Completed Works"}
               </span>
               <span className="text-2xl font-black text-[#16172d] tracking-tight block mt-0.5">
                 {totalCompletedWorks}
@@ -291,7 +328,7 @@ export default function DashboardPage() {
             </div>
             <div className="min-w-0">
               <span className="text-xs font-semibold text-[#5b5e7a] block truncate">
-                Pending Works
+                {isEmployee ? "My Pending Works" : "Pending Works"}
               </span>
               <span className="text-2xl font-black text-[#16172d] tracking-tight block mt-0.5">
                 {totalPendingWorks}
@@ -303,7 +340,7 @@ export default function DashboardPage() {
           </span>
         </div>
 
-        {/* Card 4: Blush Rose — Clients with Services */}
+        {/* Card 4: Blush Rose — Clients with Services (Admin) / Assigned Clients (Employee) */}
         <div className="rounded-[22px] bg-[#fff1f6] border-[1.5px] border-[#ffd0e4] p-5 flex items-center justify-between gap-3 transition-all hover:shadow-md">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#fce7f3] text-[#db2777]">
@@ -311,7 +348,7 @@ export default function DashboardPage() {
             </div>
             <div className="min-w-0">
               <span className="text-xs font-semibold text-[#5b5e7a] block truncate">
-                Clients with Services
+                {isEmployee ? "Assigned Clients" : "Clients with Services"}
               </span>
               <span className="text-2xl font-black text-[#16172d] tracking-tight block mt-0.5">
                 {totalClientsWithServices}
@@ -564,15 +601,21 @@ export default function DashboardPage() {
           {projects.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center">
               <FolderGit2 className="h-8 w-8 mx-auto text-[#6c5ce7] mb-2 opacity-75" />
-              <p className="text-xs font-bold text-[#16172d]">No active projects yet</p>
-              <p className="text-[11px] text-[#6b7280] mt-0.5">
-                Create a client engagement project to monitor progress here.
+              <p className="text-xs font-bold text-[#16172d]">
+                {isEmployee ? "No assigned projects yet" : "No active projects yet"}
               </p>
-              <Link to="/projects/new">
-                <button className="mt-3 px-3.5 py-1.5 rounded-xl bg-[#6c5ce7] text-white text-xs font-bold hover:bg-[#5b4cdb]">
-                  + New Project
-                </button>
-              </Link>
+              <p className="text-[11px] text-[#6b7280] mt-0.5">
+                {isEmployee
+                  ? "Projects assigned to you will appear here automatically."
+                  : "Create a client engagement project to monitor progress here."}
+              </p>
+              {!isEmployee && (
+                <Link to="/projects/new">
+                  <button className="mt-3 px-3.5 py-1.5 rounded-xl bg-[#6c5ce7] text-white text-xs font-bold hover:bg-[#5b4cdb]">
+                    + New Project
+                  </button>
+                </Link>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3">
@@ -587,8 +630,9 @@ export default function DashboardPage() {
                     : "bg-slate-100 text-slate-700 border-slate-300";
 
                 return (
-                  <div
+                  <Link
                     key={p.id}
+                    to={`/projects/${p.id}`}
                     className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 hover:border-[#6c5ce7] transition-all flex items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -615,7 +659,7 @@ export default function DashboardPage() {
                         {p.progress_percentage}%
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
@@ -625,7 +669,9 @@ export default function DashboardPage() {
         {/* Right: Upcoming Tasks */}
         <div className="lg:col-span-5 rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-extrabold text-[#16172d]">Upcoming Tasks</h2>
+            <h2 className="text-base font-extrabold text-[#16172d]">
+              {isEmployee ? "My Upcoming Tasks" : "Upcoming Tasks"}
+            </h2>
             <Link
               to="/tasks"
               className="text-xs font-bold text-[#6c5ce7] hover:underline flex items-center gap-1"
@@ -642,11 +688,13 @@ export default function DashboardPage() {
               <p className="text-[11px] text-[#6b7280] mt-0.5">
                 No upcoming deliverable tasks pending right now.
               </p>
-              <Link to="/tasks?create=true">
-                <button className="mt-3 px-3.5 py-1.5 rounded-xl bg-[#6c5ce7] text-white text-xs font-bold hover:bg-[#5b4cdb]">
-                  + Create Task
-                </button>
-              </Link>
+              {!isEmployee && (
+                <Link to="/tasks?create=true">
+                  <button className="mt-3 px-3.5 py-1.5 rounded-xl bg-[#6c5ce7] text-white text-xs font-bold hover:bg-[#5b4cdb]">
+                    + Create Task
+                  </button>
+                </Link>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3">
@@ -660,17 +708,26 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={task.id}
-                    className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 hover:border-[#6c5ce7] transition-all flex items-center justify-between gap-3"
+                    onClick={isEmployee ? () => setSelectedCommentTaskId(task.id) : undefined}
+                    className={`rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 hover:border-[#6c5ce7] transition-all flex items-center justify-between gap-3 ${
+                      isEmployee ? "cursor-pointer" : ""
+                    }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleTaskDone(task.id, task.title)}
-                        title="Mark task completed"
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px] border-slate-400 bg-white text-transparent hover:border-[#6c5ce7] hover:bg-[#f6f3ff] hover:text-[#6c5ce7] transition-colors"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
+                      {!isEmployee ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleTaskDone(task.id, task.title)}
+                          title="Mark task completed"
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px] border-slate-400 bg-white text-transparent hover:border-[#6c5ce7] hover:bg-[#f6f3ff] hover:text-[#6c5ce7] transition-colors"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      ) : (
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[#6c5ce7]">
+                          <Eye className="h-3 w-3" />
+                        </span>
+                      )}
                       <div className="min-w-0">
                         <span className="text-xs sm:text-sm font-bold text-[#16172d] block truncate">
                           {task.title}
@@ -693,8 +750,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Row 4: Count of Clients for Each Service (Box View Only) */}
-      <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
+      {/* Row 4: Count of Clients for Each Service (Box View Only - Admin Only) */}
+      {isAdmin && (
+        <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
           <div>
             <div className="flex items-center gap-2">
@@ -774,6 +832,7 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* Compulsory Mention Alert Popup when current user is @mentioned and has not clicked Seen Message */}
       <Dialog open={unseenMentions.length > 0} onOpenChange={() => {}}>
@@ -953,6 +1012,7 @@ export default function DashboardPage() {
           if (!nextOpen) setSelectedCommentTaskId(null);
         }}
         onUpdated={() => setTick((t) => t + 1)}
+        readOnly={isEmployee}
       />
     </div>
   );

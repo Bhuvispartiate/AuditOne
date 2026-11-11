@@ -25,12 +25,28 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { pmsStore } from "@/lib/data/store";
+import {
+  isEmployeeRestricted,
+  isProjectAssignedToEmployee,
+  isTaskAssignedToEmployee,
+  isWorkflowAssignedToEmployee,
+} from "@/lib/access";
 
 export interface NavItem {
   title: string;
   href: string;
   icon: React.ElementType;
 }
+
+const EMPLOYEE_ALLOWED_HREFS = new Set([
+  "/dashboard",
+  "/projects",
+  "/tasks",
+  "/clients",
+  "/workflows",
+  "/attendance",
+  "/documents",
+]);
 
 const mainNavItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutGrid },
@@ -73,11 +89,37 @@ export function AppSidebar() {
   }, [pathname]);
 
   const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
+  const employeeId = currentUser?.id || "";
+  const projects = pmsStore.getProjects();
   const tasks = pmsStore.getTasks();
-  const workflows = pmsStore.getWorkflows().filter((w) => w.is_active !== false);
   const engagements = pmsStore.getAllEngagements();
+  const allWorkflows = pmsStore.getWorkflows().filter((w) => w.is_active !== false);
+
+  const visibleNavItems = isEmployee
+    ? mainNavItems.filter((item) => EMPLOYEE_ALLOWED_HREFS.has(item.href))
+    : mainNavItems;
+
+  const visibleTasks = isEmployee
+    ? tasks.filter((t) => isTaskAssignedToEmployee(t, employeeId))
+    : tasks;
+
+  const workflows = isEmployee
+    ? allWorkflows.filter((w) =>
+        isWorkflowAssignedToEmployee(w, employeeId, projects, tasks, engagements)
+      )
+    : allWorkflows;
+
+  const assignedProjectClientIds = isEmployee
+    ? new Set(
+        projects
+          .filter((p) => isProjectAssignedToEmployee(p, employeeId, tasks) && p.client_id)
+          .map((p) => p.client_id as string)
+      )
+    : null;
+
   const notifications = pmsStore.getNotifications();
-  const pendingTasksCount = tasks.filter((t) => t.status !== "Completed").length;
+  const pendingTasksCount = visibleTasks.filter((t) => t.status !== "Completed").length;
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   const initials =
@@ -141,7 +183,7 @@ export function AppSidebar() {
 
       {/* Primary Navigation */}
       <div className="flex-1 overflow-y-auto px-3 py-1 space-y-1 scrollbar-none">
-        {mainNavItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const isWorkflowRoot = item.href === "/workflows";
           const isActive = pathname
@@ -234,12 +276,13 @@ export function AppSidebar() {
               {isWorkflowRoot && !collapsed && workflowsOpen && (
                 <div className="ml-4 pl-2.5 border-l border-white/12 space-y-0.5 py-1">
                   {workflows.length === 0 ? (
-                    <Link
-                      to="/workflows"
-                      className="block rounded-lg px-3 py-1.5 text-[11px] text-[#8a8fb5] hover:text-white hover:bg-white/[0.04]"
-                    >
-                      No workflows yet — Create
-                    </Link>
+                    <div className="block rounded-lg px-3 py-1.5 text-[11px] text-[#8a8fb5]">
+                      {isEmployee ? "No assigned workflows" : (
+                        <Link to="/workflows" className="hover:text-white">
+                          No workflows yet — Create
+                        </Link>
+                      )}
+                    </div>
                   ) : (
                     workflows.map((wf) => {
                       const wfHref = `/workflows/${wf.id}`;
@@ -249,6 +292,9 @@ export function AppSidebar() {
                           .filter(
                             (e) =>
                               e.status === "Active" &&
+                              (!assignedProjectClientIds ||
+                                e.relationship_manager_id === employeeId ||
+                                assignedProjectClientIds.has(e.client_id)) &&
                               ((wf.service_id && e.service_id === wf.service_id) ||
                                 (wf.service_name &&
                                   e.service_name?.trim().toLowerCase() === wf.service_name.trim().toLowerCase()))
@@ -293,50 +339,52 @@ export function AppSidebar() {
         })}
       </div>
 
-      {/* Bottom Utility Navigation */}
-      <div className="px-3 pt-2 pb-2 border-t border-white/[0.07] space-y-1">
-        {footerNavItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname ? pathname.startsWith(item.href) : false;
-          const badgeValue = item.href === "/notifications" && unreadCount > 0 ? unreadCount : undefined;
+      {/* Bottom Utility Navigation (Admin Only) */}
+      {!isEmployee && (
+        <div className="px-3 pt-2 pb-2 border-t border-white/[0.07] space-y-1">
+          {footerNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname ? pathname.startsWith(item.href) : false;
+            const badgeValue = item.href === "/notifications" && unreadCount > 0 ? unreadCount : undefined;
 
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={cn(
-                "group flex items-center gap-3 rounded-xl px-3.5 py-2 text-[13px] font-medium transition-all duration-150",
-                isActive
-                  ? "bg-gradient-to-r from-[#6c5ce7] to-[#5b4cdb] text-white font-semibold shadow-[0_6px_18px_rgba(108,92,231,0.38)]"
-                  : "text-[#a3a8c3] hover:bg-white/[0.06] hover:text-white"
-              )}
-              title={collapsed ? item.title : undefined}
-            >
-              <Icon className="h-[17px] w-[17px] shrink-0" />
-              {!collapsed && <span className="truncate flex-1">{item.title}</span>}
-              {!collapsed && badgeValue !== undefined && (
-                <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6c5ce7] px-1.5 text-[10px] font-bold text-white">
-                  {badgeValue}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                className={cn(
+                  "group flex items-center gap-3 rounded-xl px-3.5 py-2 text-[13px] font-medium transition-all duration-150",
+                  isActive
+                    ? "bg-gradient-to-r from-[#6c5ce7] to-[#5b4cdb] text-white font-semibold shadow-[0_6px_18px_rgba(108,92,231,0.38)]"
+                    : "text-[#a3a8c3] hover:bg-white/[0.06] hover:text-white"
+                )}
+                title={collapsed ? item.title : undefined}
+              >
+                <Icon className="h-[17px] w-[17px] shrink-0" />
+                {!collapsed && <span className="truncate flex-1">{item.title}</span>}
+                {!collapsed && badgeValue !== undefined && (
+                  <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6c5ce7] px-1.5 text-[10px] font-bold text-white">
+                    {badgeValue}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
 
-        <Link
-          to="/reports"
-          className="group flex items-center gap-3 rounded-xl px-3.5 py-2 text-[13px] font-medium text-[#a3a8c3] hover:bg-white/[0.06] hover:text-white transition-all duration-150"
-          title={collapsed ? "Help & Support" : undefined}
-        >
-          <HelpCircle className="h-[17px] w-[17px] shrink-0" />
-          {!collapsed && <span className="truncate flex-1">Help & Support</span>}
-        </Link>
-      </div>
+          <Link
+            to="/reports"
+            className="group flex items-center gap-3 rounded-xl px-3.5 py-2 text-[13px] font-medium text-[#a3a8c3] hover:bg-white/[0.06] hover:text-white transition-all duration-150"
+            title={collapsed ? "Help & Support" : undefined}
+          >
+            <HelpCircle className="h-[17px] w-[17px] shrink-0" />
+            {!collapsed && <span className="truncate flex-1">Help & Support</span>}
+          </Link>
+        </div>
+      )}
 
       {/* Bottom User Profile Pill (Matching reference image) */}
       <div className="p-3 border-t border-white/[0.07]">
         <Link
-          to="/settings"
+          to={isEmployee ? "/dashboard" : "/settings"}
           className={cn(
             "flex items-center gap-2.5 rounded-2xl p-2 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition-colors",
             collapsed && "justify-center"
@@ -352,10 +400,12 @@ export function AppSidebar() {
                   {currentUser?.full_name || "Administrator"}
                 </p>
                 <p className="text-[10px] text-[#8a8fb5] truncate">
-                  {currentUser?.designation_name || currentUser?.role_code || "Practice Admin"}
+                  {isEmployee
+                    ? `${currentUser?.designation_name || currentUser?.role_code} • View Only`
+                    : currentUser?.designation_name || currentUser?.role_code || "Practice Admin"}
                 </p>
               </div>
-              <ChevronDown className="h-3.5 w-3.5 text-[#8a8fb5] shrink-0" />
+              {!isEmployee && <ChevronDown className="h-3.5 w-3.5 text-[#8a8fb5] shrink-0" />}
             </>
           )}
         </Link>

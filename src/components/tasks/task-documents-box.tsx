@@ -2,6 +2,7 @@ import React, { useRef } from "react";
 import { Download, FileText, Paperclip, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { pmsStore } from "@/lib/data/store";
+import { isEmployeeRestricted } from "@/lib/access";
 import { FileObject, Task } from "@/types";
 import { toast } from "sonner";
 
@@ -14,11 +15,13 @@ function formatFileSize(bytes: number): string {
 interface TaskDocumentsBoxProps {
   task: Task;
   onChanged?: () => void;
+  readOnly?: boolean;
 }
 
-export function TaskDocumentsBox({ task, onChanged }: TaskDocumentsBoxProps) {
+export function TaskDocumentsBox({ task, onChanged, readOnly }: TaskDocumentsBoxProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const docs = pmsStore.getDocumentsByEntity("task", task.id);
+  const isReadOnly = readOnly ?? isEmployeeRestricted(pmsStore.getCurrentUser());
 
   const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -80,23 +83,27 @@ export function TaskDocumentsBox({ task, onChanged }: TaskDocumentsBoxProps) {
           <span>Documents ({docs.length})</span>
         </h4>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          onChange={handleFilesSelected}
-          className="hidden"
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => fileInputRef.current?.click()}
-          className="h-8 px-3 rounded-xl border-slate-300 text-xs font-bold gap-1 hover:bg-slate-50"
-        >
-          <Plus className="h-3.5 w-3.5 text-sky-600" />
-          <span>Upload Document</span>
-        </Button>
+        {!isReadOnly && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFilesSelected}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              className="h-8 px-3 rounded-xl border-slate-300 text-xs font-bold gap-1 hover:bg-slate-50"
+            >
+              <Plus className="h-3.5 w-3.5 text-sky-600" />
+              <span>Upload Document</span>
+            </Button>
+          </>
+        )}
       </div>
 
       {docs.length === 0 ? (
@@ -128,18 +135,20 @@ export function TaskDocumentsBox({ task, onChanged }: TaskDocumentsBoxProps) {
                 >
                   <Download className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    pmsStore.deleteDocument(doc.id);
-                    toast.success(`Removed ${doc.file_name}`);
-                    onChanged?.();
-                  }}
-                  className="p-1 text-slate-400 hover:text-rose-600 rounded"
-                  title="Remove Document"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      pmsStore.deleteDocument(doc.id);
+                      toast.success(`Removed ${doc.file_name}`);
+                      onChanged?.();
+                    }}
+                    className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                    title="Remove Document"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           ))}

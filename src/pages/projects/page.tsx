@@ -9,6 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { pmsStore } from "@/lib/data/store";
+import {
+  isEmployeeRestricted,
+  isProjectAssignedToEmployee,
+  isClientAssignedToEmployee,
+} from "@/lib/access";
 import { getInitials } from "@/lib/utils";
 
 export default function ProjectsPage() {
@@ -23,8 +28,23 @@ export default function ProjectsPage() {
     return unsub;
   }, []);
 
-  const projects = pmsStore.getProjects();
-  const clients = pmsStore.getClients();
+  const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
+  const empId = currentUser?.id || "";
+
+  const allProjects = pmsStore.getProjects();
+  const allClients = pmsStore.getClients();
+  const allTasks = pmsStore.getTasks();
+  const allEngagements = pmsStore.getAllEngagements();
+
+  const projects = isEmployee
+    ? allProjects.filter((p) => isProjectAssignedToEmployee(p, empId, allTasks))
+    : allProjects;
+  const clients = isEmployee
+    ? allClients.filter((c) =>
+        isClientAssignedToEmployee(c, empId, allProjects, allTasks, allEngagements)
+      )
+    : allClients;
 
   const filteredProjects = projects.filter((p) => {
     const matchesSearch =
@@ -57,12 +77,14 @@ export default function ProjectsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link to="/projects/new">
-            <Button size="sm" className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold">
-              <Plus className="h-4 w-4" />
-              <span>Create New Project</span>
-            </Button>
-          </Link>
+          {!isEmployee && (
+            <Link to="/projects/new">
+              <Button size="sm" className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold">
+                <Plus className="h-4 w-4" />
+                <span>Create New Project</span>
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 

@@ -1,5 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/app-shell";
+import { pmsStore } from "@/lib/data/store";
+import { isEmployeeRestricted } from "@/lib/access";
 
 import LoginPage from "@/pages/login/page";
 import DashboardPage from "@/pages/dashboard/page";
@@ -27,11 +30,51 @@ import NotificationsPage from "@/pages/notifications/page";
 import ReportsPage from "@/pages/reports/page";
 import SettingsPage from "@/pages/settings/page";
 
+function isAllowedForEmployee(pathname: string): boolean {
+  if (
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/dashboard" ||
+    pathname === "/tasks" ||
+    pathname === "/attendance" ||
+    pathname === "/documents"
+  ) {
+    return true;
+  }
+  if (pathname === "/clients" || (pathname.startsWith("/clients/") && pathname !== "/clients/new")) {
+    return true;
+  }
+  if (pathname === "/projects" || (pathname.startsWith("/projects/") && pathname !== "/projects/new")) {
+    return true;
+  }
+  if (pathname === "/workflows" || pathname.startsWith("/workflows/")) {
+    return true;
+  }
+  return false;
+}
+
+function EmployeeRouteGuard({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    return pmsStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
+
+  const currentUser = pmsStore.getCurrentUser();
+  if (isEmployeeRestricted(currentUser) && !isAllowedForEmployee(pathname)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AppShell>
-        <Routes>
+        <EmployeeRouteGuard>
+          <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
@@ -67,7 +110,8 @@ export default function App() {
           <Route path="/settings" element={<SettingsPage />} />
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+          </Routes>
+        </EmployeeRouteGuard>
       </AppShell>
     </BrowserRouter>
   );

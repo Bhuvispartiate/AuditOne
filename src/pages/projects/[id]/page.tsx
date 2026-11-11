@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
+import { isEmployeeRestricted, isProjectAssignedToEmployee, isTaskAssignedToEmployee } from "@/lib/access";
 import { ProjectPriority, ProjectStatus, TaskStatus } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -51,8 +52,18 @@ export default function ProjectDetailPage() {
     return unsub;
   }, []);
 
+  const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
+  const empId = currentUser?.id || "";
+
   const project = pmsStore.getProjectById(projectId);
-  const tasks = project ? pmsStore.getTasksByProjectId(project.id) : [];
+  const allStoreTasks = pmsStore.getTasks();
+  const allProjectTasks = project ? pmsStore.getTasksByProjectId(project.id) : [];
+  const tasks = isEmployee && project
+    ? project.project_manager_id === empId
+      ? allProjectTasks
+      : allProjectTasks.filter((t) => isTaskAssignedToEmployee(t, empId))
+    : allProjectTasks;
   const employees = pmsStore.getEmployees();
   const taskStatusNames = pmsStore.getTaskStatusNames();
 
@@ -71,6 +82,20 @@ export default function ProjectDetailPage() {
         <p className="text-xs text-slate-500">The requested project workspace does not exist.</p>
         <Link to="/projects">
           <Button variant="outline">Back to Projects</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (isEmployee && !isProjectAssignedToEmployee(project, empId, allStoreTasks)) {
+    return (
+      <div className="py-24 text-center space-y-4">
+        <h2 className="text-xl font-bold text-slate-900">Access Restricted</h2>
+        <p className="text-xs text-slate-500">
+          Employees can only view projects and tasks assigned to them.
+        </p>
+        <Link to="/projects">
+          <Button variant="outline">Back to Assigned Projects</Button>
         </Link>
       </div>
     );
@@ -153,20 +178,31 @@ export default function ProjectDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={project.status}
-              onChange={(e) => {
-                pmsStore.updateProject(project.id, { status: e.target.value as ProjectStatus });
-                toast.success(`Project status changed to ${e.target.value}`);
-              }}
-              className="h-10 rounded-2xl border-[1.5px] border-slate-300 bg-white px-3.5 text-xs font-bold text-[#111827]"
-            >
-              {PROJECT_STATUSES.map((st) => (
-                <option key={st} value={st}>
-                  {st}
-                </option>
-              ))}
-            </select>
+            {isEmployee ? (
+              <>
+                <Badge variant="outline" className="h-9 px-3.5 rounded-2xl text-xs font-bold bg-amber-50 text-amber-800 border-amber-300">
+                  View Only
+                </Badge>
+                <Badge variant={project.status === "Completed" ? "success" : "secondary"} className="h-9 px-3.5 rounded-2xl text-xs font-bold">
+                  {project.status}
+                </Badge>
+              </>
+            ) : (
+              <select
+                value={project.status}
+                onChange={(e) => {
+                  pmsStore.updateProject(project.id, { status: e.target.value as ProjectStatus });
+                  toast.success(`Project status changed to ${e.target.value}`);
+                }}
+                className="h-10 rounded-2xl border-[1.5px] border-slate-300 bg-white px-3.5 text-xs font-bold text-[#111827]"
+              >
+                {PROJECT_STATUSES.map((st) => (
+                  <option key={st} value={st}>
+                    {st}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -215,8 +251,9 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* Add Task Box */}
-      <Card className="rounded-[24px] border-[1.5px] border-slate-300 bg-white">
+      {/* Add Task Box (Admin Only) */}
+      {!isEmployee && (
+        <Card className="rounded-[24px] border-[1.5px] border-slate-300 bg-white">
         <CardContent className="p-5">
           <form onSubmit={handleCreateTask} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
             <div className="sm:col-span-4 space-y-1">
@@ -281,6 +318,7 @@ export default function ProjectDetailPage() {
           </form>
         </CardContent>
       </Card>
+      )}
 
       {/* Timeline View */}
       <ProjectTimeline
@@ -299,7 +337,9 @@ export default function ProjectDetailPage() {
             <span>Project Tasks & Subtasks ({tasks.length})</span>
           </h2>
           <span className="text-xs text-slate-500 font-medium">
-            Click any task box to manage subtasks, dates, status & comments
+            {isEmployee
+              ? "Click any task box to view subtasks, dates, status & comments (Read-Only)"
+              : "Click any task box to manage subtasks, dates, status & comments"}
           </span>
         </div>
 
@@ -322,21 +362,27 @@ export default function ProjectDetailPage() {
                         {task.priority}
                       </Badge>
                     </div>
-                    <select
-                      value={task.status}
-                      onChange={(e) => {
-                        pmsStore.updateTaskStatus(task.id, e.target.value as TaskStatus);
-                        toast.success(`Task status updated to ${e.target.value}`);
-                        setTick((t) => t + 1);
-                      }}
-                      className="h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-[#111827]"
-                    >
-                      {taskStatusNames.map((st) => (
-                        <option key={st} value={st}>
-                          {st}
-                        </option>
-                      ))}
-                    </select>
+                    {isEmployee ? (
+                      <Badge variant={task.status === "Completed" ? "success" : "secondary"} className="text-xs font-bold">
+                        {task.status}
+                      </Badge>
+                    ) : (
+                      <select
+                        value={task.status}
+                        onChange={(e) => {
+                          pmsStore.updateTaskStatus(task.id, e.target.value as TaskStatus);
+                          toast.success(`Task status updated to ${e.target.value}`);
+                          setTick((t) => t + 1);
+                        }}
+                        className="h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-[#111827]"
+                      >
+                        {taskStatusNames.map((st) => (
+                          <option key={st} value={st}>
+                            {st}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   <div>
@@ -387,11 +433,13 @@ export default function ProjectDetailPage() {
                         onClick={() => handleOpenTask(task.id)}
                         className="text-violet-700 hover:underline font-bold"
                       >
-                        + Manage Subtasks
+                        {isEmployee ? "View Subtasks" : "+ Manage Subtasks"}
                       </button>
                     </div>
                     {subtasks.length === 0 ? (
-                      <p className="text-[11px] text-slate-400">No subtasks yet. Click + Manage Subtasks to add any number of subtasks.</p>
+                      <p className="text-[11px] text-slate-400">
+                        {isEmployee ? "No subtasks assigned." : "No subtasks yet. Click + Manage Subtasks to add any number of subtasks."}
+                      </p>
                     ) : (
                       <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
                         {subtasks.map((sub) => (
@@ -402,6 +450,10 @@ export default function ProjectDetailPage() {
                             <button
                               type="button"
                               onClick={() => {
+                                if (isEmployee) {
+                                  handleOpenTask(sub.id);
+                                  return;
+                                }
                                 const next = sub.status === "Completed" ? "To Do" : "Completed";
                                 pmsStore.updateTaskStatus(sub.id, next);
                                 setTick((t) => t + 1);
@@ -452,20 +504,22 @@ export default function ProjectDetailPage() {
                         <Calendar className="h-3.5 w-3.5" />
                         <span>Subtasks, Timeline & Comments</span>
                       </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        onClick={() => {
-                          pmsStore.deleteTask(task.id);
-                          toast.success(`Deleted task ${task.task_code}`);
-                          setTick((t) => t + 1);
-                        }}
-                        className="h-8 w-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shrink-0"
-                        title="Delete Task"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {!isEmployee && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={() => {
+                            pmsStore.deleteTask(task.id);
+                            toast.success(`Deleted task ${task.task_code}`);
+                            setTick((t) => t + 1);
+                          }}
+                          className="h-8 w-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shrink-0"
+                          title="Delete Task"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -480,6 +534,7 @@ export default function ProjectDetailPage() {
         open={isTaskModalOpen}
         onOpenChange={setIsTaskModalOpen}
         onUpdated={() => setTick((t) => t + 1)}
+        readOnly={isEmployee}
       />
     </div>
   );

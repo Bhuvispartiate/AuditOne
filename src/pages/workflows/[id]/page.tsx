@@ -31,6 +31,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
+import {
+  isEmployeeRestricted,
+  isWorkflowAssignedToEmployee,
+  isProjectAssignedToEmployee,
+  isTaskAssignedToEmployee,
+} from "@/lib/access";
 import { formatDate } from "@/lib/utils";
 import {
   Client,
@@ -103,6 +109,10 @@ export default function WorkflowKanbanPage() {
     return unsub;
   }, []);
 
+  const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
+  const empId = currentUser?.id || "";
+
   const workflows = pmsStore.getWorkflows();
   const workflow = workflows.find((w) => w.id === id);
   const statusNames = pmsStore.getTaskStatusNames();
@@ -174,10 +184,21 @@ export default function WorkflowKanbanPage() {
       });
     }
 
-    return rawItems.map((item, idx) => {
-      const projectTasks = item.project
+    const scopedItems = isEmployee
+      ? rawItems.filter(
+          (item) =>
+            item.project && isProjectAssignedToEmployee(item.project, empId, allTasks)
+        )
+      : rawItems;
+
+    return scopedItems.map((item, idx) => {
+      const rawProjectTasks = item.project
         ? allTasks.filter((t) => t.project_id === item.project!.id && !t.parent_task_id)
         : [];
+      const projectTasks =
+        isEmployee && item.project && item.project.project_manager_id !== empId
+          ? rawProjectTasks.filter((t) => isTaskAssignedToEmployee(t, empId))
+          : rawProjectTasks;
 
       const stageTaskMap = new Map<string, Task>();
       let missingCount = 0;
@@ -237,7 +258,7 @@ export default function WorkflowKanbanPage() {
         completedTemplateTasks: completedTplCount,
       };
     });
-  }, [workflow, clients, engagements, projects, allTasks, tplTasks]);
+  }, [workflow, clients, engagements, projects, allTasks, tplTasks, isEmployee, empId]);
 
   const filteredEntries = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -361,6 +382,23 @@ export default function WorkflowKanbanPage() {
     );
   }
 
+  if (
+    isEmployee &&
+    !isWorkflowAssignedToEmployee(workflow, empId, projects, allTasks, engagements)
+  ) {
+    return (
+      <div className="py-24 text-center space-y-4">
+        <h2 className="text-xl font-bold text-slate-900">Access Restricted</h2>
+        <p className="text-xs text-slate-500">
+          Employees can only view workflows linked to their assigned projects and tasks.
+        </p>
+        <Link to="/workflows">
+          <Button variant="outline">Back to Assigned Workflows</Button>
+        </Link>
+      </div>
+    );
+  }
+
   const completedClientsCount = boardEntries.filter(
     (e) => e.currentColumnId === "COMPLETED" && tplTasks.length > 0
   ).length;
@@ -406,7 +444,15 @@ export default function WorkflowKanbanPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {totalMissingTasks > 0 && (
+            {isEmployee && (
+              <Badge
+                variant="outline"
+                className="h-9 px-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border-amber-300"
+              >
+                View-Only Mode
+              </Badge>
+            )}
+            {!isEmployee && totalMissingTasks > 0 && (
               <Button
                 type="button"
                 size="sm"
@@ -557,19 +603,24 @@ export default function WorkflowKanbanPage() {
                   </p>
                 </div>
               </div>
-              <Link to="/clients/new">
-                <Button size="sm" className="bg-neutral-900 hover:bg-black text-white rounded-xl text-xs font-bold gap-1.5 shrink-0">
-                  <Plus className="h-3.5 w-3.5" /> Onboard Client
-                </Button>
-              </Link>
+              {!isEmployee && (
+                <Link to="/clients/new">
+                  <Button size="sm" className="bg-neutral-900 hover:bg-black text-white rounded-xl text-xs font-bold gap-1.5 shrink-0">
+                    <Plus className="h-3.5 w-3.5" /> Onboard Client
+                  </Button>
+                </Link>
+              )}
             </div>
           )}
 
           <div className="flex gap-4 overflow-x-auto pb-4 items-start">
             {tplTasks.map((tplTask, index) => {
-              // Show EVERY subscribed client whose task for THIS column is NOT yet Completed
+              // Show EVERY subscribed client whose task for THIS column is NOT yet Completed (and assigned in Employee Mode)
               const openEntries = filteredEntries.filter((entry) => {
                 const matched = entry.stageTaskMap.get(tplTask.id);
+                if (isEmployee) {
+                  return Boolean(matched && matched.status !== "Completed");
+                }
                 return !matched || matched.status !== "Completed";
               });
               const isOver = dragOverColumnId === tplTask.id;
@@ -578,6 +629,7 @@ export default function WorkflowKanbanPage() {
                 <div
                   key={tplTask.id}
                   onDragOver={(e) => {
+                    if (isEmployee) return;
                     e.preventDefault();
                     setDragOverColumnId(tplTask.id);
                   }}
@@ -585,6 +637,7 @@ export default function WorkflowKanbanPage() {
                     setDragOverColumnId((prev) => (prev === tplTask.id ? null : prev))
                   }
                   onDrop={(e) => {
+                    if (isEmployee) return;
                     e.preventDefault();
                     setDragOverColumnId(null);
                     if (
@@ -633,8 +686,8 @@ export default function WorkflowKanbanPage() {
                     {openEntries.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 px-3 py-8 text-center text-[11px] text-slate-400">
                         {boardEntries.length === 0
-                          ? "No clients subscribed yet"
-                          : "All subscribed clients completed this task"}
+                          ? "No assigned clients yet"
+                          : "No pending tasks in this stage"}
                       </div>
                     ) : (
                       openEntries.map((entry) => {
@@ -647,24 +700,27 @@ export default function WorkflowKanbanPage() {
                         return (
                           <div
                             key={`${entry.entryKey}-${tplTask.id}`}
-                            draggable
-                            onDragStart={() =>
+                            draggable={!isEmployee}
+                            onDragStart={() => {
+                              if (isEmployee) return;
                               setDraggingWorkflowCard({
                                 entryKey: entry.entryKey,
                                 tplTaskId: tplTask.id,
                                 isCompleted: false,
-                              })
-                            }
+                              });
+                            }}
                             onDragEnd={() => {
                               setDraggingWorkflowCard(null);
                               setDragOverColumnId(null);
                             }}
-                            className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 shadow-xs hover:border-neutral-900 transition-all cursor-grab active:cursor-grabbing space-y-3"
+                            className={`rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 shadow-xs hover:border-neutral-900 transition-all space-y-3 ${
+                              isEmployee ? "" : "cursor-grab active:cursor-grabbing"
+                            }`}
                           >
                             {/* Card Top Bar */}
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <GripVertical className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                {!isEmployee && <GripVertical className="h-3.5 w-3.5 text-slate-400 shrink-0" />}
                                 <span className="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
                                   {entry.clientCode}
                                 </span>
@@ -679,24 +735,30 @@ export default function WorkflowKanbanPage() {
                               </div>
 
                               {stageTask ? (
-                                <select
-                                  value={stageTask.status}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) =>
-                                    setClientWorkflowTaskStatus(
-                                      entry,
-                                      tplTask,
-                                      e.target.value as TaskStatus
-                                    )
-                                  }
-                                  className="h-6 rounded-lg border border-slate-300 bg-slate-50 px-1.5 text-[10px] font-bold text-slate-800"
-                                >
-                                  {statusNames.map((st) => (
-                                    <option key={st} value={st}>
-                                      {st}
-                                    </option>
-                                  ))}
-                                </select>
+                                isEmployee ? (
+                                  <Badge variant="outline" className="text-[10px] font-bold bg-slate-50 border-slate-300 text-slate-800">
+                                    {stageTask.status}
+                                  </Badge>
+                                ) : (
+                                  <select
+                                    value={stageTask.status}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) =>
+                                      setClientWorkflowTaskStatus(
+                                        entry,
+                                        tplTask,
+                                        e.target.value as TaskStatus
+                                      )
+                                    }
+                                    className="h-6 rounded-lg border border-slate-300 bg-slate-50 px-1.5 text-[10px] font-bold text-slate-800"
+                                  >
+                                    {statusNames.map((st) => (
+                                      <option key={st} value={st}>
+                                        {st}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )
                               ) : (
                                 <Badge
                                   variant="outline"
@@ -766,12 +828,16 @@ export default function WorkflowKanbanPage() {
                                     <button
                                       key={sub.id}
                                       type="button"
-                                      onClick={() =>
+                                      onClick={() => {
+                                        if (isEmployee) {
+                                          setDetailTaskId(sub.id);
+                                          return;
+                                        }
                                         pmsStore.updateTaskStatus(
                                           sub.id,
                                           sub.status === "Completed" ? "To Do" : "Completed"
-                                        )
-                                      }
+                                        );
+                                      }}
                                       className="w-full flex items-center gap-2 text-left rounded-lg border border-slate-200 bg-slate-50/70 px-2 py-1 text-[11px] hover:border-slate-400"
                                     >
                                       <input
@@ -815,17 +881,19 @@ export default function WorkflowKanbanPage() {
                                 Tasks & Subtasks
                               </Button>
 
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() =>
-                                  setClientWorkflowTaskStatus(entry, tplTask, "Completed")
-                                }
-                                className="h-7 px-2.5 rounded-lg bg-neutral-900 hover:bg-black text-white text-[11px] font-bold gap-1"
-                              >
-                                <Check className="h-3 w-3" />
-                                <span>Complete</span>
-                              </Button>
+                              {!isEmployee && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() =>
+                                    setClientWorkflowTaskStatus(entry, tplTask, "Completed")
+                                  }
+                                  className="h-7 px-2.5 rounded-lg bg-neutral-900 hover:bg-black text-white text-[11px] font-bold gap-1"
+                                >
+                                  <Check className="h-3 w-3" />
+                                  <span>Complete</span>
+                                </Button>
+                              )}
                             </div>
                           </div>
                         );
@@ -854,6 +922,7 @@ export default function WorkflowKanbanPage() {
                 <div
                   key="COMPLETED"
                   onDragOver={(e) => {
+                    if (isEmployee) return;
                     e.preventDefault();
                     setDragOverColumnId("COMPLETED");
                   }}
@@ -861,6 +930,7 @@ export default function WorkflowKanbanPage() {
                     setDragOverColumnId((prev) => (prev === "COMPLETED" ? null : prev))
                   }
                   onDrop={(e) => {
+                    if (isEmployee) return;
                     e.preventDefault();
                     setDragOverColumnId(null);
                     if (draggingWorkflowCard && !draggingWorkflowCard.isCompleted) {
@@ -890,7 +960,7 @@ export default function WorkflowKanbanPage() {
                         Completed Tasks
                       </h3>
                       <p className="text-[11px] font-medium text-emerald-700 mt-0.5">
-                        Drag any task card here to complete
+                        {isEmployee ? "Tasks marked completed" : "Drag any task card here to complete"}
                       </p>
                     </div>
                     <Badge
@@ -904,25 +974,28 @@ export default function WorkflowKanbanPage() {
                   <div className="space-y-3 min-h-[140px]">
                     {completedTaskCards.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-emerald-300 bg-white/70 px-3 py-8 text-center text-[11px] text-slate-400">
-                        Drop any completed task here
+                        {isEmployee ? "No completed tasks yet" : "Drop any completed task here"}
                       </div>
                     ) : (
                       completedTaskCards.map(({ entry, tplTask, idx, task }) => (
                         <div
                           key={`done-${entry.entryKey}-${tplTask.id}`}
-                          draggable
-                          onDragStart={() =>
+                          draggable={!isEmployee}
+                          onDragStart={() => {
+                            if (isEmployee) return;
                             setDraggingWorkflowCard({
                               entryKey: entry.entryKey,
                               tplTaskId: tplTask.id,
                               isCompleted: true,
-                            })
-                          }
+                            });
+                          }}
                           onDragEnd={() => {
                             setDraggingWorkflowCard(null);
                             setDragOverColumnId(null);
                           }}
-                          className="rounded-2xl border-[1.5px] border-emerald-300 bg-white p-4 shadow-xs hover:border-neutral-900 transition-all cursor-grab active:cursor-grabbing space-y-2.5"
+                          className={`rounded-2xl border-[1.5px] border-emerald-300 bg-white p-4 shadow-xs hover:border-neutral-900 transition-all space-y-2.5 ${
+                            isEmployee ? "" : "cursor-grab active:cursor-grabbing"
+                          }`}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
@@ -963,18 +1036,20 @@ export default function WorkflowKanbanPage() {
                               Tasks & Subtasks
                             </Button>
 
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                setClientWorkflowTaskStatus(entry, tplTask, "In Progress")
-                              }
-                              className="h-7 px-2.5 rounded-lg border-slate-300 text-[11px] font-bold gap-1"
-                            >
-                              <RotateCcw className="h-3 w-3" />
-                              <span>Reopen</span>
-                            </Button>
+                            {!isEmployee && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  setClientWorkflowTaskStatus(entry, tplTask, "In Progress")
+                                }
+                                className="h-7 px-2.5 rounded-lg border-slate-300 text-[11px] font-bold gap-1"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                                <span>Reopen</span>
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))
@@ -998,6 +1073,7 @@ export default function WorkflowKanbanPage() {
               <div
                 key={statusCol}
                 onDragOver={(e) => {
+                  if (isEmployee) return;
                   e.preventDefault();
                   setDragOverColumnId(statusCol);
                 }}
@@ -1005,6 +1081,7 @@ export default function WorkflowKanbanPage() {
                   setDragOverColumnId((prev) => (prev === statusCol ? null : prev))
                 }
                 onDrop={(e) => {
+                  if (isEmployee) return;
                   e.preventDefault();
                   setDragOverColumnId(null);
                   if (draggingTaskId) {
@@ -1038,8 +1115,10 @@ export default function WorkflowKanbanPage() {
                       return (
                         <div
                           key={task.id}
-                          draggable
-                          onDragStart={() => setDraggingTaskId(task.id)}
+                          draggable={!isEmployee}
+                          onDragStart={() => {
+                            if (!isEmployee) setDraggingTaskId(task.id);
+                          }}
                           onDragEnd={() => {
                             setDraggingTaskId(null);
                             setDragOverColumnId(null);
@@ -1048,7 +1127,9 @@ export default function WorkflowKanbanPage() {
                             setSelectedEntryKey(entry.entryKey);
                             setIsDetailModalOpen(true);
                           }}
-                          className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 shadow-xs hover:border-neutral-900 cursor-grab active:cursor-grabbing space-y-2"
+                          className={`rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 shadow-xs hover:border-neutral-900 space-y-2 ${
+                            isEmployee ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
+                          }`}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md truncate">
@@ -1113,15 +1194,19 @@ export default function WorkflowKanbanPage() {
               {selectedEntry.tasks.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center space-y-3">
                   <p className="text-xs text-slate-600">
-                    Workflow tasks haven&apos;t been synced to this client&apos;s project yet.
+                    {isEmployee
+                      ? "No assigned tasks available in this workflow."
+                      : "Workflow tasks haven't been synced to this client's project yet."}
                   </p>
-                  <Button
-                    size="sm"
-                    onClick={handleSyncTasks}
-                    className="bg-neutral-900 hover:bg-black text-white rounded-xl text-xs font-bold gap-1.5"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" /> Sync Workflow Tasks Now
-                  </Button>
+                  {!isEmployee && (
+                    <Button
+                      size="sm"
+                      onClick={handleSyncTasks}
+                      className="bg-neutral-900 hover:bg-black text-white rounded-xl text-xs font-bold gap-1.5"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" /> Sync Workflow Tasks Now
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4 pt-2">
@@ -1148,20 +1233,26 @@ export default function WorkflowKanbanPage() {
                             </h4>
                           </div>
 
-                          <select
-                            value={task.status}
-                            onChange={(e) => {
-                              pmsStore.updateTaskStatus(task.id, e.target.value as TaskStatus);
-                              toast.success(`Updated "${task.title}" to ${e.target.value}`);
-                            }}
-                            className="h-8 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-bold"
-                          >
-                            {statusNames.map((st) => (
-                              <option key={st} value={st}>
-                                {st}
-                              </option>
-                            ))}
-                          </select>
+                          {isEmployee ? (
+                            <Badge variant="outline" className="text-xs font-bold bg-slate-50 border-slate-300 self-start sm:self-auto">
+                              {task.status}
+                            </Badge>
+                          ) : (
+                            <select
+                              value={task.status}
+                              onChange={(e) => {
+                                pmsStore.updateTaskStatus(task.id, e.target.value as TaskStatus);
+                                toast.success(`Updated "${task.title}" to ${e.target.value}`);
+                              }}
+                              className="h-8 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-bold"
+                            >
+                              {statusNames.map((st) => (
+                                <option key={st} value={st}>
+                                  {st}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </div>
 
                         {/* Subtasks Section (Nested Sub-subtasks + Document Uploads) */}
@@ -1176,35 +1267,38 @@ export default function WorkflowKanbanPage() {
                             fallbackStartDate={task.start_date}
                             onSelectTask={(subId) => setDetailTaskId(subId)}
                             onChanged={() => setTick((t) => t + 1)}
+                            readOnly={isEmployee}
                           />
 
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="Add subtask..."
-                              value={subtaskTitleByTask[task.id] || ""}
-                              onChange={(e) =>
-                                setSubtaskTitleByTask((prev) => ({
-                                  ...prev,
-                                  [task.id]: e.target.value,
-                                }))
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleAddSubtaskInModal(task);
+                          {!isEmployee && (
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Add subtask..."
+                                value={subtaskTitleByTask[task.id] || ""}
+                                onChange={(e) =>
+                                  setSubtaskTitleByTask((prev) => ({
+                                    ...prev,
+                                    [task.id]: e.target.value,
+                                  }))
                                 }
-                              }}
-                              className="h-8 rounded-xl border-slate-300 text-xs"
-                            />
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => handleAddSubtaskInModal(task)}
-                              className="h-8 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs px-3 gap-1"
-                            >
-                              <Plus className="h-3.5 w-3.5" /> Add
-                            </Button>
-                          </div>
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleAddSubtaskInModal(task);
+                                  }
+                                }}
+                                className="h-8 rounded-xl border-slate-300 text-xs"
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => handleAddSubtaskInModal(task)}
+                                className="h-8 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs px-3 gap-1"
+                              >
+                                <Plus className="h-3.5 w-3.5" /> Add
+                              </Button>
+                            </div>
+                          )}
                         </div>
 
                         {/* Read-Receipt Comments Section */}
@@ -1212,6 +1306,7 @@ export default function WorkflowKanbanPage() {
                           taskId={task.id}
                           assignedEmployeeId={task.assigned_employee_id}
                           onUpdated={() => setTick((t) => t + 1)}
+                          readOnly={isEmployee}
                         />
                       </div>
                     );
@@ -1230,6 +1325,7 @@ export default function WorkflowKanbanPage() {
           if (!nextOpen) setDetailTaskId(null);
         }}
         onUpdated={() => setTick((t) => t + 1)}
+        readOnly={isEmployee}
       />
     </div>
   );

@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { GeoLocationSetupCard } from "@/components/attendance/geo-location-setup-card";
 import { pmsStore } from "@/lib/data/store";
+import { isEmployeeRestricted } from "@/lib/access";
 import { formatDistance, getBrowserCoordinates } from "@/lib/geo";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { toast } from "sonner";
@@ -34,14 +35,25 @@ export default function AttendancePage() {
     return pmsStore.subscribe(() => setTick((t) => t + 1));
   }, []);
 
-  const employees = pmsStore.getEmployees();
+  const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
+  const empId = currentUser?.id || "";
+
+  const rawEmployees = pmsStore.getEmployees();
+  const employees = isEmployee
+    ? rawEmployees.filter((e) => e.id === empId)
+    : rawEmployees;
   const geoConfig = pmsStore.getOfficeGeoConfig();
   const todayStr = new Date().toISOString().slice(0, 10);
-  const allRecords = pmsStore.getAttendanceRecords();
+  const rawRecords = pmsStore.getAttendanceRecords();
+  const allRecords = isEmployee
+    ? rawRecords.filter((r) => r.employee_id === empId)
+    : rawRecords;
   const todayRecords = useMemo(
     () => allRecords.filter((r) => r.date === todayStr),
     [allRecords, todayStr]
   );
+  const myTodayRecord = todayRecords.find((r) => r.employee_id === empId);
 
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -162,7 +174,9 @@ export default function AttendancePage() {
             Employee Geo-Attendance
           </h1>
           <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            All employees mark daily attendance from this page using live GPS verification within{" "}
+            {isEmployee
+              ? "Verify your own daily GPS attendance within "
+              : "All employees mark daily attendance from this page using live GPS verification within "}
             <strong className="text-[#111827]">±{geoConfig?.radius_meters || 50} meters</strong> of the admin-configured office location.
           </p>
         </div>
@@ -172,15 +186,17 @@ export default function AttendancePage() {
             <Clock className="h-3.5 w-3.5 text-[#6c5ce7]" />
             Today: {formatDate(todayStr)}
           </Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportExcel}
-            className="h-9 rounded-xl border-slate-300 bg-white text-xs font-bold gap-1.5"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span>Export Excel</span>
-          </Button>
+          {!isEmployee && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportExcel}
+              className="h-9 rounded-xl border-slate-300 bg-white text-xs font-bold gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Export Excel</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -189,10 +205,16 @@ export default function AttendancePage() {
         <div className="rounded-[22px] bg-white border-[1.5px] border-slate-300 p-4 flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#6b7280] block">
-              Total Staff
+              {isEmployee ? "My Status Today" : "Total Staff"}
             </span>
             <span className="text-2xl font-extrabold text-[#16172d] mt-1 block">
-              {employees.length}
+              {isEmployee
+                ? myTodayRecord?.check_in_at
+                  ? myTodayRecord.check_out_at
+                    ? "Checked Out"
+                    : "Checked In"
+                  : "Pending"
+                : employees.length}
             </span>
           </div>
           <div className="h-10 w-10 rounded-2xl bg-[#f3f0ff] text-[#6c5ce7] flex items-center justify-center">
@@ -203,16 +225,24 @@ export default function AttendancePage() {
         <div className="rounded-[22px] bg-white border-[1.5px] border-slate-300 p-4 flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#6b7280] block">
-              Present Today
+              {isEmployee ? "Check-In Time" : "Present Today"}
             </span>
-            <span className="text-2xl font-extrabold text-emerald-700 mt-1 block">
-              {presentCount}
-              {checkedOutCount > 0 && (
-                <span className="ml-1.5 text-xs font-semibold text-slate-500">
-                  ({checkedOutCount} out)
-                </span>
-              )}
-            </span>
+            {isEmployee ? (
+              <span className="text-sm font-extrabold text-emerald-700 mt-1.5 block">
+                {myTodayRecord?.check_in_at
+                  ? formatDateTime(myTodayRecord.check_in_at)
+                  : "Not Marked"}
+              </span>
+            ) : (
+              <span className="text-2xl font-extrabold text-emerald-700 mt-1 block">
+                {presentCount}
+                {checkedOutCount > 0 && (
+                  <span className="ml-1.5 text-xs font-semibold text-slate-500">
+                    ({checkedOutCount} out)
+                  </span>
+                )}
+              </span>
+            )}
           </div>
           <div className="h-10 w-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
             <CheckCircle2 className="h-5 w-5" />
@@ -222,11 +252,19 @@ export default function AttendancePage() {
         <div className="rounded-[22px] bg-white border-[1.5px] border-slate-300 p-4 flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#6b7280] block">
-              Yet to Mark
+              {isEmployee ? "Check-Out Time" : "Yet to Mark"}
             </span>
-            <span className="text-2xl font-extrabold text-amber-700 mt-1 block">
-              {pendingCount}
-            </span>
+            {isEmployee ? (
+              <span className="text-sm font-extrabold text-amber-700 mt-1.5 block">
+                {myTodayRecord?.check_out_at
+                  ? formatDateTime(myTodayRecord.check_out_at)
+                  : "—"}
+              </span>
+            ) : (
+              <span className="text-2xl font-extrabold text-amber-700 mt-1 block">
+                {pendingCount}
+              </span>
+            )}
           </div>
           <div className="h-10 w-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center">
             <Clock className="h-5 w-5" />
@@ -251,13 +289,17 @@ export default function AttendancePage() {
       {/* Admin Geo-Fence Configuration Card */}
       <GeoLocationSetupCard />
 
-      {/* All Employees Attendance Cards (Click Attendance) */}
+      {/* Employees Attendance Cards (Click Attendance) */}
       <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
           <div>
             <h2 className="text-base font-extrabold text-[#16172d] flex items-center gap-2">
               <UserCheck className="h-4 w-4 text-[#6c5ce7]" />
-              <span>All Employees — Click Attendance ({employees.length})</span>
+              <span>
+                {isEmployee
+                  ? "My Personal GPS Attendance Card"
+                  : `All Employees — Click Attendance (${employees.length})`}
+              </span>
             </h2>
             <p className="text-xs text-[#6b7280] mt-0.5">
               Click <strong>Click Attendance</strong> to verify GPS position within ±
@@ -265,16 +307,18 @@ export default function AttendancePage() {
             </p>
           </div>
 
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9ca3af]" />
-            <Input
-              type="search"
-              placeholder="Search employee name or code..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 rounded-xl border-slate-300 text-xs"
-            />
-          </div>
+          {!isEmployee && (
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9ca3af]" />
+              <Input
+                type="search"
+                placeholder="Search employee name or code..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-9 rounded-xl border-slate-300 text-xs"
+              />
+            </div>
+          )}
         </div>
 
         {!geoConfig && (

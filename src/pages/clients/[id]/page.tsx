@@ -33,6 +33,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { pmsStore } from "@/lib/data/store";
+import {
+  isEmployeeRestricted,
+  isClientAssignedToEmployee,
+  isProjectAssignedToEmployee,
+  isTaskAssignedToEmployee,
+  collectTaskIds,
+  isDocumentVisibleToEmployee,
+} from "@/lib/access";
 import { formatCurrency, formatDate, formatDateTime, formatBytes } from "@/lib/utils";
 import { TaskStatus } from "@/types";
 import { toast } from "sonner";
@@ -52,16 +60,72 @@ export default function Client360ProfilePage() {
     return unsub;
   }, []);
 
+  const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
+  const empId = currentUser?.id || "";
+
   const client = pmsStore.getClientById(clientId);
   const allServices = pmsStore.getServices();
-  const engagements = pmsStore.getEngagementsByClientId(clientId);
-  const clientProjects = pmsStore.getProjects().filter((p) => p.client_id === clientId);
-  const clientInvoices = pmsStore.getInvoices().filter((i) => i.client_id === clientId);
-  const clientPayments = pmsStore.getPayments().filter((p) => p.client_id === clientId);
-  const clientDocuments = pmsStore.getDocuments().filter((d) => d.entity_id === clientId);
-  const clientTasks = pmsStore.getTasks().filter((t) =>
-    clientProjects.some((p) => p.id === t.project_id)
+  const allStoreProjects = pmsStore.getProjects();
+  const allStoreTasks = pmsStore.getTasks();
+  const allStoreEngagements = pmsStore.getAllEngagements();
+  const clientEngagementsAll = pmsStore.getEngagementsByClientId(clientId);
+
+  const rawClientProjects = allStoreProjects.filter((p) => p.client_id === clientId);
+  const clientProjects = isEmployee
+    ? rawClientProjects.filter((p) => isProjectAssignedToEmployee(p, empId, allStoreTasks))
+    : rawClientProjects;
+  const clientTasks = isEmployee
+    ? allStoreTasks.filter(
+        (t) =>
+          clientProjects.some((p) => p.id === t.project_id) &&
+          (clientProjects.some((p) => p.id === t.project_id && p.project_manager_id === empId) ||
+            isTaskAssignedToEmployee(t, empId))
+      )
+    : allStoreTasks.filter((t) => clientProjects.some((p) => p.id === t.project_id));
+
+  const assignedServiceNames = new Set(
+    clientProjects.map((p) => p.service_name).filter((s): s is string => Boolean(s))
   );
+  const assignedEngagementIds = new Set(
+    clientProjects.map((p) => p.service_engagement_id).filter((id): id is string => Boolean(id))
+  );
+  const engagements = isEmployee
+    ? clientEngagementsAll.filter(
+        (e) =>
+          assignedEngagementIds.has(e.id) ||
+          (e.service_name ? assignedServiceNames.has(e.service_name) : false)
+      )
+    : clientEngagementsAll;
+
+  const clientInvoices = isEmployee
+    ? []
+    : pmsStore.getInvoices().filter((i) => i.client_id === clientId);
+  const clientPayments = isEmployee
+    ? []
+    : pmsStore.getPayments().filter((p) => p.client_id === clientId);
+
+  const assignedClientIdSet = new Set([clientId]);
+  const assignedProjectIdSet = new Set(clientProjects.map((p) => p.id));
+  const assignedTaskIdSet = collectTaskIds(clientTasks);
+  const clientDocuments = pmsStore.getDocuments().filter((d) => {
+    if (!isEmployee) return d.entity_id === clientId;
+    const entityId = d.entity_id || "";
+    const linked =
+      entityId === clientId ||
+      assignedProjectIdSet.has(entityId) ||
+      assignedTaskIdSet.has(entityId);
+    return (
+      linked &&
+      isDocumentVisibleToEmployee(
+        d,
+        empId,
+        assignedClientIdSet,
+        assignedProjectIdSet,
+        assignedTaskIdSet
+      )
+    );
+  });
 
   // Quick Subscribe Service state
   const [selectedServiceId, setSelectedServiceId] = useState(allServices[0]?.id || "");
@@ -75,6 +139,29 @@ export default function Client360ProfilePage() {
         <p className="text-sm text-slate-500">The requested client ID does not exist in master records.</p>
         <Link to="/clients">
           <Button variant="outline">Back to Clients</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (
+    isEmployee &&
+    !isClientAssignedToEmployee(
+      client,
+      empId,
+      allStoreProjects,
+      allStoreTasks,
+      allStoreEngagements
+    )
+  ) {
+    return (
+      <div className="text-center py-24 space-y-4">
+        <h2 className="text-xl font-bold text-slate-900">Access Restricted</h2>
+        <p className="text-sm text-slate-500">
+          Employees can only view Client 360° accounts assigned to their projects or tasks.
+        </p>
+        <Link to="/clients">
+          <Button variant="outline">Back to Assigned Clients</Button>
         </Link>
       </div>
     );
@@ -141,44 +228,53 @@ export default function Client360ProfilePage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link to={`/invoices/new?clientId=${client.id}`}>
-            <Button size="sm" variant="outline" className="border-slate-300 gap-1.5 shadow-xs">
-              <Receipt className="h-4 w-4 text-blue-600" />
-              <span>Raise Invoice</span>
-            </Button>
-          </Link>
-          <Link to={`/projects/new?clientId=${client.id}`}>
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5 shadow-sm">
-              <Plus className="h-4 w-4" />
-              <span>New Project</span>
-            </Button>
-          </Link>
-          <Button
-            type="button"
-            size="sm"
+        {isEmployee ? (
+          <Badge
             variant="outline"
-            onClick={() => {
-              if (
-                !window.confirm(
-                  `Delete client "${client.client_name}" along with all linked engagements, projects & tasks?`
-                )
-              ) {
-                return;
-              }
-              pmsStore.deleteClient(client.id);
-              toast.success(`Deleted client "${client.client_name}".`);
-              navigate("/clients");
-            }}
-            className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 gap-1.5 shadow-xs"
+            className="h-9 px-3.5 rounded-2xl text-xs font-bold bg-amber-50 text-amber-800 border-amber-300 self-start sm:self-auto"
           >
-            <Trash2 className="h-4 w-4" />
-            <span>Delete Client</span>
-          </Button>
-        </div>
+            View-Only Mode
+          </Badge>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to={`/invoices/new?clientId=${client.id}`}>
+              <Button size="sm" variant="outline" className="border-slate-300 gap-1.5 shadow-xs">
+                <Receipt className="h-4 w-4 text-blue-600" />
+                <span>Raise Invoice</span>
+              </Button>
+            </Link>
+            <Link to={`/projects/new?clientId=${client.id}`}>
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5 shadow-sm">
+                <Plus className="h-4 w-4" />
+                <span>New Project</span>
+              </Button>
+            </Link>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `Delete client "${client.client_name}" along with all linked engagements, projects & tasks?`
+                  )
+                ) {
+                  return;
+                }
+                pmsStore.deleteClient(client.id);
+                toast.success(`Deleted client "${client.client_name}".`);
+                navigate("/clients");
+              }}
+              className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 gap-1.5 shadow-xs"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>Delete Client</span>
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* ALL 12 MANDATORY TABS */}
+      {/* ALL MANDATORY TABS (Financial / Admin-only tabs hidden in Employee View-Only Mode) */}
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="bg-slate-100 p-1 rounded-xl mb-6 flex-wrap h-auto gap-1">
           <TabsTrigger value="overview">1. Overview</TabsTrigger>
@@ -189,27 +285,39 @@ export default function Client360ProfilePage() {
           <TabsTrigger value="projects">6. Projects ({clientProjects.length})</TabsTrigger>
           <TabsTrigger value="tasks">7. Tasks ({clientTasks.length})</TabsTrigger>
           <TabsTrigger value="workflow">8. Workflow</TabsTrigger>
-          <TabsTrigger value="finance">9. Finance & Payments</TabsTrigger>
-          <TabsTrigger value="invoices">10. Invoices ({clientInvoices.length})</TabsTrigger>
-          <TabsTrigger value="documents">11. Documents ({clientDocuments.length})</TabsTrigger>
-          <TabsTrigger value="activity">12. Activity History</TabsTrigger>
+          {!isEmployee && (
+            <>
+              <TabsTrigger value="finance">9. Finance & Payments</TabsTrigger>
+              <TabsTrigger value="invoices">10. Invoices ({clientInvoices.length})</TabsTrigger>
+            </>
+          )}
+          <TabsTrigger value="documents">
+            {isEmployee ? `9. Documents (${clientDocuments.length})` : `11. Documents (${clientDocuments.length})`}
+          </TabsTrigger>
+          {!isEmployee && <TabsTrigger value="activity">12. Activity History</TabsTrigger>}
         </TabsList>
 
         {/* 1. OVERVIEW TAB */}
         <TabsContent value="overview" className="space-y-6">
           {/* Main KPI Statistics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-2 ${isEmployee ? "md:grid-cols-2" : "md:grid-cols-4"} gap-4`}>
             <Card className="border-l-4 border-l-blue-600">
               <CardContent className="p-4">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Active Services</span>
-                <div className="text-2xl font-bold text-slate-900 mt-1">{client.active_services_count || engagements.length}</div>
+                <span className="text-xs font-semibold text-slate-500 uppercase">
+                  {isEmployee ? "Assigned Services" : "Active Services"}
+                </span>
+                <div className="text-2xl font-bold text-slate-900 mt-1">
+                  {isEmployee ? engagements.length : client.active_services_count || engagements.length}
+                </div>
                 <span className="text-[11px] text-slate-500">Contracted engagements</span>
               </CardContent>
             </Card>
 
             <Card className="border-l-4 border-l-indigo-600">
               <CardContent className="p-4">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Projects</span>
+                <span className="text-xs font-semibold text-slate-500 uppercase">
+                  {isEmployee ? "Assigned Projects" : "Projects"}
+                </span>
                 <div className="text-2xl font-bold text-slate-900 mt-1">
                   {clientProjects.length}
                   <span className="text-xs font-normal text-slate-500 ml-2">
@@ -220,21 +328,25 @@ export default function Client360ProfilePage() {
               </CardContent>
             </Card>
 
-            <Card className="border-l-4 border-l-emerald-600">
-              <CardContent className="p-4">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Invoiced Revenue</span>
-                <div className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(client.total_invoiced_amount || 0)}</div>
-                <span className="text-[11px] text-emerald-600 font-medium">₹{client.total_payments_received?.toLocaleString("en-IN")} received</span>
-              </CardContent>
-            </Card>
+            {!isEmployee && (
+              <>
+                <Card className="border-l-4 border-l-emerald-600">
+                  <CardContent className="p-4">
+                    <span className="text-xs font-semibold text-slate-500 uppercase">Invoiced Revenue</span>
+                    <div className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(client.total_invoiced_amount || 0)}</div>
+                    <span className="text-[11px] text-emerald-600 font-medium">₹{client.total_payments_received?.toLocaleString("en-IN")} received</span>
+                  </CardContent>
+                </Card>
 
-            <Card className="border-l-4 border-l-amber-500">
-              <CardContent className="p-4">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Outstanding Balance</span>
-                <div className="text-2xl font-bold text-amber-700 mt-1">{formatCurrency(client.outstanding_amount || 0)}</div>
-                <span className="text-[11px] text-amber-700 font-medium">Pending collection</span>
-              </CardContent>
-            </Card>
+                <Card className="border-l-4 border-l-amber-500">
+                  <CardContent className="p-4">
+                    <span className="text-xs font-semibold text-slate-500 uppercase">Outstanding Balance</span>
+                    <div className="text-2xl font-bold text-amber-700 mt-1">{formatCurrency(client.outstanding_amount || 0)}</div>
+                    <span className="text-[11px] text-amber-700 font-medium">Pending collection</span>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -441,52 +553,54 @@ export default function Client360ProfilePage() {
 
         {/* 5. SUBSCRIBED SERVICES TAB */}
         <TabsContent value="services" className="space-y-6">
-          {/* Subscribe New Service Box */}
-          <Card className="shadow-xs border-dashed border-2 border-blue-200 bg-blue-50/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-blue-950 flex items-center gap-1.5">
-                <Plus className="h-4 w-4 text-blue-600" />
-                Subscribe Additional Service to Client
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <form onSubmit={handleAddService} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-semibold text-slate-700">Select Service from Catalog</label>
-                  <select
-                    value={selectedServiceId}
-                    onChange={(e) => {
-                      setSelectedServiceId(e.target.value);
-                      const s = allServices.find((srv) => srv.id === e.target.value);
-                      if (s) setAgreedFee(s.default_fee);
-                    }}
-                    className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
-                  >
-                    {allServices.map((srv) => (
-                      <option key={srv.id} value={srv.id}>
-                        {srv.service_name} ({srv.service_code}) — Default: ₹{srv.default_fee}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Agreed Fee (₹)</label>
-                  <input
-                    type="number"
-                    value={agreedFee}
-                    onChange={(e) => setAgreedFee(Number(e.target.value))}
-                    className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs"
-                    required
-                  />
-                </div>
-                <div>
-                  <Button type="submit" size="sm" className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white">
-                    Assign Engagement
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+          {/* Subscribe New Service Box (Admin Only) */}
+          {!isEmployee && (
+            <Card className="shadow-xs border-dashed border-2 border-blue-200 bg-blue-50/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-blue-950 flex items-center gap-1.5">
+                  <Plus className="h-4 w-4 text-blue-600" />
+                  Subscribe Additional Service to Client
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <form onSubmit={handleAddService} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-semibold text-slate-700">Select Service from Catalog</label>
+                    <select
+                      value={selectedServiceId}
+                      onChange={(e) => {
+                        setSelectedServiceId(e.target.value);
+                        const s = allServices.find((srv) => srv.id === e.target.value);
+                        if (s) setAgreedFee(s.default_fee);
+                      }}
+                      className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                    >
+                      {allServices.map((srv) => (
+                        <option key={srv.id} value={srv.id}>
+                          {srv.service_name} ({srv.service_code}) — Default: ₹{srv.default_fee}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700">Agreed Fee (₹)</label>
+                    <input
+                      type="number"
+                      value={agreedFee}
+                      onChange={(e) => setAgreedFee(Number(e.target.value))}
+                      className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Button type="submit" size="sm" className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white">
+                      Assign Engagement
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Box Grid of Contracted Services */}
           <Card className="shadow-xs">
@@ -504,39 +618,47 @@ export default function Client360ProfilePage() {
                         <div className="flex items-center gap-1.5">
                           <Badge variant="secondary" className="text-[10px]">{eng.billing_frequency}</Badge>
                           <Badge variant="success" className="text-[10px]">{eng.status}</Badge>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (
-                                !window.confirm(
-                                  `Remove subscribed service "${eng.service_name}" and its linked project/tasks from ${client.client_name}?`
-                                )
-                              ) {
-                                return;
-                              }
-                              pmsStore.deleteServiceEngagement(eng.id);
-                              toast.success(`Removed service "${eng.service_name}".`);
-                            }}
-                            className="p-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
-                            title="Delete Service Subscription"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {!isEmployee && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (
+                                  !window.confirm(
+                                    `Remove subscribed service "${eng.service_name}" and its linked project/tasks from ${client.client_name}?`
+                                  )
+                                ) {
+                                  return;
+                                }
+                                pmsStore.deleteServiceEngagement(eng.id);
+                                toast.success(`Removed service "${eng.service_name}".`);
+                              }}
+                              className="p-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
+                              title="Delete Service Subscription"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                       <h4 className="font-bold text-sm text-slate-900">{eng.service_name}</h4>
-                      <div className="grid grid-cols-3 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
-                        <div>
-                          <span className="text-[10px] uppercase text-slate-400 block">Agreed Fee</span>
-                          <span className="font-bold text-slate-900">{formatCurrency(eng.agreed_fee)}</span>
-                        </div>
+                      <div className={`grid ${isEmployee ? "grid-cols-2" : "grid-cols-3"} gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5`}>
+                        {!isEmployee && (
+                          <div>
+                            <span className="text-[10px] uppercase text-slate-400 block">Agreed Fee</span>
+                            <span className="font-bold text-slate-900">{formatCurrency(eng.agreed_fee)}</span>
+                          </div>
+                        )}
                         <div>
                           <span className="text-[10px] uppercase text-slate-400 block">Start Date</span>
                           <span className="font-semibold text-slate-800">{formatDate(eng.start_date)}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase text-slate-400 block">Payment Terms</span>
-                          <span className="font-semibold text-slate-800 truncate block">{eng.payment_terms || "15 Days Net"}</span>
+                          <span className="text-[10px] uppercase text-slate-400 block">
+                            {isEmployee ? "Frequency" : "Payment Terms"}
+                          </span>
+                          <span className="font-semibold text-slate-800 truncate block">
+                            {isEmployee ? eng.billing_frequency : eng.payment_terms || "15 Days Net"}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -552,11 +674,13 @@ export default function Client360ProfilePage() {
           <Card className="shadow-xs">
             <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold">Client Projects ({clientProjects.length})</CardTitle>
-              <Link to={`/projects/new?clientId=${client.id}`}>
-                <Button size="sm" className="bg-blue-600 text-white gap-1">
-                  <Plus className="h-3.5 w-3.5" /> New Project
-                </Button>
-              </Link>
+              {!isEmployee && (
+                <Link to={`/projects/new?clientId=${client.id}`}>
+                  <Button size="sm" className="bg-blue-600 text-white gap-1">
+                    <Plus className="h-3.5 w-3.5" /> New Project
+                  </Button>
+                </Link>
+              )}
             </CardHeader>
             <CardContent className="p-5">
               {clientProjects.length === 0 ? (
@@ -632,20 +756,26 @@ export default function Client360ProfilePage() {
                           <span className="font-mono text-xs text-blue-700 font-bold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
                             {t.task_code}
                           </span>
-                          <select
-                            value={t.status}
-                            onChange={(e) => {
-                              pmsStore.updateTaskStatus(t.id, e.target.value as TaskStatus);
-                              toast.success(`Status updated to ${e.target.value}`);
-                            }}
-                            className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-800"
-                          >
-                            {pmsStore.getTaskStatusNames().map((st) => (
-                              <option key={st} value={st}>
-                                {st}
-                              </option>
-                            ))}
-                          </select>
+                          {isEmployee ? (
+                            <Badge variant="outline" className="text-[11px] font-bold text-slate-800 border-slate-300 bg-slate-50">
+                              {t.status}
+                            </Badge>
+                          ) : (
+                            <select
+                              value={t.status}
+                              onChange={(e) => {
+                                pmsStore.updateTaskStatus(t.id, e.target.value as TaskStatus);
+                                toast.success(`Status updated to ${e.target.value}`);
+                              }}
+                              className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-800"
+                            >
+                              {pmsStore.getTaskStatusNames().map((st) => (
+                                <option key={st} value={st}>
+                                  {st}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -684,19 +814,21 @@ export default function Client360ProfilePage() {
                             >
                               Subtasks & Comments
                             </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="outline"
-                              onClick={() => {
-                                pmsStore.deleteTask(t.id);
-                                toast.success(`Deleted task ${t.task_code}`);
-                              }}
-                              className="h-7 w-7 rounded-lg border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                              title="Delete Task"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            {!isEmployee && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                onClick={() => {
+                                  pmsStore.deleteTask(t.id);
+                                  toast.success(`Deleted task ${t.task_code}`);
+                                }}
+                                className="h-7 w-7 rounded-lg border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                                title="Delete Task"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -794,8 +926,9 @@ export default function Client360ProfilePage() {
           </Card>
         </TabsContent>
 
-        {/* 9. FINANCE & PAYMENTS TAB */}
-        <TabsContent value="finance" className="space-y-6">
+        {/* 9. FINANCE & PAYMENTS TAB (Admin Only) */}
+        {!isEmployee && (
+          <TabsContent value="finance" className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card className="border-l-4 border-l-blue-600">
               <CardContent className="p-4">
@@ -860,10 +993,12 @@ export default function Client360ProfilePage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+          </TabsContent>
+        )}
 
-        {/* 10. INVOICES TAB */}
-        <TabsContent value="invoices">
+        {/* 10. INVOICES TAB (Admin Only) */}
+        {!isEmployee && (
+          <TabsContent value="invoices">
           <Card className="shadow-xs">
             <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold">Client Tax Invoices ({clientInvoices.length})</CardTitle>
@@ -912,7 +1047,8 @@ export default function Client360ProfilePage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+          </TabsContent>
+        )}
 
         {/* 11. DOCUMENTS TAB (Cloudflare R2) */}
         <TabsContent value="documents" className="space-y-4">
@@ -922,11 +1058,13 @@ export default function Client360ProfilePage() {
                 <CardTitle className="text-base font-semibold">Client Cloudflare R2 Documents</CardTitle>
                 <CardDescription className="text-xs">Secure private bucket storage with presigned link access</CardDescription>
               </div>
-              <Link to={`/documents?clientId=${client.id}&upload=true`}>
-                <Button size="sm" className="bg-blue-600 text-white gap-1.5">
-                  <UploadCloud className="h-4 w-4" /> Upload Document
-                </Button>
-              </Link>
+              {!isEmployee && (
+                <Link to={`/documents?clientId=${client.id}&upload=true`}>
+                  <Button size="sm" className="bg-blue-600 text-white gap-1.5">
+                    <UploadCloud className="h-4 w-4" /> Upload Document
+                  </Button>
+                </Link>
+              )}
             </CardHeader>
             <CardContent className="p-5">
               {clientDocuments.length === 0 ? (
@@ -962,38 +1100,40 @@ export default function Client360ProfilePage() {
           </Card>
         </TabsContent>
 
-        {/* 12. ACTIVITY HISTORY TAB */}
-        <TabsContent value="activity">
-          <Card className="shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-200">
-              <CardTitle className="text-base font-semibold text-slate-900">
-                Audit Trail & Historic Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start gap-3 text-xs">
-                  <div className="h-2.5 w-2.5 rounded-full bg-blue-600 mt-1 shrink-0" />
-                  <div>
-                    <span className="font-bold text-slate-900">Client Onboarded & Master Record Created</span>
-                    <p className="text-slate-500 text-[11px] mt-0.5">By {client.relationship_manager_name || "Admin"}</p>
-                    <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(client.created_at)}</span>
-                  </div>
-                </div>
-                {clientInvoices.map((inv) => (
-                  <div key={inv.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start gap-3 text-xs">
-                    <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 mt-1 shrink-0" />
+        {/* 12. ACTIVITY HISTORY TAB (Admin Only) */}
+        {!isEmployee && (
+          <TabsContent value="activity">
+            <Card className="shadow-xs">
+              <CardHeader className="pb-3 border-b border-slate-200">
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Audit Trail & Historic Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start gap-3 text-xs">
+                    <div className="h-2.5 w-2.5 rounded-full bg-blue-600 mt-1 shrink-0" />
                     <div>
-                      <span className="font-bold text-slate-900">Invoice {inv.invoice_number} Raised for {formatCurrency(inv.grand_total)}</span>
-                      <p className="text-slate-500 text-[11px] mt-0.5">Place of supply: {inv.place_of_supply}</p>
-                      <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(inv.created_at)}</span>
+                      <span className="font-bold text-slate-900">Client Onboarded & Master Record Created</span>
+                      <p className="text-slate-500 text-[11px] mt-0.5">By {client.relationship_manager_name || "Admin"}</p>
+                      <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(client.created_at)}</span>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  {clientInvoices.map((inv) => (
+                    <div key={inv.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start gap-3 text-xs">
+                      <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 mt-1 shrink-0" />
+                      <div>
+                        <span className="font-bold text-slate-900">Invoice {inv.invoice_number} Raised for {formatCurrency(inv.grand_total)}</span>
+                        <p className="text-slate-500 text-[11px] mt-0.5">Place of supply: {inv.place_of_supply}</p>
+                        <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(inv.created_at)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
 
       <TaskDetailDialog
@@ -1001,6 +1141,7 @@ export default function Client360ProfilePage() {
         open={isTaskDetailOpen}
         onOpenChange={setIsTaskDetailOpen}
         onUpdated={() => setRefreshKey((k) => k + 1)}
+        readOnly={isEmployee}
       />
     </div>
   );

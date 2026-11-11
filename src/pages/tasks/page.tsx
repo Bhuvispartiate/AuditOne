@@ -17,6 +17,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
+import {
+  isEmployeeRestricted,
+  isTaskAssignedToEmployee,
+  isClientAssignedToEmployee,
+} from "@/lib/access";
 import { getStyleForColor } from "@/lib/task-status-styles";
 import { formatDate } from "@/lib/utils";
 import { TaskStatus, ProjectPriority } from "@/types";
@@ -27,12 +32,17 @@ function TasksContent() {
   const [searchParams] = useSearchParams();
   const autoCreate = searchParams.get("create") === "true";
 
-  const [, setTick] = useState(0);
+  const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
+  const empId = currentUser?.id || "";
+
+  const [tick, setTick] = useState(0);
+  void tick;
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState("ALL");
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(autoCreate);
+  const [isModalOpen, setIsModalOpen] = useState(autoCreate && !isEmployee);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -41,10 +51,20 @@ function TasksContent() {
     return unsub;
   }, []);
 
-  const tasks = pmsStore.getTasks();
+  const allTasks = pmsStore.getTasks();
   const projects = pmsStore.getProjects();
-  const clients = pmsStore.getClients();
+  const allClients = pmsStore.getClients();
+  const allEngagements = pmsStore.getAllEngagements();
   const employees = pmsStore.getEmployees();
+
+  const tasks = isEmployee
+    ? allTasks.filter((t) => isTaskAssignedToEmployee(t, empId))
+    : allTasks;
+  const clients = isEmployee
+    ? allClients.filter((c) =>
+        isClientAssignedToEmployee(c, empId, projects, allTasks, allEngagements)
+      )
+    : allClients;
   const taskStatuses = pmsStore.getTaskStatuses();
   const statusNames = taskStatuses.map((s) => s.label);
 
@@ -163,18 +183,29 @@ function TasksContent() {
             Task Management Engine
           </h1>
           <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Kanban board organized by task status. Drag cards between statuses or click a task to open its overview.
+            {isEmployee
+              ? "View-Only Kanban board showing tasks assigned to you. Click a task to inspect details & comments."
+              : "Kanban board organized by task status. Drag cards between statuses or click a task to open its overview."}
           </p>
         </div>
 
-        <Button
-          onClick={() => setIsModalOpen(true)}
-          size="sm"
-          className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Create Task</span>
-        </Button>
+        {isEmployee ? (
+          <Badge
+            variant="outline"
+            className="h-9 px-3.5 rounded-2xl text-xs font-bold bg-amber-50 text-amber-800 border-amber-300 self-start sm:self-auto"
+          >
+            View-Only Mode
+          </Badge>
+        ) : (
+          <Button
+            onClick={() => setIsModalOpen(true)}
+            size="sm"
+            className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold self-start sm:self-auto"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create Task</span>
+          </Button>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -220,6 +251,7 @@ function TasksContent() {
             <div
               key={statusCfg.id}
               onDragOver={(e) => {
+                if (isEmployee) return;
                 e.preventDefault();
                 setDragOverStatus(status);
               }}
@@ -227,6 +259,7 @@ function TasksContent() {
                 setDragOverStatus((prev) => (prev === status ? null : prev))
               }
               onDrop={(e) => {
+                if (isEmployee) return;
                 e.preventDefault();
                 setDragOverStatus(null);
                 if (draggingTaskId) {
@@ -254,7 +287,7 @@ function TasksContent() {
               <div className="space-y-3 min-h-[160px]">
                 {columnTasks.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 px-3 py-10 text-center text-[11px] text-slate-400">
-                    Drop task card here
+                    {isEmployee ? "No assigned tasks in this stage" : "Drop task card here"}
                   </div>
                 ) : (
                   columnTasks.map((task) => {
@@ -265,17 +298,21 @@ function TasksContent() {
                     return (
                       <div
                         key={task.id}
-                        draggable
-                        onDragStart={() => setDraggingTaskId(task.id)}
+                        draggable={!isEmployee}
+                        onDragStart={() => {
+                          if (!isEmployee) setDraggingTaskId(task.id);
+                        }}
                         onDragEnd={() => {
                           setDraggingTaskId(null);
                           setDragOverStatus(null);
                         }}
-                        className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:border-neutral-900 transition-all space-y-3 cursor-grab active:cursor-grabbing"
+                        className={`rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:border-neutral-900 transition-all space-y-3 ${
+                          isEmployee ? "" : "cursor-grab active:cursor-grabbing"
+                        }`}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <GripVertical className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                            {!isEmployee && <GripVertical className="h-3.5 w-3.5 text-slate-400 shrink-0" />}
                             <span className="font-mono text-[10px] font-bold text-[#111827] bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg">
                               {task.task_code}
                             </span>
@@ -292,19 +329,21 @@ function TasksContent() {
                               {task.priority}
                             </Badge>
                           </div>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => {
-                              pmsStore.deleteTask(task.id);
-                              toast.success(`Deleted task ${task.task_code}`);
-                            }}
-                            className="h-7 w-7 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 shrink-0"
-                            title="Delete Task"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {!isEmployee && (
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                pmsStore.deleteTask(task.id);
+                                toast.success(`Deleted task ${task.task_code}`);
+                              }}
+                              className="h-7 w-7 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 shrink-0"
+                              title="Delete Task"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
 
                         <div>
@@ -350,17 +389,23 @@ function TasksContent() {
                         </div>
 
                         <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2">
-                          <select
-                            value={task.status}
-                            onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
-                            className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold text-[#111827] focus:outline-none"
-                          >
-                            {statusNames.map((st) => (
-                              <option key={st} value={st}>
-                                {st}
-                              </option>
-                            ))}
-                          </select>
+                          {isEmployee ? (
+                            <Badge variant="outline" className="text-[11px] font-bold text-[#111827] border-slate-300 bg-slate-50">
+                              {task.status}
+                            </Badge>
+                          ) : (
+                            <select
+                              value={task.status}
+                              onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
+                              className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold text-[#111827] focus:outline-none"
+                            >
+                              {statusNames.map((st) => (
+                                <option key={st} value={st}>
+                                  {st}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                           <Button
                             type="button"
                             size="sm"
@@ -380,8 +425,9 @@ function TasksContent() {
         })}
       </div>
 
-      {/* Create Task Dialog */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      {/* Create Task Dialog (Admin Only) */}
+      {!isEmployee && (
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-lg rounded-[24px] border-[1.5px] border-slate-300">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900">Create Deliverable Task</DialogTitle>
@@ -543,13 +589,15 @@ function TasksContent() {
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+        </Dialog>
+      )}
 
       <TaskDetailDialog
         taskId={activeTaskId}
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
         onUpdated={() => setTick((t) => t + 1)}
+        readOnly={isEmployee}
       />
     </div>
   );

@@ -23,6 +23,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
+import {
+  isEmployeeRestricted,
+  isTaskAssignedToEmployee,
+  collectTaskIds,
+  isProjectAssignedToEmployee,
+  isClientAssignedToEmployee,
+  isDocumentVisibleToEmployee,
+} from "@/lib/access";
 import { formatBytes, formatDate } from "@/lib/utils";
 import { DocumentCategory } from "@/types";
 import { toast } from "sonner";
@@ -32,13 +40,47 @@ function DocumentsContent() {
   const autoUpload = searchParams.get("upload") === "true";
   const prefillClientId = searchParams.get("clientId") || "";
 
+  const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
+  const empId = currentUser?.id || "";
+
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(autoUpload);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(autoUpload && !isEmployee);
 
-  const documents = pmsStore.getDocuments();
-  const clients = pmsStore.getClients();
-  const projects = pmsStore.getProjects();
+  const rawDocuments = pmsStore.getDocuments();
+  const allClients = pmsStore.getClients();
+  const allProjects = pmsStore.getProjects();
+  const allTasks = pmsStore.getTasks();
+  const allEngagements = pmsStore.getAllEngagements();
+
+  const assignedTasks = isEmployee
+    ? allTasks.filter((t) => isTaskAssignedToEmployee(t, empId))
+    : allTasks;
+  const projects = isEmployee
+    ? allProjects.filter((p) => isProjectAssignedToEmployee(p, empId, allTasks))
+    : allProjects;
+  const clients = isEmployee
+    ? allClients.filter((c) =>
+        isClientAssignedToEmployee(c, empId, allProjects, allTasks, allEngagements)
+      )
+    : allClients;
+
+  const assignedClientIds = new Set(clients.map((c) => c.id));
+  const assignedProjectIds = new Set(projects.map((p) => p.id));
+  const assignedTaskIds = collectTaskIds(assignedTasks);
+
+  const documents = isEmployee
+    ? rawDocuments.filter((doc) =>
+        isDocumentVisibleToEmployee(
+          doc,
+          empId,
+          assignedClientIds,
+          assignedProjectIds,
+          assignedTaskIds
+        )
+      )
+    : rawDocuments;
 
   // Upload Form State
   const [fileName, setFileName] = useState("");
@@ -47,20 +89,22 @@ function DocumentsContent() {
   const [expiryDate, setExpiryDate] = useState("");
   const [fileSize] = useState(524288); // 512 KB simulation
 
-  const categories: DocumentCategory[] = [
-    "Client",
-    "PAN",
-    "GST",
-    "CIN",
-    "Employee",
-    "Bank",
-    "Project",
-    "Task",
-    "Invoice",
-    "Payment Receipt",
-    "Workflow",
-    "Other",
-  ];
+  const categories: DocumentCategory[] = isEmployee
+    ? ["Client", "PAN", "GST", "CIN", "Employee", "Project", "Task", "Workflow", "Other"]
+    : [
+        "Client",
+        "PAN",
+        "GST",
+        "CIN",
+        "Employee",
+        "Bank",
+        "Project",
+        "Task",
+        "Invoice",
+        "Payment Receipt",
+        "Workflow",
+        "Other",
+      ];
 
   const filteredDocs = documents.filter((doc) => {
     const matchesSearch =
@@ -116,18 +160,29 @@ function DocumentsContent() {
             Cloudflare R2 Cloud Document Storage
           </h1>
           <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Private, encrypted object storage for client KYC, statutory audits, tax submissions and workpapers.
+            {isEmployee
+              ? "View-Only documents linked to your assigned clients, projects, and tasks."
+              : "Private, encrypted object storage for client KYC, statutory audits, tax submissions and workpapers."}
           </p>
         </div>
 
-        <Button
-          onClick={() => setIsUploadModalOpen(true)}
-          size="sm"
-          className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold"
-        >
-          <UploadCloud className="h-4 w-4" />
-          <span>Upload Document</span>
-        </Button>
+        {isEmployee ? (
+          <Badge
+            variant="outline"
+            className="h-9 px-3.5 rounded-2xl text-xs font-bold bg-amber-50 text-amber-800 border-amber-300"
+          >
+            View-Only Mode
+          </Badge>
+        ) : (
+          <Button
+            onClick={() => setIsUploadModalOpen(true)}
+            size="sm"
+            className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold"
+          >
+            <UploadCloud className="h-4 w-4" />
+            <span>Upload Document</span>
+          </Button>
+        )}
       </div>
 
       {/* R2 Cloud Security Banner */}
@@ -288,8 +343,9 @@ function DocumentsContent() {
         </div>
       )}
 
-      {/* Upload Modal */}
-      <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+      {/* Upload Modal (Admin Only) */}
+      {!isEmployee && (
+        <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900">
@@ -364,7 +420,8 @@ function DocumentsContent() {
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+        </Dialog>
+      )}
     </div>
   );
 }

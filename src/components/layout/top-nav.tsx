@@ -7,11 +7,12 @@ import {
   LogOut,
   Settings,
   User,
-  Calendar
+  Calendar,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
+import { isEmployeeRestricted } from "@/lib/access";
 import { QuickCreateModal } from "@/components/layout/quick-create-modal";
 import { formatDateTime } from "@/lib/utils";
 
@@ -30,6 +32,7 @@ export function TopNav() {
   const [searchQuery, setSearchQuery] = useState("");
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
   const notifications = pmsStore.getNotifications();
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -64,6 +67,13 @@ export function TopNav() {
 
         {/* Right Nav Utilities */}
         <div className="flex items-center gap-2.5 ml-auto">
+          {isEmployee && (
+            <div className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-bold">
+              <Eye className="h-3.5 w-3.5" />
+              <span>View-Only Mode</span>
+            </div>
+          )}
+
           {/* Date Pill matching reference */}
           <div className="hidden lg:flex items-center gap-2 h-10 px-3.5 rounded-2xl border border-slate-300 bg-white text-xs font-semibold text-[#111827] shadow-2xs">
             <Calendar className="h-3.5 w-3.5 text-[#6c5ce7]" />
@@ -77,7 +87,8 @@ export function TopNav() {
             </span>
           </div>
 
-          {/* Notifications Icon Button */}
+          {/* Notifications Icon Button (Admin Only) */}
+          {!isEmployee && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -143,16 +154,19 @@ export function TopNav() {
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
 
-          {/* Settings Icon Button */}
-          <Link to="/settings">
-            <button
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f9fafb] transition-all shadow-xs"
-              title="Settings"
-            >
-              <Settings className="h-4 w-4 text-[#4b5563]" />
-            </button>
-          </Link>
+          {/* Settings Icon Button (Admin Only) */}
+          {!isEmployee && (
+            <Link to="/settings">
+              <button
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f9fafb] transition-all shadow-xs"
+                title="Settings"
+              >
+                <Settings className="h-4 w-4 text-[#4b5563]" />
+              </button>
+            </Link>
+          )}
 
           {/* User Profile Capsule (Michael Johnson style) */}
           <DropdownMenu>
@@ -175,47 +189,59 @@ export function TopNav() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-2xl border-[#e5e7eb] shadow-xl">
               <DropdownMenuLabel className="px-3 py-2 text-xs font-semibold text-[#9ca3af]">
-                Signed in as <span className="text-[#111827] font-bold block">{currentUser?.role_code}</span>
+                Signed in as{" "}
+                <span className="text-[#111827] font-bold block">
+                  {currentUser?.role_code}
+                  {isEmployee ? " (View Only)" : ""}
+                </span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-[#f3f4f6]" />
-              <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium">
-                <Link to={`/employees/${currentUser?.id || ""}`}>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>My Directory Profile</span>
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium">
-                <Link to="/settings">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>System Permissions</span>
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-[#f3f4f6]" />
+              {!isEmployee && (
+                <>
+                  <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium">
+                    <Link to={`/employees/${currentUser?.id || ""}`}>
+                      <User className="mr-2 h-4 w-4" />
+                      <span>My Directory Profile</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium">
+                    <Link to="/settings">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>System Permissions</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-[#f3f4f6]" />
+                </>
+              )}
               <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium text-rose-600 focus:text-rose-700">
                 <Link to="/login">
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign Out</span>
+                  <span>{isEmployee ? "Switch User / Sign Out" : "Sign Out"}</span>
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Quick Create Action Button */}
-          <button
-            onClick={() => setQuickCreateOpen(true)}
-            className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[#6c5ce7] hover:bg-[#5a4ad8] text-white text-xs font-bold transition-all shadow-[0_4px_14px_rgba(108,92,231,0.3)]"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Quick Action</span>
-          </button>
+          {/* Quick Create Action Button (Admin Only) */}
+          {!isEmployee && (
+            <button
+              onClick={() => setQuickCreateOpen(true)}
+              className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[#6c5ce7] hover:bg-[#5a4ad8] text-white text-xs font-bold transition-all shadow-[0_4px_14px_rgba(108,92,231,0.3)]"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Quick Action</span>
+            </button>
+          )}
         </div>
       </header>
 
-      {/* Quick Create Modal */}
-      <QuickCreateModal
-        open={quickCreateOpen}
-        onOpenChange={setQuickCreateOpen}
-      />
+      {/* Quick Create Modal (Admin Only) */}
+      {!isEmployee && (
+        <QuickCreateModal
+          open={quickCreateOpen}
+          onOpenChange={setQuickCreateOpen}
+        />
+      )}
     </>
   );
 }

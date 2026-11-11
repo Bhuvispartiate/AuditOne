@@ -10,8 +10,11 @@ import { toast } from "sonner";
 export default function LoginPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [selectedEmpId, setSelectedEmpId] = useState("emp-001");
   const employees = pmsStore.getEmployees();
+  const currentUser = pmsStore.getCurrentUser();
+  const [selectedEmpId, setSelectedEmpId] = useState(
+    currentUser?.id || employees[0]?.id || "emp-admin-01"
+  );
 
   const handleGoogleLogin = async () => {
     setLoading(true);
