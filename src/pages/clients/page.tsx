@@ -13,16 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { pmsStore } from "@/lib/data/store";
+import { getInitials } from "@/lib/utils";
 import { toast } from "sonner";
 import { ProjectTimeline } from "@/components/tasks/project-timeline";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
-
-function getClientInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "CL";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[1][0]).toUpperCase();
-}
 
 export default function ClientsListPage() {
   const [searchParams] = useSearchParams();
@@ -254,7 +248,7 @@ export default function ClientsListPage() {
                   <div className="flex items-start justify-between gap-2.5">
                     <div className="flex items-start gap-3 min-w-0">
                       <div className="h-10 w-10 rounded-full bg-[#eef2ff] text-[#4f46e5] flex items-center justify-center text-xs font-bold shrink-0">
-                        {getClientInitials(client.client_name)}
+                        {getInitials(client.client_name, "CL")}
                       </div>
                       <div className="min-w-0">
                         <Link
