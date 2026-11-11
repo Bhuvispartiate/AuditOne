@@ -374,12 +374,15 @@ export function TaskDetailDialog({
             )}
           </div>
 
-          {/* BOX 3: Task & Subtasks Timeline */}
+          {/* BOX 3: Task & Subtasks Timeline (Collapsed until clicked) */}
           <ProjectTimeline
+            key={`tl-${task.id}`}
             tasks={[task]}
             projectStartDate={task.start_date || project?.start_date}
             projectDueDate={task.due_date || project?.due_date}
             title="Task & Subtasks Timeline"
+            collapsible
+            defaultExpanded={false}
           />
 
           {/* BOX 4: Read-Receipt Comments Box */}

@@ -22,6 +22,8 @@ interface ProjectTimelineProps {
   onSelectTask?: (taskId: string) => void;
   title?: string;
   showClientFilter?: boolean;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
 const STATUS_BAR_STYLES: Record<TaskStatus, string> = {
@@ -69,7 +71,10 @@ export function ProjectTimeline({
   onSelectTask,
   title = "Execution Timeline (Start Date -> Due Date)",
   showClientFilter = false,
+  collapsible = false,
+  defaultExpanded = true,
 }: ProjectTimelineProps) {
+  const [isSectionOpen, setIsSectionOpen] = useState(defaultExpanded);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const [clientFilter, setClientFilter] = useState("ALL");
 
@@ -139,6 +144,25 @@ export function ProjectTimeline({
     };
   };
 
+  if (collapsible && !isSectionOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsSectionOpen(true)}
+        className="w-full rounded-[20px] border-[1.5px] border-slate-300 bg-white px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-neutral-900 transition-colors flex items-center justify-between gap-3 text-left"
+      >
+        <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-violet-600" />
+          <span>{title}</span>
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-[#111827]">
+          <span>Show Timeline</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+        </span>
+      </button>
+    );
+  }
+
   return (
     <div className="rounded-[24px] border-[1.5px] border-slate-300 bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
@@ -147,12 +171,24 @@ export function ProjectTimeline({
             <Calendar className="h-4 w-4 text-violet-600" />
             <span>{title}</span>
           </h3>
-          <p className="text-xs text-[#6b7280] mt-0.5">
-            Track task & subtask schedule bars, statuses, and delivery windows. Click any task to open subtasks & comments.
-          </p>
+          {!collapsible && (
+            <p className="text-xs text-[#6b7280] mt-0.5">
+              Track task & subtask schedule bars, statuses, and delivery windows. Click any task to open subtasks & comments.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
+          {collapsible && (
+            <button
+              type="button"
+              onClick={() => setIsSectionOpen(false)}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-[#111827]"
+            >
+              <span>Hide Timeline</span>
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          )}
           {showClientFilter && (
             <select
               value={clientFilter}
