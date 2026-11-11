@@ -1512,6 +1512,84 @@ class PMSDataStore {
     return changed;
   }
 
+  markCommentSeenByUser(commentId: string, reader?: { id: string; full_name: string }): boolean {
+    const actor = reader || this.currentUser;
+    if (!actor?.id) return false;
+
+    const comment = this.taskComments.find((c) => c.id === commentId);
+    if (!comment) return false;
+
+    const now = new Date().toISOString();
+    if (!comment.read_by) {
+      comment.read_by = [
+        { employee_id: comment.employee_id, employee_name: comment.employee_name, read_at: comment.created_at },
+      ];
+    }
+
+    let changed = false;
+    if (!comment.read_by.some((r) => r.employee_id === actor.id)) {
+      comment.read_by.push({
+        employee_id: actor.id,
+        employee_name: actor.full_name,
+        read_at: now,
+      });
+      changed = true;
+    }
+
+    this.notifications.forEach((n) => {
+      if (
+        n.recipient_employee_id === actor.id &&
+        n.reference_id === comment.task_id &&
+        n.type === "task_comment_mention" &&
+        !n.is_read
+      ) {
+        n.is_read = true;
+        n.read_at = now;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      this.persist();
+    }
+    return changed;
+  }
+
+  getUnseenMentionsForUser(employeeId: string) {
+    if (!employeeId) return [];
+    return this.getAllTaskComments().filter(
+      (c) =>
+        (c.mentioned_employee_ids || []).includes(employeeId) &&
+        c.employee_id !== employeeId &&
+        !(c.read_by || []).some((r) => r.employee_id === employeeId)
+    );
+  }
+
+  getMentionTrackingList() {
+    return this.getAllTaskComments()
+      .filter((c) => (c.mentioned_employee_ids || []).length > 0)
+      .map((c) => {
+        const readBy = c.read_by || [];
+        const mentionStatuses = (c.mentioned_employee_ids || [])
+          .filter((empId) => empId !== c.employee_id)
+          .map((empId) => {
+            const emp = this.employees.find((e) => e.id === empId);
+            const seenRecord = readBy.find((r) => r.employee_id === empId);
+            return {
+              employee_id: empId,
+              employee_name: emp?.full_name || "Team Member",
+              seen: Boolean(seenRecord),
+              seen_at: seenRecord?.read_at,
+            };
+          });
+        return {
+          ...c,
+          mentionStatuses,
+        };
+      })
+      .filter((item) => item.mentionStatuses.length > 0);
+  }
+
   toggleCommentReadReceipt(commentId: string, employee: { id: string; full_name: string }): TaskComment | null {
     const comment = this.taskComments.find((c) => c.id === commentId);
     if (!comment) return null;
