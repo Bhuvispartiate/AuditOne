@@ -1307,6 +1307,10 @@ class PMSDataStore {
 
     const existingIdx = comment.read_by.findIndex((r) => r.employee_id === employee.id);
     if (existingIdx >= 0) {
+      // Employees cannot mark seen messages as unseen; only Admin may adjust read receipts
+      if (this.currentUser?.role_code !== "SUPER_ADMIN") {
+        return comment;
+      }
       comment.read_by.splice(existingIdx, 1);
     } else {
       comment.read_by.push({

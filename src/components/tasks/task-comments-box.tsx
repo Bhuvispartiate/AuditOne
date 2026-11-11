@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CheckCheck, Eye, MessageSquare, Send } from "lucide-react";
+import { CheckCheck, MessageSquare, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { pmsStore } from "@/lib/data/store";
@@ -28,9 +28,10 @@ export function TaskCommentsBox({
 
   const comments = pmsStore.getTaskComments(taskId);
   const currentUser = pmsStore.getCurrentUser();
+  const isAdmin = currentUser?.role_code === "SUPER_ADMIN";
   const employees = pmsStore.getEmployees();
 
-  // Auto-mark comments as read by the current active user when viewing comments
+  // Auto-mark comments as Seen by the active user as soon as they view them
   useEffect(() => {
     if (taskId) {
       const changed = pmsStore.markTaskCommentsRead(taskId);
@@ -38,7 +39,7 @@ export function TaskCommentsBox({
         onUpdated?.();
       }
     }
-  }, [taskId, comments.length]);
+  }, [taskId, comments.length, currentUser?.id]);
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,16 +47,6 @@ export function TaskCommentsBox({
     pmsStore.addTaskComment(taskId, commentText.trim());
     setCommentText("");
     toast.success("Comment posted.");
-    onUpdated?.();
-  };
-
-  const handleToggleMyRead = (commentId: string) => {
-    if (!currentUser) return;
-    pmsStore.toggleCommentReadReceipt(commentId, {
-      id: currentUser.id,
-      full_name: currentUser.full_name,
-    });
-    setTick((t) => t + 1);
     onUpdated?.();
   };
 
@@ -68,7 +59,7 @@ export function TaskCommentsBox({
         </h4>
         <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
           <CheckCheck className="h-3.5 w-3.5 text-sky-600" />
-          Read receipts active
+          {isAdmin ? "Seen list (Admin)" : "Auto-marked Seen"}
         </span>
       </div>
 
@@ -81,39 +72,25 @@ export function TaskCommentsBox({
           {comments.map((c) => {
             const readBy = c.read_by || [];
             const otherReaders = readBy.filter((r) => r.employee_id !== c.employee_id);
-            const hasBeenReadByRecipient = otherReaders.length > 0;
-            const currentUserHasRead = readBy.some((r) => r.employee_id === currentUser?.id);
-            const isExpanded = expandedReadersId === c.id;
+            const hasBeenSeenByOthers = otherReaders.length > 0;
+            const currentUserHasSeen = readBy.some((r) => r.employee_id === currentUser?.id);
+            const isExpanded = isAdmin && expandedReadersId === c.id;
 
-            // Show pending recipients from task assignee / team if not yet read
-            const pendingAssignees = employees.filter(
+            // Pending readers shown only in Admin view
+            const pendingEmployees = employees.filter(
               (emp) =>
-                (emp.id === assignedEmployeeId ||
-                  emp.role_code === "SUPER_ADMIN" ||
-                  emp.role_code === "DIRECTOR" ||
-                  emp.role_code === "SUPERVISOR") &&
-                emp.id !== c.employee_id &&
+                emp.is_active &&
+                (emp.id === assignedEmployeeId || emp.id !== c.employee_id) &&
                 !readBy.some((r) => r.employee_id === emp.id)
             );
 
             return (
               <div
                 key={c.id}
-                className={`rounded-2xl border p-3 space-y-2 transition-colors ${
-                  currentUserHasRead
-                    ? "border-slate-300 bg-slate-50/80"
-                    : "border-sky-300 bg-sky-50/40"
-                }`}
+                className="rounded-2xl border border-slate-300 bg-slate-50/80 p-3 space-y-2 transition-colors"
               >
                 <div className="flex items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#111827]">{c.employee_name}</span>
-                    {!currentUserHasRead && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-600 text-white">
-                        Unread
-                      </span>
-                    )}
-                  </div>
+                  <span className="font-bold text-[#111827]">{c.employee_name}</span>
                   <span className="text-[10px] text-slate-500">{formatDateTime(c.created_at)}</span>
                 </div>
 
@@ -121,48 +98,50 @@ export function TaskCommentsBox({
                   {c.comment}
                 </p>
 
-                {/* Read Recipient Footer */}
+                {/* Read Receipt Footer: full Seen list is Admin-only; employees only see Seen status with no option to mark unseen */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/80 text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedReadersId(isExpanded ? null : c.id)}
-                    className={`inline-flex items-center gap-1 font-semibold transition-colors ${
-                      hasBeenReadByRecipient ? "text-sky-700" : "text-slate-500"
-                    }`}
-                    title="Click to inspect full read receipts"
-                  >
-                    <CheckCheck
-                      className={`h-3.5 w-3.5 ${
-                        hasBeenReadByRecipient ? "text-sky-600" : "text-slate-400"
-                      }`}
-                    />
-                    {readBy.length > 0 ? (
-                      <span>
-                        Read by{" "}
-                        {readBy.map((r) => r.employee_name).join(", ")}
-                      </span>
-                    ) : (
-                      <span>Not read yet</span>
-                    )}
-                  </button>
+                  {isAdmin ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedReadersId(isExpanded ? null : c.id)}
+                        className={`inline-flex items-center gap-1 font-semibold transition-colors ${
+                          hasBeenSeenByOthers ? "text-sky-700" : "text-slate-600"
+                        }`}
+                        title="Click to view full Seen list (Admin only)"
+                      >
+                        <CheckCheck
+                          className={`h-3.5 w-3.5 ${
+                            hasBeenSeenByOthers ? "text-sky-600" : "text-slate-400"
+                          }`}
+                        />
+                        <span>
+                          {readBy.length > 0
+                            ? `Seen by ${readBy.map((r) => r.employee_name).join(", ")}`
+                            : "Not seen yet"}
+                        </span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleToggleMyRead(c.id)}
-                    className="inline-flex items-center gap-1 font-semibold text-slate-500 hover:text-[#111827] px-1.5 py-0.5 rounded-md hover:bg-slate-200/60"
-                  >
-                    <Eye className="h-3 w-3" />
-                    <span>{currentUserHasRead ? "Mark Unread" : "Mark Read"}</span>
-                  </button>
+                      <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
+                        <CheckCheck className="h-3 w-3" />
+                        <span>{currentUserHasSeen ? "Seen" : "Marked Seen"}</span>
+                      </span>
+                    </>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 font-bold text-emerald-700 ml-auto">
+                      <CheckCheck className="h-3.5 w-3.5" />
+                      <span>{currentUserHasSeen ? "Seen" : "Marked Seen"}</span>
+                    </span>
+                  )}
                 </div>
 
-                {isExpanded && (
+                {isAdmin && isExpanded && (
                   <div className="rounded-xl bg-white border border-slate-200 p-2.5 text-[10px] space-y-1.5">
                     <div className="font-bold uppercase tracking-wider text-slate-500">
-                      Read Receipts
+                      Seen List ({readBy.length})
                     </div>
                     {readBy.length === 0 ? (
-                      <div className="text-slate-400">No recipients have read this comment yet.</div>
+                      <div className="text-slate-400">No users have seen this message yet.</div>
                     ) : (
                       <div className="space-y-1">
                         {readBy.map((r) => (
@@ -176,11 +155,11 @@ export function TaskCommentsBox({
                         ))}
                       </div>
                     )}
-                    {pendingAssignees.length > 0 && (
+                    {pendingEmployees.length > 0 && (
                       <div className="pt-1 border-t border-slate-100 text-slate-500">
-                        Pending read:{" "}
+                        Not seen yet:{" "}
                         <span className="font-medium text-amber-700">
-                          {pendingAssignees.map((p) => p.full_name).join(", ")}
+                          {pendingEmployees.map((p) => p.full_name).join(", ")}
                         </span>
                       </div>
                     )}
