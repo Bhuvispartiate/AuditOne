@@ -12,11 +12,15 @@ import {
   ArrowRight,
   Box,
   Check,
+  CheckCheck,
+  MessageSquare,
   Sparkles,
   Layers
 } from "lucide-react";
 import { pmsStore } from "@/lib/data/store";
 import { GeoLocationSetupCard } from "@/components/attendance/geo-location-setup-card";
+import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
+import { formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -36,11 +40,14 @@ function buildSmoothPath(points: { x: number; y: number }[]) {
 
 export default function DashboardPage() {
   const [serviceSearch, setServiceSearch] = useState("");
+  const [messageSearch, setMessageSearch] = useState("");
+  const [selectedCommentTaskId, setSelectedCommentTaskId] = useState<string | null>(null);
   const [, setTick] = useState(0);
   useEffect(() => {
     return pmsStore.subscribe(() => setTick((t) => t + 1));
   }, []);
   const currentUser = pmsStore.getCurrentUser();
+  const isAdmin = currentUser?.role_code === "SUPER_ADMIN";
 
   // Real Database Records (Zero Mock Data)
   const services = pmsStore.getServices();
@@ -48,6 +55,8 @@ export default function DashboardPage() {
   const engagements = pmsStore.getAllEngagements();
   const projects = pmsStore.getProjects();
   const tasks = pmsStore.getTasks();
+  const employees = pmsStore.getEmployees();
+  const allComments = pmsStore.getAllTaskComments();
 
   const firstName = currentUser?.full_name?.split(" ")[0] || "Admin";
 
@@ -740,6 +749,154 @@ export default function DashboardPage() {
 
       {/* Row 5: Admin Geo-Attendance Control & Today's Attendance Hub */}
       <GeoLocationSetupCard showOpenAttendanceLink />
+
+      {/* Row 6: Admin-Only Message Read Receipts (Who Has Seen Each Message) */}
+      {isAdmin && (
+        <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
+            <div>
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-sky-600" />
+                <h2 className="text-base font-extrabold text-[#16172d]">
+                  Message Seen Receipts
+                </h2>
+                <Badge variant="secondary" className="rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                  Admin Only &bull; {allComments.length} Messages
+                </Badge>
+              </div>
+              <p className="text-xs text-[#6b7280] mt-0.5">
+                Track every comment across tasks and subtasks and see exactly who has seen each message.
+              </p>
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9ca3af]" />
+              <Input
+                type="search"
+                placeholder="Filter by message, task, or person..."
+                value={messageSearch}
+                onChange={(e) => setMessageSearch(e.target.value)}
+                className="pl-9 h-9 rounded-xl text-xs border-slate-300"
+              />
+            </div>
+          </div>
+
+          {(() => {
+            const q = messageSearch.trim().toLowerCase();
+            const visibleComments = q
+              ? allComments.filter(
+                  (c) =>
+                    c.comment.toLowerCase().includes(q) ||
+                    c.employee_name.toLowerCase().includes(q) ||
+                    (c.task_code && c.task_code.toLowerCase().includes(q)) ||
+                    (c.task_title && c.task_title.toLowerCase().includes(q)) ||
+                    (c.read_by || []).some((r) => r.employee_name.toLowerCase().includes(q))
+                )
+              : allComments;
+
+            if (visibleComments.length === 0) {
+              return (
+                <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+                  <CheckCheck className="h-7 w-7 mx-auto text-sky-600 mb-2 opacity-75" />
+                  <p className="text-xs font-bold text-[#16172d]">No messages yet</p>
+                  <p className="text-[11px] text-[#6b7280] mt-0.5">
+                    Comments posted on tasks or subtasks will appear here with who has seen them.
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                {visibleComments.map((c) => {
+                  const readBy = c.read_by || [];
+                  const notSeenEmployees = employees.filter(
+                    (emp) => emp.is_active && !readBy.some((r) => r.employee_id === emp.id)
+                  );
+
+                  return (
+                    <div
+                      key={c.id}
+                      className="rounded-2xl border-[1.5px] border-slate-300 bg-[#fbfbfe] p-4 space-y-2.5"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCommentTaskId(c.task_id)}
+                            className="font-mono text-[11px] font-bold bg-neutral-900 text-white px-2.5 py-0.5 rounded-lg hover:bg-violet-700 transition-colors"
+                          >
+                            {c.task_code || "TASK"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCommentTaskId(c.task_id)}
+                            className="text-xs font-extrabold text-[#16172d] hover:text-violet-700 text-left"
+                          >
+                            {c.task_title || "Task Comment"}
+                          </button>
+                          {c.project_name && (
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              &bull; {c.project_name}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          Posted by <strong className="text-[#16172d]">{c.employee_name}</strong> &bull;{" "}
+                          {formatDateTime(c.created_at)}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-slate-200 px-3 py-2">
+                        {c.comment}
+                      </p>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 font-bold text-sky-700 mr-1">
+                            <CheckCheck className="h-3.5 w-3.5 text-sky-600" />
+                            Seen by ({readBy.length}):
+                          </span>
+                          {readBy.map((r) => (
+                            <span
+                              key={r.employee_id}
+                              title={`Seen at ${formatDateTime(r.read_at)}`}
+                              className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800"
+                            >
+                              {r.employee_name}
+                              <span className="text-[9px] font-normal text-emerald-700">
+                                ({formatDateTime(r.read_at)})
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+
+                        {notSeenEmployees.length > 0 && (
+                          <div className="text-[10px] text-slate-500">
+                            Not seen yet:{" "}
+                            <span className="font-semibold text-amber-700">
+                              {notSeenEmployees.map((e) => e.full_name).join(", ")}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      <TaskDetailDialog
+        taskId={selectedCommentTaskId}
+        open={Boolean(selectedCommentTaskId)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setSelectedCommentTaskId(null);
+        }}
+        onUpdated={() => setTick((t) => t + 1)}
+      />
     </div>
   );
 }

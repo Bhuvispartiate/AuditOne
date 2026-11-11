@@ -1239,6 +1239,23 @@ class PMSDataStore {
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }
 
+  getAllTaskComments(): Array<TaskComment & { task_code?: string; task_title?: string; project_name?: string }> {
+    return this.taskComments
+      .map((c) => {
+        const task = this.tasks.find((t) => t.id === c.task_id);
+        return {
+          ...c,
+          read_by: c.read_by
+            ? [...c.read_by]
+            : [{ employee_id: c.employee_id, employee_name: c.employee_name, read_at: c.created_at }],
+          task_code: task?.task_code,
+          task_title: task?.title,
+          project_name: task?.project_name,
+        };
+      })
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
   addTaskComment(taskId: string, commentText: string): TaskComment | null {
     const task = this.tasks.find((t) => t.id === taskId);
     const trimmed = commentText.trim();
