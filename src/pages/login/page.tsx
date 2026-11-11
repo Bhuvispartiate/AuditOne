@@ -39,13 +39,13 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4 bg-[#f4f5f7]">
       <div className="w-full max-w-md">
-        {/* Brand Header — ACRU Style */}
+        {/* Brand Header — Linear Audit PMS */}
         <div className="text-center mb-8">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-900 text-white font-black text-xl shadow-md mb-3">
-            A
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-900 text-white font-black text-base tracking-tight shadow-md mb-3">
+            LA
           </div>
           <h1 className="text-2xl font-black tracking-tight text-[#111827]">
-            ACRU PMS
+            Linear Audit PMS
           </h1>
           <p className="text-xs font-semibold text-[#6b7280] uppercase tracking-widest mt-1">
             Enterprise Professional Services Suite
@@ -131,7 +131,7 @@ export default function LoginPage() {
 
           <CardFooter className="flex flex-col gap-2 pt-0 pb-6 text-center">
             <span className="text-[10px] font-medium text-[#9ca3af]">
-              ACRU PMS &bull; Supabase RLS &bull; Cloudflare R2 Vault
+              Linear Audit PMS &bull; Supabase RLS &bull; Cloudflare R2 Vault
             </span>
           </CardFooter>
         </Card>

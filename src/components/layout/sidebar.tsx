@@ -102,11 +102,11 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="flex flex-col truncate">
-              <span className="font-extrabold text-white tracking-tight text-lg leading-none">
-                ACRU
+              <span className="font-extrabold text-white tracking-tight text-[15px] leading-tight">
+                Linear Audit
               </span>
-              <span className="text-[10px] font-semibold text-[#8a8fb5] uppercase tracking-widest mt-1">
-                PMS Suite
+              <span className="text-[10px] font-semibold text-[#8a8fb5] uppercase tracking-widest mt-0.5">
+                PMS
               </span>
             </div>
           )}
