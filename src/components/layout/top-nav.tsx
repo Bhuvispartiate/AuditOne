@@ -7,14 +7,7 @@ import {
   LogOut,
   Settings,
   User,
-  Shield,
-  CheckCircle2,
-  AlertCircle,
-  FileText,
-  CreditCard,
-  Briefcase,
-  Users2,
-  LayoutGrid
+  Calendar
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,31 +49,44 @@ export function TopNav() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-20 w-full items-center justify-between border-b border-[#e5e7eb] bg-[#f4f5f7]/80 px-6 lg:px-8 backdrop-blur-md">
-        {/* Global Search Bar — ACRU Style */}
+      <header className="sticky top-0 z-20 flex h-[68px] w-full items-center justify-between border-b border-slate-200 bg-white/95 px-5 lg:px-7 backdrop-blur-md">
+        {/* Global Search Bar */}
         <form onSubmit={handleSearch} className="relative w-full max-w-sm hidden md:block">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9ca3af]" />
           <Input
             type="search"
-            placeholder="Quick search..."
+            placeholder="Quick search clients, PAN, GSTIN..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-11 pr-4 h-11 w-full bg-white border-[#e5e7eb] rounded-2xl focus:bg-white text-xs font-medium placeholder:text-[#9ca3af] shadow-xs transition-all focus:ring-1 focus:ring-neutral-400"
+            className="pl-11 pr-4 h-10 w-full bg-[#f8f9fd] border-slate-300 rounded-2xl focus:bg-white text-xs font-medium placeholder:text-[#9ca3af] shadow-none transition-all focus:ring-1 focus:ring-[#6c5ce7]"
           />
         </form>
 
-        {/* Right Nav Utilities Matching Reference Image */}
-        <div className="flex items-center gap-3 ml-auto">
+        {/* Right Nav Utilities */}
+        <div className="flex items-center gap-2.5 ml-auto">
+          {/* Date Pill matching reference */}
+          <div className="hidden lg:flex items-center gap-2 h-10 px-3.5 rounded-2xl border border-slate-300 bg-white text-xs font-semibold text-[#111827] shadow-2xs">
+            <Calendar className="h-3.5 w-3.5 text-[#6c5ce7]" />
+            <span>
+              {new Date().toLocaleDateString("en-GB", {
+                weekday: "short",
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+            </span>
+          </div>
+
           {/* Notifications Icon Button */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f9fafb] transition-all shadow-xs"
+                className="relative flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-300 bg-white text-[#111827] hover:bg-[#f6f4ff] hover:border-[#6c5ce7] transition-all shadow-2xs"
                 title="Notifications"
               >
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-2.5 right-2.5 flex h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white animate-pulse" />
+                  <span className="absolute top-2 right-2 flex h-2 w-2 rounded-full bg-[#6c5ce7] ring-2 ring-white" />
                 )}
               </button>
             </DropdownMenuTrigger>
@@ -194,10 +200,10 @@ export function TopNav() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Quick Create Action Button (Add widget style from reference) */}
+          {/* Quick Create Action Button */}
           <button
             onClick={() => setQuickCreateOpen(true)}
-            className="flex items-center gap-1.5 h-11 px-4 rounded-2xl border border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f9fafb] text-xs font-bold transition-all shadow-xs"
+            className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[#6c5ce7] hover:bg-[#5a4ad8] text-white text-xs font-bold transition-all shadow-[0_4px_14px_rgba(108,92,231,0.3)]"
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Quick Action</span>
