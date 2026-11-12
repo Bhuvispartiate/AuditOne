@@ -289,6 +289,12 @@ export interface Task {
   project_name?: string;
   parent_task_id?: string;
   project_workflow_stage_id?: string;
+  milestone_id?: string;
+  milestone_title?: string;
+  stage_id?: string;
+  stage_title?: string;
+  sub_stage_id?: string;
+  sub_stage_title?: string;
   title: string;
   description: string;
   assigned_employee_id?: string;
@@ -350,10 +356,37 @@ export interface WorkflowProjectTaskTemplate {
   default_comments: string[];
 }
 
+export interface WorkflowSubStageTemplate {
+  id: string;
+  sub_stage_name: string;
+  description?: string;
+  sequence_number: number;
+  tasks: WorkflowProjectTaskTemplate[];
+}
+
+export interface WorkflowStageTemplate {
+  id: string;
+  stage_name: string;
+  description?: string;
+  sequence_number: number;
+  sub_stages: WorkflowSubStageTemplate[];
+}
+
+export interface WorkflowMilestoneTemplate {
+  id: string;
+  title: string;
+  description?: string;
+  sequence_number: number;
+  start_date?: string;
+  end_date?: string;
+  stages: WorkflowStageTemplate[];
+}
+
 export interface WorkflowTemplate {
   id: string;
   workflow_code: string;
   workflow_name: string;
+  goal_title?: string;
   service_id?: string;
   service_name?: string;
   description: string;
@@ -361,6 +394,7 @@ export interface WorkflowTemplate {
   version: number;
   stages_count?: number;
   created_at: string;
+  milestones?: WorkflowMilestoneTemplate[];
   template_tasks?: WorkflowProjectTaskTemplate[];
   versions?: WorkflowTemplateVersion[];
 }

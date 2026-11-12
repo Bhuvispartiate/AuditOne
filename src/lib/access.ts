@@ -106,6 +106,17 @@ export function isWorkflowAssignedToEmployee(
   if ((workflow.template_tasks || []).some((tt) => isWorkflowTemplateTaskAssigned(tt, employeeId))) {
     return true;
   }
+  if (
+    (workflow.milestones || []).some((m) =>
+      (m.stages || []).some((s) =>
+        (s.sub_stages || []).some((ss) =>
+          (ss.tasks || []).some((tt) => isWorkflowTemplateTaskAssigned(tt, employeeId))
+        )
+      )
+    )
+  ) {
+    return true;
+  }
 
   const wfServiceLower = (workflow.service_name || "").trim().toLowerCase();
   const assignedProjects = projects.filter((p) =>

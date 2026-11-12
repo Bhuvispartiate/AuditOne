@@ -339,9 +339,32 @@ CREATE TABLE IF NOT EXISTS workflow_stages (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS workflow_milestones (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workflow_template_id UUID NOT NULL REFERENCES workflow_templates(id) ON DELETE CASCADE,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    sequence_number INT NOT NULL DEFAULT 1,
+    start_date DATE,
+    end_date DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS workflow_sub_stages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    stage_id UUID NOT NULL REFERENCES workflow_stages(id) ON DELETE CASCADE,
+    sub_stage_name VARCHAR(200) NOT NULL,
+    description TEXT,
+    sequence_number INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE workflow_stages ADD COLUMN IF NOT EXISTS milestone_id UUID REFERENCES workflow_milestones(id) ON DELETE CASCADE;
+
 CREATE TABLE IF NOT EXISTS workflow_tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     stage_id UUID NOT NULL REFERENCES workflow_stages(id) ON DELETE CASCADE,
+    sub_stage_id UUID REFERENCES workflow_sub_stages(id) ON DELETE CASCADE,
     task_name VARCHAR(200) NOT NULL,
     description TEXT,
     sequence_number INT NOT NULL DEFAULT 1,
@@ -440,6 +463,13 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS milestone_id VARCHAR(100);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS milestone_title VARCHAR(200);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS stage_id VARCHAR(100);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS stage_title VARCHAR(200);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sub_stage_id VARCHAR(100);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sub_stage_title VARCHAR(200);
 
 CREATE TABLE IF NOT EXISTS task_assignments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

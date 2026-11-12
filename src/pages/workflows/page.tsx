@@ -41,6 +41,7 @@ import {
 } from "@/types";
 import { toast } from "sonner";
 import { ProjectTimeline } from "@/components/tasks/project-timeline";
+import { WorkflowHierarchyBoard } from "@/components/workflows/workflow-hierarchy-board";
 
 function addDays(baseIso: string, days: number): string {
   const parsed = new Date(baseIso);
@@ -131,6 +132,9 @@ export default function WorkflowsPage() {
 
   const selectedWorkflow =
     workflows.find((w) => w.id === selectedWorkflowId) || workflows[0] || null;
+  const normalizedMilestones = selectedWorkflow
+    ? pmsStore.getNormalizedWorkflowMilestones(selectedWorkflow)
+    : [];
   const tplTasks = selectedWorkflow?.template_tasks || [];
   const activeTplTask = tplTasks.find((t) => t.id === activeTplTaskId) || null;
 
@@ -289,7 +293,21 @@ export default function WorkflowsPage() {
   ) => {
     if (!selectedWorkflow) return;
     const nextTasks = tplTasks.map((t) => (t.id === taskId ? updater(t) : t));
-    saveWorkflowTasks(selectedWorkflow, nextTasks);
+    const nextMilestones = selectedWorkflow.milestones?.map((m) => ({
+      ...m,
+      stages: (m.stages || []).map((s) => ({
+        ...s,
+        sub_stages: (s.sub_stages || []).map((ss) => ({
+          ...ss,
+          tasks: (ss.tasks || []).map((t) => (t.id === taskId ? updater(t) : t)),
+        })),
+      })),
+    }));
+    pmsStore.updateWorkflow(selectedWorkflow.id, {
+      template_tasks: nextTasks,
+      ...(nextMilestones ? { milestones: nextMilestones } : {}),
+    });
+    setTick((t) => t + 1);
   };
 
   const handleDeleteTemplateTask = (taskId: string) => {
@@ -587,6 +605,19 @@ export default function WorkflowsPage() {
                   </div>
                 </div>
               </div>
+
+              {/* 6-Level Hierarchy Board & Tree (Goal -> Milestone -> Stage -> Sub Stage -> Task -> Subtask) */}
+              <WorkflowHierarchyBoard
+                workflow={selectedWorkflow}
+                milestones={normalizedMilestones}
+                employees={employees}
+                taskStatuses={pmsStore.getTaskStatuses()}
+                isEmployee={isEmployee}
+                onOpenTaskModal={(tplTask) => {
+                  setActiveTplTaskId(tplTask.id);
+                  setIsTplTaskModalOpen(true);
+                }}
+              />
 
               {/* Add Template Task Box (Admin Only) */}
               {!isEmployee && (

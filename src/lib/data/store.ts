@@ -19,6 +19,11 @@ import {
   TaskComment,
   CommentReadReceipt,
   WorkflowTemplate,
+  WorkflowMilestoneTemplate,
+  WorkflowStageTemplate,
+  WorkflowSubStageTemplate,
+  WorkflowProjectTaskTemplate,
+  WorkflowSubtaskTemplate,
   Invoice,
   Payment,
   PaymentMode,
@@ -1917,7 +1922,344 @@ class PMSDataStore {
     if (!target) return false;
     this.workflows = this.workflows.filter((w) => w.id !== id);
     this.addActivityLog(`Deleted workflow template: ${target.workflow_name}`, "workflow", id);
+    this.persist();
     return true;
+  }
+
+  getNormalizedWorkflowMilestones(wf: WorkflowTemplate): WorkflowMilestoneTemplate[] {
+    if (wf.milestones && wf.milestones.length > 0) {
+      return wf.milestones.map((m, mIdx) => ({
+        ...m,
+        sequence_number: m.sequence_number || mIdx + 1,
+        stages: (m.stages || []).map((s, sIdx) => ({
+          ...s,
+          sequence_number: s.sequence_number || sIdx + 1,
+          sub_stages: (s.sub_stages || []).map((ss, ssIdx) => ({
+            ...ss,
+            sequence_number: ss.sequence_number || ssIdx + 1,
+            tasks: ss.tasks || [],
+          })),
+        })),
+      }));
+    }
+
+    const legacyTasks = wf.template_tasks || [];
+    return [
+      {
+        id: `ms-default-${wf.id}`,
+        title: "Milestone 1",
+        sequence_number: 1,
+        stages: [
+          {
+            id: `stg-default-${wf.id}`,
+            stage_name: "Stage 1",
+            sequence_number: 1,
+            sub_stages: [
+              {
+                id: `substg-default-${wf.id}`,
+                sub_stage_name: "Sub Stage 1",
+                sequence_number: 1,
+                tasks: legacyTasks,
+              },
+            ],
+          },
+        ],
+      },
+    ];
+  }
+
+  private flattenMilestonesToTemplateTasks(
+    milestones: WorkflowMilestoneTemplate[]
+  ): WorkflowProjectTaskTemplate[] {
+    const result: WorkflowProjectTaskTemplate[] = [];
+    let seq = 1;
+    milestones.forEach((m) => {
+      (m.stages || []).forEach((s) => {
+        (s.sub_stages || []).forEach((ss) => {
+          (ss.tasks || []).forEach((t) => {
+            result.push({ ...t, sequence_number: seq++ });
+          });
+        });
+      });
+    });
+    return result;
+  }
+
+  private saveWorkflowMilestones(
+    workflowId: string,
+    milestones: WorkflowMilestoneTemplate[],
+    logMessage?: string
+  ): WorkflowTemplate | null {
+    const idx = this.workflows.findIndex((w) => w.id === workflowId);
+    if (idx === -1) return null;
+    const flattened = this.flattenMilestonesToTemplateTasks(milestones);
+    const totalStages = milestones.reduce((sum, m) => sum + (m.stages?.length || 0), 0);
+    this.workflows[idx] = {
+      ...this.workflows[idx],
+      milestones,
+      template_tasks: flattened,
+      stages_count: totalStages,
+    };
+    if (logMessage) {
+      this.addActivityLog(logMessage, "workflow", workflowId);
+    }
+    this.persist();
+    return this.workflows[idx];
+  }
+
+  addWorkflowMilestone(
+    workflowId: string,
+    input: { title: string; start_date?: string; end_date?: string; description?: string }
+  ): WorkflowMilestoneTemplate | null {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf || !input.title.trim()) return null;
+    const milestones = this.getNormalizedWorkflowMilestones(wf);
+    const created: WorkflowMilestoneTemplate = {
+      id: generateId("ms"),
+      title: input.title.trim(),
+      description: input.description?.trim() || undefined,
+      sequence_number: milestones.length + 1,
+      start_date: input.start_date || undefined,
+      end_date: input.end_date || undefined,
+      stages: [],
+    };
+    this.saveWorkflowMilestones(
+      workflowId,
+      [...milestones, created],
+      `Added milestone "${created.title}" to ${wf.workflow_name}`
+    );
+    return created;
+  }
+
+  updateWorkflowMilestone(
+    workflowId: string,
+    milestoneId: string,
+    updates: Partial<Pick<WorkflowMilestoneTemplate, "title" | "start_date" | "end_date" | "description">>
+  ): boolean {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf) return false;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) =>
+      m.id === milestoneId ? { ...m, ...updates } : m
+    );
+    return Boolean(this.saveWorkflowMilestones(workflowId, milestones));
+  }
+
+  deleteWorkflowMilestone(workflowId: string, milestoneId: string): boolean {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf) return false;
+    const milestones = this.getNormalizedWorkflowMilestones(wf)
+      .filter((m) => m.id !== milestoneId)
+      .map((m, idx) => ({ ...m, sequence_number: idx + 1 }));
+    return Boolean(
+      this.saveWorkflowMilestones(workflowId, milestones, `Removed milestone from ${wf.workflow_name}`)
+    );
+  }
+
+  addWorkflowStage(
+    workflowId: string,
+    milestoneId: string,
+    input: { stage_name: string; description?: string }
+  ): WorkflowStageTemplate | null {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf || !input.stage_name.trim()) return null;
+    let created: WorkflowStageTemplate | null = null;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => {
+      if (m.id !== milestoneId) return m;
+      created = {
+        id: generateId("stg"),
+        stage_name: input.stage_name.trim(),
+        description: input.description?.trim() || undefined,
+        sequence_number: m.stages.length + 1,
+        sub_stages: [],
+      };
+      return { ...m, stages: [...m.stages, created] };
+    });
+    if (!created) return null;
+    this.saveWorkflowMilestones(workflowId, milestones, `Added stage "${input.stage_name.trim()}"`);
+    return created;
+  }
+
+  deleteWorkflowStage(workflowId: string, milestoneId: string, stageId: string): boolean {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf) return false;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => {
+      if (m.id !== milestoneId) return m;
+      return {
+        ...m,
+        stages: m.stages
+          .filter((s) => s.id !== stageId)
+          .map((s, idx) => ({ ...s, sequence_number: idx + 1 })),
+      };
+    });
+    return Boolean(this.saveWorkflowMilestones(workflowId, milestones));
+  }
+
+  addWorkflowSubStage(
+    workflowId: string,
+    milestoneId: string,
+    stageId: string,
+    input: { sub_stage_name: string; description?: string }
+  ): WorkflowSubStageTemplate | null {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf || !input.sub_stage_name.trim()) return null;
+    let created: WorkflowSubStageTemplate | null = null;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => {
+      if (m.id !== milestoneId) return m;
+      return {
+        ...m,
+        stages: m.stages.map((s) => {
+          if (s.id !== stageId) return s;
+          created = {
+            id: generateId("substg"),
+            sub_stage_name: input.sub_stage_name.trim(),
+            description: input.description?.trim() || undefined,
+            sequence_number: s.sub_stages.length + 1,
+            tasks: [],
+          };
+          return { ...s, sub_stages: [...s.sub_stages, created] };
+        }),
+      };
+    });
+    if (!created) return null;
+    this.saveWorkflowMilestones(
+      workflowId,
+      milestones,
+      `Added sub-stage "${input.sub_stage_name.trim()}"`
+    );
+    return created;
+  }
+
+  deleteWorkflowSubStage(
+    workflowId: string,
+    milestoneId: string,
+    stageId: string,
+    subStageId: string
+  ): boolean {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf) return false;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => {
+      if (m.id !== milestoneId) return m;
+      return {
+        ...m,
+        stages: m.stages.map((s) => {
+          if (s.id !== stageId) return s;
+          return {
+            ...s,
+            sub_stages: s.sub_stages
+              .filter((ss) => ss.id !== subStageId)
+              .map((ss, idx) => ({ ...ss, sequence_number: idx + 1 })),
+          };
+        }),
+      };
+    });
+    return Boolean(this.saveWorkflowMilestones(workflowId, milestones));
+  }
+
+  addWorkflowTaskInSubStage(
+    workflowId: string,
+    milestoneId: string,
+    stageId: string,
+    subStageId: string,
+    taskInput: Omit<WorkflowProjectTaskTemplate, "id" | "sequence_number">
+  ): WorkflowProjectTaskTemplate | null {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf || !taskInput.task_name.trim()) return null;
+    let created: WorkflowProjectTaskTemplate | null = null;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => {
+      if (m.id !== milestoneId) return m;
+      return {
+        ...m,
+        stages: m.stages.map((s) => {
+          if (s.id !== stageId) return s;
+          return {
+            ...s,
+            sub_stages: s.sub_stages.map((ss) => {
+              if (ss.id !== subStageId) return ss;
+              created = {
+                ...taskInput,
+                id: generateId("wftask"),
+                sequence_number: ss.tasks.length + 1,
+              };
+              return { ...ss, tasks: [...ss.tasks, created] };
+            }),
+          };
+        }),
+      };
+    });
+    if (!created) return null;
+    this.saveWorkflowMilestones(
+      workflowId,
+      milestones,
+      `Added workflow task "${taskInput.task_name.trim()}"`
+    );
+    return created;
+  }
+
+  deleteWorkflowTaskFromHierarchy(workflowId: string, taskId: string): boolean {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf) return false;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => ({
+      ...m,
+      stages: m.stages.map((s) => ({
+        ...s,
+        sub_stages: s.sub_stages.map((ss) => ({
+          ...ss,
+          tasks: ss.tasks.filter((t) => t.id !== taskId),
+        })),
+      })),
+    }));
+    return Boolean(this.saveWorkflowMilestones(workflowId, milestones));
+  }
+
+  addWorkflowSubtaskInHierarchy(
+    workflowId: string,
+    taskId: string,
+    subtaskInput: Omit<WorkflowSubtaskTemplate, "id">
+  ): WorkflowSubtaskTemplate | null {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf || !subtaskInput.title.trim()) return null;
+    let created: WorkflowSubtaskTemplate | null = null;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => ({
+      ...m,
+      stages: m.stages.map((s) => ({
+        ...s,
+        sub_stages: s.sub_stages.map((ss) => ({
+          ...ss,
+          tasks: ss.tasks.map((t) => {
+            if (t.id !== taskId) return t;
+            created = { ...subtaskInput, id: generateId("wfsub") };
+            return { ...t, subtasks: [...(t.subtasks || []), created] };
+          }),
+        })),
+      })),
+    }));
+    if (!created) return null;
+    this.saveWorkflowMilestones(workflowId, milestones);
+    return created;
+  }
+
+  deleteWorkflowSubtaskFromHierarchy(
+    workflowId: string,
+    taskId: string,
+    subtaskId: string
+  ): boolean {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf) return false;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => ({
+      ...m,
+      stages: m.stages.map((s) => ({
+        ...s,
+        sub_stages: s.sub_stages.map((ss) => ({
+          ...ss,
+          tasks: ss.tasks.map((t) =>
+            t.id === taskId
+              ? { ...t, subtasks: (t.subtasks || []).filter((sub) => sub.id !== subtaskId) }
+              : t
+          ),
+        })),
+      })),
+    }));
+    return Boolean(this.saveWorkflowMilestones(workflowId, milestones));
   }
 
   /**
@@ -2000,65 +2342,89 @@ class PMSDataStore {
 
       let addedHere = 0;
       const baseStart = proj.start_date || new Date().toISOString().slice(0, 10);
+      const milestones = this.getNormalizedWorkflowMilestones(wf);
 
-      tplTasks.forEach((tplTask) => {
-        if (existingTitles.has(tplTask.task_name.trim().toLowerCase())) return;
+      milestones.forEach((ms) => {
+        (ms.stages || []).forEach((stg) => {
+          (stg.sub_stages || []).forEach((subStg) => {
+            (subStg.tasks || []).forEach((tplTask) => {
+              if (existingTitles.has(tplTask.task_name.trim().toLowerCase())) return;
 
-        const taskStart = this.addDaysIso(baseStart, Math.max(0, tplTask.start_day_offset || 0));
-        const taskDue = this.addDaysIso(taskStart, Math.max(0, (tplTask.duration_days || 1) - 1));
-        const createdTask = this.addTask({
-          title: tplTask.task_name,
-          project_id: proj.id,
-          project_name: proj.project_name,
-          assigned_employee_id:
-            tplTask.assigned_employee_id || proj.project_manager_id || this.currentUser.id,
-          assigned_employee_name:
-            tplTask.assigned_employee_name ||
-            proj.project_manager_name ||
-            this.currentUser.full_name,
-          priority: tplTask.priority || "Medium",
-          start_date: taskStart,
-          due_date: taskDue,
-          status: tplTask.status || "To Do",
-          description: tplTask.description || `Workflow deliverable under ${wf.workflow_name}.`,
-          created_by: this.currentUser.id,
-          created_by_name: this.currentUser.full_name,
-        });
+              const taskStart = this.addDaysIso(
+                ms.start_date || baseStart,
+                Math.max(0, (tplTask.start_day_offset || 1) - 1)
+              );
+              const taskDue = this.addDaysIso(
+                taskStart,
+                Math.max(0, (tplTask.duration_days || 1) - 1)
+              );
+              const createdTask = this.addTask({
+                title: tplTask.task_name,
+                project_id: proj.id,
+                project_name: proj.project_name,
+                milestone_id: ms.id,
+                milestone_title: ms.title,
+                stage_id: stg.id,
+                stage_title: stg.stage_name,
+                sub_stage_id: subStg.id,
+                sub_stage_title: subStg.sub_stage_name,
+                assigned_employee_id:
+                  tplTask.assigned_employee_id || proj.project_manager_id || this.currentUser.id,
+                assigned_employee_name:
+                  tplTask.assigned_employee_name ||
+                  proj.project_manager_name ||
+                  this.currentUser.full_name,
+                priority: tplTask.priority || "Medium",
+                start_date: taskStart,
+                due_date: taskDue,
+                status: tplTask.status || "To Do",
+                description:
+                  tplTask.description ||
+                  `Workflow deliverable under ${wf.workflow_name} (${ms.title} → ${stg.stage_name} → ${subStg.sub_stage_name}).`,
+                created_by: this.currentUser.id,
+                created_by_name: this.currentUser.full_name,
+              });
 
-        (tplTask.subtasks || []).forEach((tplSub) => {
-          const subStart = this.addDaysIso(
-            baseStart,
-            Math.max(0, tplSub.start_day_offset ?? tplTask.start_day_offset ?? 0)
-          );
-          const subDue = this.addDaysIso(subStart, Math.max(0, (tplSub.duration_days || 1) - 1));
-          this.addSubtask(createdTask.id, {
-            title: tplSub.title,
-            description: tplSub.description,
-            start_date: subStart,
-            due_date: subDue,
-            priority: tplSub.priority || tplTask.priority,
-            status: tplSub.status || "To Do",
-            assigned_employee_id:
-              tplSub.assigned_employee_id ||
-              tplTask.assigned_employee_id ||
-              proj.project_manager_id ||
-              this.currentUser.id,
-            assigned_employee_name:
-              tplSub.assigned_employee_name ||
-              tplTask.assigned_employee_name ||
-              proj.project_manager_name ||
-              this.currentUser.full_name,
+              (tplTask.subtasks || []).forEach((tplSub) => {
+                const subStart = this.addDaysIso(
+                  ms.start_date || baseStart,
+                  Math.max(0, (tplSub.start_day_offset ?? tplTask.start_day_offset ?? 1) - 1)
+                );
+                const subDue = this.addDaysIso(
+                  subStart,
+                  Math.max(0, (tplSub.duration_days || 1) - 1)
+                );
+                this.addSubtask(createdTask.id, {
+                  title: tplSub.title,
+                  description: tplSub.description,
+                  start_date: subStart,
+                  due_date: subDue,
+                  priority: tplSub.priority || tplTask.priority,
+                  status: tplSub.status || "To Do",
+                  assigned_employee_id:
+                    tplSub.assigned_employee_id ||
+                    tplTask.assigned_employee_id ||
+                    proj.project_manager_id ||
+                    this.currentUser.id,
+                  assigned_employee_name:
+                    tplSub.assigned_employee_name ||
+                    tplTask.assigned_employee_name ||
+                    proj.project_manager_name ||
+                    this.currentUser.full_name,
+                });
+              });
+
+              (tplTask.default_comments || []).forEach((cmt) => {
+                if (cmt.trim()) {
+                  this.addTaskComment(createdTask.id, cmt.trim());
+                }
+              });
+
+              addedHere += 1;
+              createdTasks += 1;
+            });
           });
         });
-
-        (tplTask.default_comments || []).forEach((cmt) => {
-          if (cmt.trim()) {
-            this.addTaskComment(createdTask.id, cmt.trim());
-          }
-        });
-
-        addedHere += 1;
-        createdTasks += 1;
       });
 
       if (addedHere > 0) {
