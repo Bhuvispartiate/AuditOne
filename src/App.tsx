@@ -104,9 +104,10 @@ function SupabaseAuthListener() {
   useEffect(() => {
     const supabase = createClient();
 
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       const email = data.session?.user?.email;
       if (email) {
+        await pmsStore.hydrateFromSupabase(true);
         const fullName =
           (data.session?.user?.user_metadata?.full_name as string | undefined) ||
           (data.session?.user?.user_metadata?.name as string | undefined);
@@ -114,8 +115,9 @@ function SupabaseAuthListener() {
       }
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user?.email) {
+        await pmsStore.hydrateFromSupabase(true);
         const fullName =
           (session.user.user_metadata?.full_name as string | undefined) ||
           (session.user.user_metadata?.name as string | undefined);

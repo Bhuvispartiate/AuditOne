@@ -872,6 +872,15 @@ CREATE POLICY "Users view their own notifications" ON notifications
         ) OR is_user_admin()
     );
 
+DROP POLICY IF EXISTS "Authenticated users read workspace state" ON system_settings;
+CREATE POLICY "Authenticated users read workspace state" ON system_settings
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Authenticated users sync workspace state" ON system_settings;
+CREATE POLICY "Authenticated users sync workspace state" ON system_settings
+    FOR ALL USING (auth.role() = 'authenticated')
+    WITH CHECK (auth.role() = 'authenticated');
+
 -- ============================================================================
 -- 12. DATABASE FUNCTIONS AND TRIGGERS
 -- ============================================================================

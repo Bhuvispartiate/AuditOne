@@ -46,6 +46,8 @@ export default function AuthCallbackPage() {
           return;
         }
 
+        await pmsStore.hydrateFromSupabase(true);
+
         const fullName =
           (user.user_metadata?.full_name as string | undefined) ||
           (user.user_metadata?.name as string | undefined);

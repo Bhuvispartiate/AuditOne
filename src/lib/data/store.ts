@@ -107,10 +107,15 @@ class PMSDataStore {
   private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
   private authenticated: boolean = false;
   private listeners: Set<() => void> = new Set();
+  private cloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private isHydratingFromCloud: boolean = false;
+  private cloudHydratePromise: Promise<void> | null = null;
+  private localUpdatedAt: number = 0;
 
   constructor() {
     this.hydrate();
     this.backfillMissingProjectsAndTasks();
+    void this.hydrateFromSupabase();
     void this.syncClientsFromSupabase();
   }
 
@@ -286,52 +291,84 @@ class PMSDataStore {
     });
   }
 
+  private applyWorkspaceDataSnapshot(parsed: any) {
+    if (!parsed || typeof parsed !== "object") return;
+    if (Array.isArray(parsed.clients)) this.clients = parsed.clients;
+    if (Array.isArray(parsed.services)) this.services = parsed.services;
+    if (Array.isArray(parsed.engagements)) this.engagements = parsed.engagements;
+    if (Array.isArray(parsed.projects)) this.projects = parsed.projects;
+    if (Array.isArray(parsed.tasks)) this.tasks = parsed.tasks;
+    if (Array.isArray(parsed.taskComments)) this.taskComments = parsed.taskComments;
+    if (Array.isArray(parsed.deletedTaskProjectIds)) {
+      this.deletedTaskProjectIds = parsed.deletedTaskProjectIds;
+    }
+    if (Array.isArray(parsed.workflows)) this.workflows = parsed.workflows;
+    if (Array.isArray(parsed.employees) && parsed.employees.length > 0) {
+      this.employees = parsed.employees;
+    }
+    if (Array.isArray(parsed.teams)) this.teams = parsed.teams;
+    if (Array.isArray(parsed.invoices)) this.invoices = parsed.invoices;
+    if (Array.isArray(parsed.payments)) this.payments = parsed.payments;
+    if (Array.isArray(parsed.documents)) this.documents = parsed.documents;
+    if (Array.isArray(parsed.notifications)) this.notifications = parsed.notifications;
+    if (Array.isArray(parsed.activityLogs)) this.activityLogs = parsed.activityLogs;
+    if (parsed.officeGeoConfig && typeof parsed.officeGeoConfig.latitude === "number") {
+      this.officeGeoConfig = parsed.officeGeoConfig;
+    }
+    if (Array.isArray(parsed.attendanceRecords)) {
+      this.attendanceRecords = parsed.attendanceRecords;
+    }
+    if (Array.isArray(parsed.taskStatuses) && parsed.taskStatuses.length > 0) {
+      this.taskStatuses = parsed.taskStatuses;
+    }
+    if (typeof parsed.updatedAt === "number") {
+      this.localUpdatedAt = parsed.updatedAt;
+    }
+    // Keep default System Admin email synced with VITE_SUPERADMIN_EMAIL
+    this.employees = this.employees.map((e) =>
+      e.id === "emp-admin-01" && e.email === "admin@pmsfirm.com"
+        ? { ...e, email: SUPERADMIN_EMAIL }
+        : e
+    );
+  }
+
+  private buildWorkspaceDataSnapshot(updatedAt: number) {
+    return {
+      clients: this.clients,
+      services: this.services,
+      engagements: this.engagements,
+      projects: this.projects,
+      tasks: this.tasks,
+      taskComments: this.taskComments,
+      deletedTaskProjectIds: this.deletedTaskProjectIds,
+      workflows: this.workflows,
+      employees: this.employees,
+      teams: this.teams,
+      invoices: this.invoices,
+      payments: this.payments,
+      documents: this.documents,
+      notifications: this.notifications,
+      activityLogs: this.activityLogs,
+      officeGeoConfig: this.officeGeoConfig,
+      attendanceRecords: this.attendanceRecords,
+      taskStatuses: this.taskStatuses,
+      updatedAt,
+    };
+  }
+
   private hydrate() {
     if (typeof window === "undefined" || !window.localStorage) return;
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed.clients)) this.clients = parsed.clients;
-      if (Array.isArray(parsed.services)) this.services = parsed.services;
-      if (Array.isArray(parsed.engagements)) this.engagements = parsed.engagements;
-      if (Array.isArray(parsed.projects)) this.projects = parsed.projects;
-      if (Array.isArray(parsed.tasks)) this.tasks = parsed.tasks;
-      if (Array.isArray(parsed.taskComments)) this.taskComments = parsed.taskComments;
-      if (Array.isArray(parsed.deletedTaskProjectIds)) {
-        this.deletedTaskProjectIds = parsed.deletedTaskProjectIds;
-      }
-      if (Array.isArray(parsed.workflows)) this.workflows = parsed.workflows;
-      if (Array.isArray(parsed.employees) && parsed.employees.length > 0) {
-        this.employees = parsed.employees;
-      }
-      if (Array.isArray(parsed.teams)) this.teams = parsed.teams;
-      if (Array.isArray(parsed.invoices)) this.invoices = parsed.invoices;
-      if (Array.isArray(parsed.payments)) this.payments = parsed.payments;
-      if (Array.isArray(parsed.documents)) this.documents = parsed.documents;
-      if (Array.isArray(parsed.notifications)) this.notifications = parsed.notifications;
-      if (Array.isArray(parsed.activityLogs)) this.activityLogs = parsed.activityLogs;
-      if (parsed.officeGeoConfig && typeof parsed.officeGeoConfig.latitude === "number") {
-        this.officeGeoConfig = parsed.officeGeoConfig;
-      }
-      if (Array.isArray(parsed.attendanceRecords)) {
-        this.attendanceRecords = parsed.attendanceRecords;
-      }
-      if (Array.isArray(parsed.taskStatuses) && parsed.taskStatuses.length > 0) {
-        this.taskStatuses = parsed.taskStatuses;
-      }
+      this.applyWorkspaceDataSnapshot(parsed);
       if (parsed.currentUser && parsed.currentUser.id) {
         this.currentUser = parsed.currentUser;
       }
       if (typeof parsed.authenticated === "boolean") {
         this.authenticated = parsed.authenticated;
       }
-      // Keep default System Admin email synced with VITE_SUPERADMIN_EMAIL
-      this.employees = this.employees.map((e) =>
-        e.id === "emp-admin-01" && e.email === "admin@pmsfirm.com"
-          ? { ...e, email: SUPERADMIN_EMAIL }
-          : e
-      );
       if (this.currentUser.id === "emp-admin-01" && this.currentUser.email === "admin@pmsfirm.com") {
         this.currentUser = { ...this.currentUser, email: SUPERADMIN_EMAIL };
       }
@@ -340,37 +377,123 @@ class PMSDataStore {
     }
   }
 
+  private writeLocalSnapshot() {
+    if (typeof window === "undefined" || !window.localStorage) return;
+    try {
+      const snapshot = {
+        ...this.buildWorkspaceDataSnapshot(this.localUpdatedAt || Date.now()),
+        currentUser: this.currentUser,
+        authenticated: this.authenticated,
+      };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    } catch (error) {
+      console.error("Failed to persist PMS store to localStorage:", error);
+    }
+  }
+
   private persist() {
-    if (typeof window !== "undefined" && window.localStorage) {
-      try {
-        const snapshot = {
-          clients: this.clients,
-          services: this.services,
-          engagements: this.engagements,
-          projects: this.projects,
-          tasks: this.tasks,
-          taskComments: this.taskComments,
-          deletedTaskProjectIds: this.deletedTaskProjectIds,
-          workflows: this.workflows,
-          employees: this.employees,
-          teams: this.teams,
-          invoices: this.invoices,
-          payments: this.payments,
-          documents: this.documents,
-          notifications: this.notifications,
-          activityLogs: this.activityLogs,
-          officeGeoConfig: this.officeGeoConfig,
-          attendanceRecords: this.attendanceRecords,
-          taskStatuses: this.taskStatuses,
-          currentUser: this.currentUser,
-          authenticated: this.authenticated,
-        };
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
-      } catch (error) {
-        console.error("Failed to persist PMS store to localStorage:", error);
-      }
+    if (!this.isHydratingFromCloud) {
+      this.localUpdatedAt = Date.now();
+    }
+    this.writeLocalSnapshot();
+    if (!this.isHydratingFromCloud) {
+      this.scheduleCloudSync();
     }
     this.notify();
+  }
+
+  private scheduleCloudSync() {
+    if (typeof window === "undefined") return;
+    if (this.cloudSyncTimer) clearTimeout(this.cloudSyncTimer);
+    this.cloudSyncTimer = setTimeout(() => {
+      void this.pushSnapshotToSupabase();
+    }, 350);
+  }
+
+  private async pushSnapshotToSupabase() {
+    if (typeof window === "undefined") return;
+    try {
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) return;
+
+      const snapshot = this.buildWorkspaceDataSnapshot(this.localUpdatedAt || Date.now());
+      const { error } = await supabase.from("system_settings").upsert(
+        {
+          setting_key: "pms_workspace_snapshot_v1",
+          setting_value: snapshot,
+          description: "Cross-device PMS workspace state",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "setting_key" }
+      );
+      if (error) {
+        console.warn("Supabase workspace sync skipped:", error.message);
+      }
+    } catch {
+      // Non-fatal if offline
+    }
+  }
+
+  async hydrateFromSupabase(force = false): Promise<void> {
+    if (typeof window === "undefined") return;
+    if (this.cloudHydratePromise && !force) return this.cloudHydratePromise;
+
+    const run = async () => {
+      try {
+        const supabase = createClient();
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData?.session) return;
+
+        const { data, error } = await supabase
+          .from("system_settings")
+          .select("setting_value")
+          .eq("setting_key", "pms_workspace_snapshot_v1")
+          .maybeSingle();
+
+        if (error) {
+          console.warn("Supabase workspace hydrate skipped:", error.message);
+          return;
+        }
+
+        const remote = data?.setting_value as Record<string, any> | undefined;
+        if (remote && typeof remote === "object") {
+          const remoteUpdatedAt = typeof remote.updatedAt === "number" ? remote.updatedAt : 0;
+          const hasLocalSnapshot = Boolean(window.localStorage?.getItem(STORAGE_KEY));
+          // Apply cloud state on a fresh device or whenever cloud is newer than local
+          if (!hasLocalSnapshot || remoteUpdatedAt >= this.localUpdatedAt) {
+            this.isHydratingFromCloud = true;
+            try {
+              this.applyWorkspaceDataSnapshot(remote);
+              if (this.currentUser?.id) {
+                const matched = this.employees.find(
+                  (e) =>
+                    e.id === this.currentUser.id ||
+                    (e.email || "").toLowerCase() === (this.currentUser.email || "").toLowerCase()
+                );
+                if (matched) this.currentUser = matched;
+              }
+              this.writeLocalSnapshot();
+            } finally {
+              this.isHydratingFromCloud = false;
+            }
+            this.notify();
+          } else if (this.localUpdatedAt > remoteUpdatedAt) {
+            void this.pushSnapshotToSupabase();
+          }
+        } else {
+          // First-time cloud seed from current device
+          await this.pushSnapshotToSupabase();
+        }
+      } catch {
+        // Non-fatal if offline
+      } finally {
+        this.cloudHydratePromise = null;
+      }
+    };
+
+    this.cloudHydratePromise = run();
+    return this.cloudHydratePromise;
   }
 
   private async syncClientsFromSupabase() {
