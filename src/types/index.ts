@@ -131,6 +131,7 @@ export interface Client {
   
   // Section B Contact
   contact?: ClientContact;
+  contacts?: ClientContact[];
   // Section B Addresses
   addresses?: ClientAddress[];
   // Section C Registrations
@@ -173,11 +174,17 @@ export interface ClientAddress {
 export interface ClientRegistration {
   id: string;
   client_id: string;
-  pan: string;
+  pan?: string;
   gstin?: string;
   cin?: string;
   dob_or_doi?: string;
-  additional_registrations?: Array<{ type: string; value: string }>;
+  additional_registrations?: Array<{
+    type: string;
+    value: string;
+    date_of_registration?: string;
+    status?: 'Active' | 'Inactive';
+    remarks?: string;
+  }>;
 }
 
 export interface ClientBankAccount {

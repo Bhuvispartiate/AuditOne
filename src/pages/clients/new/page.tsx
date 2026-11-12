@@ -57,6 +57,16 @@ export default function NewClientOnboardingPage() {
   const [contactDesignation, setContactDesignation] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [email, setEmail] = useState("");
+  const [contactsList, setContactsList] = useState<
+    Array<{
+      id: string;
+      contact_person: string;
+      designation: string;
+      mobile_number: string;
+      email: string;
+      is_primary: boolean;
+    }>
+  >([]);
   const [registeredAddress, setRegisteredAddress] = useState("");
   const [communicationAddress, setCommunicationAddress] = useState("");
   const [city, setCity] = useState("");
@@ -69,9 +79,20 @@ export default function NewClientOnboardingPage() {
   const [gstin, setGstin] = useState("");
   const [cin, setCin] = useState("");
   const [dobOrDoi, setDobOrDoi] = useState("");
-  const [extraRegistrations, setExtraRegistrations] = useState<Array<{ type: string; value: string }>>([]);
+  const [extraRegistrations, setExtraRegistrations] = useState<
+    Array<{
+      type: string;
+      value: string;
+      date_of_registration?: string;
+      status?: "Active" | "Inactive";
+      remarks?: string;
+    }>
+  >([]);
   const [extraType, setExtraType] = useState("TAN");
   const [extraValue, setExtraValue] = useState("");
+  const [extraRegDate, setExtraRegDate] = useState("");
+  const [extraStatus, setExtraStatus] = useState<"Active" | "Inactive">("Active");
+  const [extraRemarks, setExtraRemarks] = useState("");
 
   // Section D
   const [relationshipManagerId, setRelationshipManagerId] = useState(employees[0]?.id || "");
@@ -132,10 +153,60 @@ export default function NewClientOnboardingPage() {
     setSelectedRetainers((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const handleAddContact = () => {
+    if (!contactPerson.trim() && !mobileNumber.trim() && !email.trim()) {
+      toast.error("Please enter at least Contact Person, Mobile Number, or Email.");
+      return;
+    }
+    const isPrimary = contactsList.length === 0;
+    setContactsList((prev) => [
+      ...prev,
+      {
+        id: `cnt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        contact_person: contactPerson.trim() || clientName.trim() || "Authorized Contact",
+        designation: contactDesignation.trim(),
+        mobile_number: mobileNumber.trim(),
+        email: email.trim(),
+        is_primary: isPrimary,
+      },
+    ]);
+    setContactPerson("");
+    setContactDesignation("");
+    setMobileNumber("");
+    setEmail("");
+    toast.success("Contact added to list.");
+  };
+
+  const handleRemoveContact = (id: string) => {
+    setContactsList((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      if (next.length > 0 && !next.some((c) => c.is_primary)) {
+        next[0] = { ...next[0], is_primary: true };
+      }
+      return next;
+    });
+  };
+
   const handleAddExtraRegistration = () => {
-    if (!extraValue.trim()) return;
-    setExtraRegistrations([...extraRegistrations, { type: extraType, value: extraValue.trim() }]);
+    if (!extraType.trim() || !extraValue.trim()) {
+      toast.error("Please enter both Identifier Field (e.g. TAN) and Register Number.");
+      return;
+    }
+    setExtraRegistrations((prev) => [
+      ...prev,
+      {
+        type: extraType.trim(),
+        value: extraValue.trim(),
+        date_of_registration: extraRegDate || undefined,
+        status: extraStatus,
+        remarks: extraRemarks.trim() || undefined,
+      },
+    ]);
+    setExtraType("");
     setExtraValue("");
+    setExtraRegDate("");
+    setExtraStatus("Active");
+    setExtraRemarks("");
   };
 
   const handleRemoveExtra = (index: number) => {
@@ -145,8 +216,8 @@ export default function NewClientOnboardingPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!clientName.trim() || !legalName.trim() || !pan.trim()) {
-      toast.error("Please fill all mandatory fields: Client Name, Legal Name, and PAN.");
+    if (!clientName.trim() || !legalName.trim()) {
+      toast.error("Please fill all mandatory fields: Client Name and Legal Name.");
       return;
     }
 
@@ -171,6 +242,39 @@ export default function NewClientOnboardingPage() {
       }
     }
 
+    const finalContacts = [...contactsList];
+    if (contactPerson.trim() || mobileNumber.trim() || email.trim() || contactDesignation.trim()) {
+      finalContacts.push({
+        id: `cnt-${Date.now()}`,
+        contact_person: contactPerson.trim() || clientName,
+        designation: contactDesignation.trim(),
+        mobile_number: mobileNumber.trim(),
+        email: email.trim(),
+        is_primary: finalContacts.length === 0,
+      });
+    }
+    if (finalContacts.length === 0) {
+      finalContacts.push({
+        id: `cnt-${Date.now()}`,
+        contact_person: clientName,
+        designation: "",
+        mobile_number: "",
+        email: "",
+        is_primary: true,
+      });
+    }
+
+    const finalExtraRegistrations = [...extraRegistrations];
+    if (extraType.trim() && extraValue.trim()) {
+      finalExtraRegistrations.push({
+        type: extraType.trim(),
+        value: extraValue.trim(),
+        date_of_registration: extraRegDate || undefined,
+        status: extraStatus,
+        remarks: extraRemarks.trim() || undefined,
+      });
+    }
+
     const newClient = pmsStore.addClient(
       {
         client_name: clientName,
@@ -188,14 +292,10 @@ export default function NewClientOnboardingPage() {
         relationship_manager_name: rm?.full_name,
         status: clientStatus,
         contact: {
-          id: `cnt-${Date.now()}`,
+          ...finalContacts[0],
           client_id: "",
-          contact_person: contactPerson || clientName,
-          designation: contactDesignation,
-          mobile_number: mobileNumber,
-          email,
-          is_primary: true
         },
+        contacts: finalContacts.map((c) => ({ ...c, client_id: "" })),
         addresses: [
           {
             id: `addr-1-${Date.now()}`,
@@ -223,11 +323,11 @@ export default function NewClientOnboardingPage() {
         registration: {
           id: `reg-${Date.now()}`,
           client_id: "",
-          pan: pan.toUpperCase(),
+          pan: pan.trim() ? pan.toUpperCase() : undefined,
           gstin: gstin ? gstin.toUpperCase() : undefined,
           cin: cin ? cin.toUpperCase() : undefined,
           dob_or_doi: dobOrDoi || undefined,
-          additional_registrations: extraRegistrations
+          additional_registrations: finalExtraRegistrations
         }
       },
       { skipDefaultProject: retainersToCreate.length > 0 }
@@ -461,14 +561,67 @@ export default function NewClientOnboardingPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Country</Label>
-                <Input
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                />
+              <div className="flex items-end justify-between gap-4">
+                <div className="space-y-1.5 flex-1">
+                  <Label className="text-xs font-semibold">Country</Label>
+                  <Input
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddContact}
+                  className="h-9 px-3.5 gap-1.5 shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-semibold text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add More Contact</span>
+                </Button>
               </div>
             </div>
+
+            {contactsList.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2">
+                <span className="text-xs font-bold text-slate-700 block">
+                  Added Contacts ({contactsList.length})
+                </span>
+                <div className="space-y-2">
+                  {contactsList.map((c, idx) => (
+                    <div
+                      key={c.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-white border border-slate-200 px-3 py-2 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge
+                          variant={idx === 0 ? "default" : "secondary"}
+                          className="text-[10px]"
+                        >
+                          {idx === 0 ? "Primary" : `Contact ${idx + 1}`}
+                        </Badge>
+                        <span className="font-bold text-slate-900">{c.contact_person}</span>
+                        {c.designation && (
+                          <span className="text-slate-500">({c.designation})</span>
+                        )}
+                        {c.mobile_number && (
+                          <span className="font-mono text-slate-700">• {c.mobile_number}</span>
+                        )}
+                        {c.email && <span className="text-slate-600">• {c.email}</span>}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveContact(c.id)}
+                        className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50 shrink-0"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -539,16 +692,13 @@ export default function NewClientOnboardingPage() {
           <CardContent className="p-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">
-                  PAN <span className="text-red-500">*</span>
-                </Label>
+                <Label className="text-xs font-semibold">PAN (Optional)</Label>
                 <Input
                   placeholder="e.g. ABCDE1234F"
                   value={pan}
                   onChange={(e) => setPan(e.target.value.toUpperCase())}
                   maxLength={10}
                   className="uppercase font-mono"
-                  required
                 />
               </div>
 
@@ -584,57 +734,140 @@ export default function NewClientOnboardingPage() {
             </div>
 
             {/* Multiple Additional Registrations Support */}
-            <div className="pt-2 border-t border-slate-100">
-              <Label className="text-xs font-semibold text-slate-700 block mb-2">
-                Additional Statutory Identifiers (TAN, IEC, MSME, EPFO, etc.)
-              </Label>
-              <div className="flex items-center gap-2 max-w-md">
-                <select
-                  value={extraType}
-                  onChange={(e) => setExtraType(e.target.value)}
-                  className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
-                >
-                  <option value="TAN">TAN</option>
-                  <option value="IEC">Import Export Code (IEC)</option>
-                  <option value="MSME">MSME Udyam</option>
-                  <option value="EPFO">EPF Registration</option>
-                  <option value="ESIC">ESI Code</option>
-                  <option value="FSSAI">FSSAI License</option>
-                </select>
-                <Input
-                  placeholder="Registration Number"
-                  value={extraValue}
-                  onChange={(e) => setExtraValue(e.target.value)}
-                  className="h-9 text-xs"
-                />
-                <Button
-                  type="button"
-                  onClick={handleAddExtraRegistration}
-                  variant="outline"
-                  size="sm"
-                  className="h-9 px-3 gap-1 shrink-0"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add</span>
-                </Button>
+            <div className="pt-3 border-t border-slate-100 space-y-3">
+              <div>
+                <Label className="text-xs font-semibold text-slate-700 block">
+                  Additional Statutory Identifiers (TAN, IEC, MSME, EPFO, etc.) — Optional
+                </Label>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Enter the main identifier field (e.g. TAN, IEC, MSME, EPFO), register number, date of registration, status, and remarks.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-end bg-slate-50/70 p-3.5 rounded-xl border border-slate-200">
+                <div className="lg:col-span-2 space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">
+                    Main Field (e.g. TAN)
+                  </Label>
+                  <Input
+                    list="statutory-identifier-presets"
+                    placeholder="e.g. TAN, IEC, MSME"
+                    value={extraType}
+                    onChange={(e) => setExtraType(e.target.value)}
+                    className="h-9 text-xs bg-white"
+                  />
+                  <datalist id="statutory-identifier-presets">
+                    <option value="TAN" />
+                    <option value="IEC" />
+                    <option value="MSME" />
+                    <option value="EPFO" />
+                    <option value="ESIC" />
+                    <option value="FSSAI" />
+                    <option value="PT" />
+                    <option value="RERA" />
+                  </datalist>
+                </div>
+
+                <div className="lg:col-span-3 space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">
+                    Register Number
+                  </Label>
+                  <Input
+                    placeholder="e.g. DELA12345B"
+                    value={extraValue}
+                    onChange={(e) => setExtraValue(e.target.value)}
+                    className="h-9 text-xs font-mono bg-white"
+                  />
+                </div>
+
+                <div className="lg:col-span-2 space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">
+                    Date of Registration
+                  </Label>
+                  <Input
+                    type="date"
+                    value={extraRegDate}
+                    onChange={(e) => setExtraRegDate(e.target.value)}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+
+                <div className="lg:col-span-2 space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Status</Label>
+                  <select
+                    value={extraStatus}
+                    onChange={(e) => setExtraStatus(e.target.value as "Active" | "Inactive")}
+                    className="w-full h-9 rounded-md border border-slate-300 bg-white px-2.5 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+
+                <div className="lg:col-span-2 space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Remarks</Label>
+                  <Input
+                    placeholder="Optional remarks..."
+                    value={extraRemarks}
+                    onChange={(e) => setExtraRemarks(e.target.value)}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+
+                <div className="lg:col-span-1">
+                  <Button
+                    type="button"
+                    onClick={handleAddExtraRegistration}
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-9 px-3 gap-1 bg-white"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add</span>
+                  </Button>
+                </div>
               </div>
 
               {extraRegistrations.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
+                <div className="space-y-2 mt-2">
                   {extraRegistrations.map((reg, idx) => (
-                    <span
+                    <div
                       key={idx}
-                      className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-800 px-2.5 py-1 rounded-md text-xs font-medium"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs"
                     >
-                      <strong className="text-slate-600">{reg.type}:</strong> {reg.value}
-                      <button
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="font-bold text-slate-900">{reg.type}</span>
+                        <span className="font-mono font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                          {reg.value}
+                        </span>
+                        {reg.date_of_registration && (
+                          <span className="text-slate-600">
+                            Reg Date: {reg.date_of_registration}
+                          </span>
+                        )}
+                        <Badge
+                          className={
+                            reg.status === "Inactive"
+                              ? "bg-slate-200 text-slate-700 text-[10px]"
+                              : "bg-emerald-100 text-emerald-700 text-[10px]"
+                          }
+                        >
+                          {reg.status || "Active"}
+                        </Badge>
+                        {reg.remarks && (
+                          <span className="text-slate-500 italic">• {reg.remarks}</span>
+                        )}
+                      </div>
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleRemoveExtra(idx)}
-                        className="text-slate-400 hover:text-red-600 ml-1"
+                        className="h-7 w-7 text-rose-500 hover:text-red-600 hover:bg-rose-50 shrink-0"
                       >
-                        &times;
-                      </button>
-                    </span>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   ))}
                 </div>
               )}
