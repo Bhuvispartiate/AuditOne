@@ -59,18 +59,6 @@ interface StageKanbanBoardProps {
   isEmployee: boolean;
 }
 
-interface FlattenedStageColumn {
-  milestone: WorkflowMilestoneTemplate;
-  milestoneIndex: number;
-  stage: WorkflowStageTemplate;
-  stageIndex: number;
-  tasks: Array<{
-    task: WorkflowProjectTaskTemplate;
-    subStageId: string;
-    subStageName: string;
-  }>;
-}
-
 export function StageKanbanBoard({
   workflow,
   milestones,
@@ -166,32 +154,11 @@ export function StageKanbanBoard({
     return clients.filter((c) => idSet.has(c.id));
   };
 
-  // Flatten Stage columns in order (Stage 1, Stage 2, ...)
-  const stageColumns: FlattenedStageColumn[] = useMemo(() => {
-    const cols: FlattenedStageColumn[] = [];
-    milestones.forEach((ms, mIdx) => {
-      if (selectedMilestoneId !== "ALL" && ms.id !== selectedMilestoneId) return;
-      (ms.stages || []).forEach((stg, sIdx) => {
-        const stageTasks: FlattenedStageColumn["tasks"] = [];
-        (stg.sub_stages || []).forEach((ss) => {
-          (ss.tasks || []).forEach((t) => {
-            stageTasks.push({
-              task: t,
-              subStageId: ss.id,
-              subStageName: ss.sub_stage_name,
-            });
-          });
-        });
-        cols.push({
-          milestone: ms,
-          milestoneIndex: mIdx,
-          stage: stg,
-          stageIndex: sIdx,
-          tasks: stageTasks,
-        });
-      });
-    });
-    return cols;
+  // One Kanban column per Milestone (each Milestone holds its Stages & Tasks vertically)
+  const visibleMilestones = useMemo(() => {
+    return milestones
+      .map((ms, mIdx) => ({ milestone: ms, milestoneIndex: mIdx }))
+      .filter(({ milestone }) => selectedMilestoneId === "ALL" || milestone.id === selectedMilestoneId);
   }, [milestones, selectedMilestoneId]);
 
   // Resolve currently clicked Task for Subtasks Kanban modal
@@ -622,42 +589,45 @@ export function StageKanbanBoard({
         </div>
       )}
 
-      {/* MAIN KANBAN BOARD: STAGE 1, STAGE 2, ... AS COLUMNS */}
-      {milestones.length === 0 ? (
+      {/* MAIN KANBAN BOARD: ONE COLUMN PER MILESTONE (EACH MILESTONE CONTAINS ITS STAGES & TASKS) */}
+      {visibleMilestones.length === 0 ? (
         <div className="rounded-[24px] border-[1.5px] border-dashed border-slate-300 bg-white p-10 text-center space-y-2">
           <Columns3 className="h-8 w-8 mx-auto text-slate-400" />
           <p className="text-sm font-extrabold text-[#111827]">No Milestones Created Yet</p>
           <p className="text-xs text-[#6b7280]">
-            Click &quot;Add Milestone&quot; above to create your own custom Milestone, then add Stage columns and Tasks.
-          </p>
-        </div>
-      ) : stageColumns.length === 0 ? (
-        <div className="rounded-[24px] border-[1.5px] border-dashed border-slate-300 bg-white p-10 text-center space-y-2">
-          <Columns3 className="h-8 w-8 mx-auto text-slate-400" />
-          <p className="text-sm font-extrabold text-[#111827]">No Stages Created Yet</p>
-          <p className="text-xs text-[#6b7280]">
-            Click &quot;Add Stage&quot; above to add Stage 1, Stage 2, etc. as Kanban columns.
+            Click &quot;Add Milestone&quot; above to create your own custom Milestone column, then add Stages and Tasks inside it.
           </p>
         </div>
       ) : (
         <div className="overflow-x-auto pb-4">
-          <div className="grid grid-flow-col auto-cols-[minmax(300px,340px)] gap-4 items-start">
-            {stageColumns.map((col) => {
-              const msClients = getMilestoneClients(col.milestone);
+          <div className="grid grid-flow-col auto-cols-[minmax(330px,380px)] gap-4 items-start">
+            {visibleMilestones.map(({ milestone: ms, milestoneIndex }) => {
+              const msClients = getMilestoneClients(ms);
+              const stages = ms.stages || [];
+              const totalMsTasks = stages.reduce(
+                (acc, stg) =>
+                  acc +
+                  (stg.sub_stages || []).reduce(
+                    (sAcc, ss) => sAcc + (ss.tasks || []).length,
+                    0
+                  ),
+                0
+              );
+
               return (
                 <div
-                  key={col.stage.id}
-                  className="rounded-[24px] border-[1.5px] border-slate-300 bg-slate-50/70 flex flex-col max-h-[75vh]"
+                  key={ms.id}
+                  className="rounded-[24px] border-[1.5px] border-slate-300 bg-slate-50/70 flex flex-col max-h-[78vh]"
                 >
-                  {/* Stage Column Header */}
+                  {/* Milestone Column Header (1 Column = 1 Milestone) */}
                   <div className="p-4 border-b border-slate-200 bg-white rounded-t-[22px] space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 text-[10px] font-bold text-violet-800 truncate">
-                        M{col.milestoneIndex + 1}: {col.milestone.title}
+                      <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2.5 py-0.5 text-[11px] font-extrabold text-violet-800 truncate">
+                        M{milestoneIndex + 1}: {ms.title}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
                         <Badge variant="secondary" className="rounded-full text-[10px] font-bold">
-                          {col.tasks.length} Tasks
+                          {stages.length} Stage{stages.length === 1 ? "" : "s"} · {totalMsTasks} Task{totalMsTasks === 1 ? "" : "s"}
                         </Badge>
                         {!isEmployee && (
                           <>
@@ -666,11 +636,13 @@ export function StageKanbanBoard({
                               variant="ghost"
                               size="icon"
                               onClick={() => {
-                                setEditingStageId(col.stage.id);
-                                setEditStageName(col.stage.stage_name);
+                                setEditingMilestoneId(ms.id);
+                                setEditMsTitle(ms.title);
+                                setEditMsStart(ms.start_date || "");
+                                setEditMsEnd(ms.end_date || "");
                               }}
                               className="h-6 w-6 rounded-lg text-slate-500 hover:bg-slate-100"
-                              title="Rename Stage"
+                              title="Edit Milestone"
                             >
                               <Pencil className="h-3 w-3" />
                             </Button>
@@ -678,15 +650,15 @@ export function StageKanbanBoard({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              onClick={() =>
-                                pmsStore.deleteWorkflowStage(
-                                  workflow.id,
-                                  col.milestone.id,
-                                  col.stage.id
-                                )
-                              }
+                              onClick={() => {
+                                pmsStore.deleteWorkflowMilestone(workflow.id, ms.id);
+                                if (selectedMilestoneId === ms.id) {
+                                  setSelectedMilestoneId("ALL");
+                                }
+                                toast.success("Milestone deleted.");
+                              }}
                               className="h-6 w-6 rounded-lg text-rose-500 hover:bg-rose-50"
-                              title="Delete Stage"
+                              title="Delete Milestone"
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
@@ -695,56 +667,11 @@ export function StageKanbanBoard({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2">
-                      {!isEmployee && editingStageId === col.stage.id ? (
-                        <div className="flex items-center gap-1.5 w-full">
-                          <Input
-                            value={editStageName}
-                            onChange={(e) => setEditStageName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                handleSaveStageEdit(col.milestone.id, col.stage.id);
-                              } else if (e.key === "Escape") {
-                                setEditingStageId(null);
-                              }
-                            }}
-                            className="h-7 rounded-lg text-xs bg-white border-slate-300"
-                            autoFocus
-                          />
-                          <Button
-                            type="button"
-                            size="icon"
-                            onClick={() => handleSaveStageEdit(col.milestone.id, col.stage.id)}
-                            className="h-7 w-7 rounded-lg bg-neutral-900 text-white shrink-0"
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="outline"
-                            onClick={() => setEditingStageId(null)}
-                            className="h-7 w-7 rounded-lg border-slate-300 shrink-0"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <h3 className="text-sm font-extrabold text-[#111827] truncate flex items-center gap-1.5">
-                          <Layers className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                          <span>
-                            Stage {col.stageIndex + 1}: {col.stage.stage_name}
-                          </span>
-                        </h3>
-                      )}
-                    </div>
-
                     <div className="flex items-center justify-between gap-2 pt-0.5">
-                      {(col.milestone.start_date || col.milestone.end_date) ? (
+                      {(ms.start_date || ms.end_date) ? (
                         <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {col.milestone.start_date || "—"} → {col.milestone.end_date || "—"}
+                          {ms.start_date || "—"} → {ms.end_date || "—"}
                         </span>
                       ) : (
                         <span className="text-[10px] text-slate-400">No dates set</span>
@@ -754,8 +681,13 @@ export function StageKanbanBoard({
                         type="button"
                         onClick={() =>
                           setSelectedStageClientsModal({
-                            milestone: col.milestone,
-                            stage: col.stage,
+                            milestone: ms,
+                            stage: stages[0] || {
+                              id: `ms-clients-${ms.id}`,
+                              stage_name: ms.title,
+                              sequence_number: 1,
+                              sub_stages: [],
+                            },
                           })
                         }
                         className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
@@ -766,75 +698,210 @@ export function StageKanbanBoard({
                     </div>
                   </div>
 
-                  {/* Task Cards inside Stage Column */}
-                  <div className="p-3 space-y-2.5 overflow-y-auto flex-1">
-                    {col.tasks.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-4 text-center text-[11px] text-slate-400">
-                        No tasks in this stage yet.
+                  {/* Stages stacked inside THIS Milestone column */}
+                  <div className="p-3 space-y-3 overflow-y-auto flex-1">
+                    {stages.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-5 text-center text-[11px] text-slate-400">
+                        No stages in this milestone yet.
                       </div>
                     ) : (
-                      col.tasks.map(({ task }) => {
-                        const subCount = task.subtasks?.length || 0;
+                      stages.map((stage, sIdx) => {
+                        const stageTasks: WorkflowProjectTaskTemplate[] = [];
+                        (stage.sub_stages || []).forEach((ss) => {
+                          (ss.tasks || []).forEach((t) => stageTasks.push(t));
+                        });
+
                         return (
                           <div
-                            key={task.id}
-                            onClick={() => setActiveTaskId(task.id)}
-                            className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 space-y-2.5 cursor-pointer hover:border-violet-500 hover:shadow-xs transition-all group"
+                            key={stage.id}
+                            className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3 space-y-2.5"
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <CheckSquare className="h-3.5 w-3.5 text-violet-600 shrink-0" />
-                                  <h4 className="text-xs font-extrabold text-[#111827] group-hover:text-violet-700 leading-snug">
-                                    {task.task_name}
-                                  </h4>
+                            {/* Stage Header inside Milestone Column */}
+                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                              {!isEmployee && editingStageId === stage.id ? (
+                                <div className="flex items-center gap-1.5 w-full">
+                                  <Input
+                                    value={editStageName}
+                                    onChange={(e) => setEditStageName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        handleSaveStageEdit(ms.id, stage.id);
+                                      } else if (e.key === "Escape") {
+                                        setEditingStageId(null);
+                                      }
+                                    }}
+                                    className="h-7 rounded-lg text-xs bg-white border-slate-300"
+                                    autoFocus
+                                  />
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    onClick={() => handleSaveStageEdit(ms.id, stage.id)}
+                                    className="h-7 w-7 rounded-lg bg-neutral-900 text-white shrink-0"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="outline"
+                                    onClick={() => setEditingStageId(null)}
+                                    className="h-7 w-7 rounded-lg border-slate-300 shrink-0"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
                                 </div>
-                                {task.description && (
-                                  <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
-                                    {task.description}
-                                  </p>
-                                )}
-                              </div>
-                              {!isEmployee && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    pmsStore.deleteWorkflowTaskFromHierarchy(
-                                      workflow.id,
-                                      task.id
-                                    );
-                                  }}
-                                  className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 shrink-0"
-                                  title="Delete Task"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
+                              ) : (
+                                <>
+                                  <h3 className="text-xs font-extrabold text-[#111827] truncate flex items-center gap-1.5">
+                                    <Layers className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                                    <span>
+                                      Stage {sIdx + 1}: {stage.stage_name}
+                                    </span>
+                                  </h3>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <Badge variant="outline" className="text-[10px] font-bold">
+                                      {stageTasks.length} Task{stageTasks.length === 1 ? "" : "s"}
+                                    </Badge>
+                                    {!isEmployee && (
+                                      <>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => {
+                                            setEditingStageId(stage.id);
+                                            setEditStageName(stage.stage_name);
+                                          }}
+                                          className="h-6 w-6 rounded-lg text-slate-500 hover:bg-slate-100"
+                                          title="Rename Stage"
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() =>
+                                            pmsStore.deleteWorkflowStage(
+                                              workflow.id,
+                                              ms.id,
+                                              stage.id
+                                            )
+                                          }
+                                          className="h-6 w-6 rounded-lg text-rose-500 hover:bg-rose-50"
+                                          title="Delete Stage"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </>
                               )}
                             </div>
 
-                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-[10px]">
-                              <div className="flex items-center gap-1.5">
-                                <Badge variant="outline" className="text-[10px] font-bold">
-                                  {task.priority}
-                                </Badge>
-                                <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
-                                  <User className="h-3 w-3 text-slate-400" />
-                                  {task.assigned_employee_name || "Unassigned"}
-                                </span>
+                            {/* Task Cards inside this Stage */}
+                            {stageTasks.length === 0 ? (
+                              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-center text-[11px] text-slate-400">
+                                No tasks in this stage yet.
                               </div>
-                              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 font-bold text-violet-800">
-                                <ListChecks className="h-3 w-3" />
-                                {subCount} Subtask{subCount === 1 ? "" : "s"} →
-                              </span>
-                            </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {stageTasks.map((task) => {
+                                  const subCount = task.subtasks?.length || 0;
+                                  return (
+                                    <div
+                                      key={task.id}
+                                      onClick={() => setActiveTaskId(task.id)}
+                                      className="rounded-xl border border-slate-300 bg-slate-50/60 hover:bg-white p-3 space-y-2 cursor-pointer hover:border-violet-500 hover:shadow-xs transition-all group"
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-1.5">
+                                            <CheckSquare className="h-3.5 w-3.5 text-violet-600 shrink-0" />
+                                            <h4 className="text-xs font-extrabold text-[#111827] group-hover:text-violet-700 leading-snug">
+                                              {task.task_name}
+                                            </h4>
+                                          </div>
+                                          {task.description && (
+                                            <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                                              {task.description}
+                                            </p>
+                                          )}
+                                        </div>
+                                        {!isEmployee && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              pmsStore.deleteWorkflowTaskFromHierarchy(
+                                                workflow.id,
+                                                task.id
+                                              );
+                                            }}
+                                            className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 shrink-0"
+                                            title="Delete Task"
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/70 text-[10px]">
+                                        <div className="flex items-center gap-1.5">
+                                          <Badge variant="outline" className="text-[10px] font-bold bg-white">
+                                            {task.priority}
+                                          </Badge>
+                                          <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
+                                            <User className="h-3 w-3 text-slate-400" />
+                                            {task.assigned_employee_name || "Unassigned"}
+                                          </span>
+                                        </div>
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 font-bold text-violet-800">
+                                          <ListChecks className="h-3 w-3" />
+                                          {subCount} Subtask{subCount === 1 ? "" : "s"} →
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* Add Task inside Stage */}
+                            {!isEmployee && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setTaskModalTarget({
+                                    milestone: ms,
+                                    stage,
+                                  });
+                                  setTaskName("");
+                                  setTaskDesc("");
+                                  setTaskPriority("Medium");
+                                  setTaskStatus(taskStatuses[0]?.label || "To Do");
+                                  setTaskAssigneeId("");
+                                  setTaskStartDay(1);
+                                  setTaskDurationDays(3);
+                                }}
+                                className="w-full h-8 rounded-xl border-dashed border-slate-300 bg-white text-[11px] font-bold text-slate-700 hover:text-[#111827] gap-1"
+                              >
+                                <Plus className="h-3 w-3" />
+                                <span>Add Task</span>
+                              </Button>
+                            )}
                           </div>
                         );
                       })
                     )}
                   </div>
 
-                  {/* Add Task Footer inside Stage Column */}
+                  {/* Add Stage Footer inside THIS Milestone Column */}
                   {!isEmployee && (
                     <div className="p-3 pt-0">
                       <Button
@@ -842,22 +909,14 @@ export function StageKanbanBoard({
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setTaskModalTarget({
-                            milestone: col.milestone,
-                            stage: col.stage,
-                          });
-                          setTaskName("");
-                          setTaskDesc("");
-                          setTaskPriority("Medium");
-                          setTaskStatus(taskStatuses[0]?.label || "To Do");
-                          setTaskAssigneeId("");
-                          setTaskStartDay(1);
-                          setTaskDurationDays(3);
+                          setTargetMilestoneId(ms.id);
+                          setNewStageName("");
+                          setShowAddStage(true);
                         }}
                         className="w-full h-9 rounded-xl border-dashed border-slate-300 bg-white text-xs font-bold text-slate-700 hover:text-[#111827] gap-1.5"
                       >
                         <Plus className="h-3.5 w-3.5" />
-                        <span>Add Task</span>
+                        <span>Add Stage to M{milestoneIndex + 1}</span>
                       </Button>
                     </div>
                   )}
