@@ -49,7 +49,7 @@ import {
 import { SubtaskTree } from "@/components/tasks/subtask-tree";
 import { TaskCommentsBox } from "@/components/tasks/task-comments-box";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
-import { WorkflowHierarchyBoard } from "@/components/workflows/workflow-hierarchy-board";
+import { StageKanbanBoard } from "@/components/workflows/stage-kanban-board";
 import { toast } from "sonner";
 
 type BoardViewMode = "milestone_board" | "workflow_stages" | "status_columns";
@@ -475,7 +475,7 @@ export default function WorkflowKanbanPage() {
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Milestone &amp; Stage Board
+                Stage Kanban
               </button>
               <button
                 type="button"
@@ -550,9 +550,9 @@ export default function WorkflowKanbanPage() {
         </div>
       </div>
 
-      {/* Milestone & Stage Hierarchy Board (Default View) */}
+      {/* Stage Kanban Board (Default View) */}
       {viewMode === "milestone_board" ? (
-        <WorkflowHierarchyBoard
+        <StageKanbanBoard
           workflow={workflow}
           milestones={pmsStore.getNormalizedWorkflowMilestones(workflow)}
           employees={pmsStore.getEmployees()}
@@ -562,9 +562,6 @@ export default function WorkflowKanbanPage() {
           tasks={allTasks}
           taskStatuses={pmsStore.getTaskStatuses()}
           isEmployee={isEmployee}
-          onOpenTaskModal={() => {
-            toast.info("Open Workflow Builder (/workflows) to edit subtasks & comments on template tasks.");
-          }}
         />
       ) : tplTasks.length === 0 ? (
         <Card className="rounded-[24px] border-[1.5px] border-slate-300 bg-white">
