@@ -49,9 +49,10 @@ import {
 import { SubtaskTree } from "@/components/tasks/subtask-tree";
 import { TaskCommentsBox } from "@/components/tasks/task-comments-box";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
+import { WorkflowHierarchyBoard } from "@/components/workflows/workflow-hierarchy-board";
 import { toast } from "sonner";
 
-type BoardViewMode = "workflow_stages" | "status_columns";
+type BoardViewMode = "milestone_board" | "workflow_stages" | "status_columns";
 
 interface BoardClientEntry {
   entryKey: string;
@@ -86,7 +87,7 @@ function getStatusBadgeVariant(status: TaskStatus) {
 export default function WorkflowKanbanPage() {
   const { id } = useParams<{ id: string }>();
   const [, setTick] = useState(0);
-  const [viewMode, setViewMode] = useState<BoardViewMode>("workflow_stages");
+  const [viewMode, setViewMode] = useState<BoardViewMode>("milestone_board");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Drag state
@@ -467,6 +468,17 @@ export default function WorkflowKanbanPage() {
             <div className="inline-flex rounded-xl border-[1.5px] border-slate-300 bg-slate-50 p-1">
               <button
                 type="button"
+                onClick={() => setViewMode("milestone_board")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  viewMode === "milestone_board"
+                    ? "bg-neutral-900 text-white"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Milestone &amp; Stage Board
+              </button>
+              <button
+                type="button"
                 onClick={() => setViewMode("workflow_stages")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                   viewMode === "workflow_stages"
@@ -538,8 +550,23 @@ export default function WorkflowKanbanPage() {
         </div>
       </div>
 
-      {/* Empty Workflow Tasks Guard */}
-      {tplTasks.length === 0 ? (
+      {/* Milestone & Stage Hierarchy Board (Default View) */}
+      {viewMode === "milestone_board" ? (
+        <WorkflowHierarchyBoard
+          workflow={workflow}
+          milestones={pmsStore.getNormalizedWorkflowMilestones(workflow)}
+          employees={pmsStore.getEmployees()}
+          clients={clients}
+          engagements={engagements}
+          projects={projects}
+          tasks={allTasks}
+          taskStatuses={pmsStore.getTaskStatuses()}
+          isEmployee={isEmployee}
+          onOpenTaskModal={() => {
+            toast.info("Open Workflow Builder (/workflows) to edit subtasks & comments on template tasks.");
+          }}
+        />
+      ) : tplTasks.length === 0 ? (
         <Card className="rounded-[24px] border-[1.5px] border-slate-300 bg-white">
           <CardContent className="p-8 text-center space-y-3">
             <Columns3 className="h-10 w-10 text-slate-300 mx-auto" />
