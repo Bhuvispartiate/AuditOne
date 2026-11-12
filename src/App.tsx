@@ -57,15 +57,27 @@ function isAllowedForEmployee(pathname: string): boolean {
   return false;
 }
 
+function hasOAuthCallbackParams(search: string, hash: string): boolean {
+  return (
+    search.includes("code=") ||
+    search.includes("error=") ||
+    hash.includes("access_token=") ||
+    hash.includes("error=")
+  );
+}
+
 function EmployeeRouteGuard({ children }: { children: React.ReactNode }) {
-  const { pathname } = useLocation();
+  const { pathname, search, hash } = useLocation();
   const [, setTick] = useState(0);
 
   useEffect(() => {
     return pmsStore.subscribe(() => setTick((t) => t + 1));
   }, []);
 
-  const isAuthRoute = pathname === "/login" || pathname.startsWith("/auth");
+  const isAuthRoute =
+    pathname === "/login" ||
+    pathname.startsWith("/auth") ||
+    (pathname === "/" && hasOAuthCallbackParams(search, hash));
   const isAuthenticated = pmsStore.isAuthenticated();
 
   if (!isAuthenticated && !isAuthRoute) {
@@ -121,6 +133,14 @@ function SupabaseAuthListener() {
   return null;
 }
 
+function RootRedirect() {
+  const { search, hash } = useLocation();
+  if (hasOAuthCallbackParams(search, hash)) {
+    return <AuthCallbackPage />;
+  }
+  return <Navigate to={pmsStore.isAuthenticated() ? "/dashboard" : "/login"} replace />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -128,7 +148,7 @@ export default function App() {
       <AppShell>
         <EmployeeRouteGuard>
           <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
