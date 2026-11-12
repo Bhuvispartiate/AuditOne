@@ -2235,6 +2235,32 @@ class PMSDataStore {
     return created;
   }
 
+  updateWorkflowTaskInHierarchy(
+    workflowId: string,
+    taskId: string,
+    updates: Partial<WorkflowProjectTaskTemplate>
+  ): boolean {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf) return false;
+    let updated = false;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => ({
+      ...m,
+      stages: m.stages.map((s) => ({
+        ...s,
+        sub_stages: s.sub_stages.map((ss) => ({
+          ...ss,
+          tasks: ss.tasks.map((t) => {
+            if (t.id !== taskId) return t;
+            updated = true;
+            return { ...t, ...updates };
+          }),
+        })),
+      })),
+    }));
+    if (!updated) return false;
+    return Boolean(this.saveWorkflowMilestones(workflowId, milestones));
+  }
+
   deleteWorkflowTaskFromHierarchy(workflowId: string, taskId: string): boolean {
     const wf = this.workflows.find((w) => w.id === workflowId);
     if (!wf) return false;
@@ -2251,14 +2277,38 @@ class PMSDataStore {
     return Boolean(this.saveWorkflowMilestones(workflowId, milestones));
   }
 
+  private mapSubtasksRecursive(
+    subtasks: WorkflowSubtaskTemplate[],
+    fn: (sub: WorkflowSubtaskTemplate) => WorkflowSubtaskTemplate | null
+  ): WorkflowSubtaskTemplate[] {
+    const next: WorkflowSubtaskTemplate[] = [];
+    for (const sub of subtasks) {
+      const mapped = fn(sub);
+      if (!mapped) continue;
+      if (mapped.subtasks && mapped.subtasks.length > 0) {
+        next.push({
+          ...mapped,
+          subtasks: this.mapSubtasksRecursive(mapped.subtasks, fn),
+        });
+      } else {
+        next.push(mapped);
+      }
+    }
+    return next;
+  }
+
   addWorkflowSubtaskInHierarchy(
     workflowId: string,
-    taskId: string,
+    parentId: string,
     subtaskInput: Omit<WorkflowSubtaskTemplate, "id">
   ): WorkflowSubtaskTemplate | null {
     const wf = this.workflows.find((w) => w.id === workflowId);
     if (!wf || !subtaskInput.title.trim()) return null;
     let created: WorkflowSubtaskTemplate | null = null;
+    const newSub = (): WorkflowSubtaskTemplate => ({
+      ...subtaskInput,
+      id: generateId("wfsub"),
+    });
     const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => ({
       ...m,
       stages: m.stages.map((s) => ({
@@ -2266,9 +2316,18 @@ class PMSDataStore {
         sub_stages: s.sub_stages.map((ss) => ({
           ...ss,
           tasks: ss.tasks.map((t) => {
-            if (t.id !== taskId) return t;
-            created = { ...subtaskInput, id: generateId("wfsub") };
-            return { ...t, subtasks: [...(t.subtasks || []), created] };
+            if (t.id === parentId) {
+              created = newSub();
+              return { ...t, subtasks: [...(t.subtasks || []), created] };
+            }
+            return {
+              ...t,
+              subtasks: this.mapSubtasksRecursive(t.subtasks || [], (sub) => {
+                if (sub.id !== parentId) return sub;
+                created = newSub();
+                return { ...sub, subtasks: [...(sub.subtasks || []), created] };
+              }),
+            };
           }),
         })),
       })),
@@ -2278,9 +2337,38 @@ class PMSDataStore {
     return created;
   }
 
+  updateWorkflowSubtaskInHierarchy(
+    workflowId: string,
+    subtaskId: string,
+    updates: Partial<WorkflowSubtaskTemplate>
+  ): boolean {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf) return false;
+    let updated = false;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => ({
+      ...m,
+      stages: m.stages.map((s) => ({
+        ...s,
+        sub_stages: s.sub_stages.map((ss) => ({
+          ...ss,
+          tasks: ss.tasks.map((t) => ({
+            ...t,
+            subtasks: this.mapSubtasksRecursive(t.subtasks || [], (sub) => {
+              if (sub.id !== subtaskId) return sub;
+              updated = true;
+              return { ...sub, ...updates };
+            }),
+          })),
+        })),
+      })),
+    }));
+    if (!updated) return false;
+    return Boolean(this.saveWorkflowMilestones(workflowId, milestones));
+  }
+
   deleteWorkflowSubtaskFromHierarchy(
     workflowId: string,
-    taskId: string,
+    _taskId: string,
     subtaskId: string
   ): boolean {
     const wf = this.workflows.find((w) => w.id === workflowId);
@@ -2291,11 +2379,12 @@ class PMSDataStore {
         ...s,
         sub_stages: s.sub_stages.map((ss) => ({
           ...ss,
-          tasks: ss.tasks.map((t) =>
-            t.id === taskId
-              ? { ...t, subtasks: (t.subtasks || []).filter((sub) => sub.id !== subtaskId) }
-              : t
-          ),
+          tasks: ss.tasks.map((t) => ({
+            ...t,
+            subtasks: this.mapSubtasksRecursive(t.subtasks || [], (sub) =>
+              sub.id === subtaskId ? null : sub
+            ),
+          })),
         })),
       })),
     }));

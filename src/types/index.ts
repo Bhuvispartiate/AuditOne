@@ -329,16 +329,30 @@ export interface TaskComment {
   created_at: string;
 }
 
+export interface WorkflowDocumentAttachment {
+  id: string;
+  name: string;
+  url?: string;
+  size?: string;
+  uploaded_at: string;
+  uploaded_by?: string;
+}
+
 export interface WorkflowSubtaskTemplate {
   id: string;
   title: string;
   description?: string;
   start_day_offset: number;
   duration_days: number;
+  start_date?: string;
+  due_date?: string;
   priority?: ProjectPriority;
   status?: TaskStatus;
   assigned_employee_id?: string;
   assigned_employee_name?: string;
+  default_comments?: string[];
+  documents?: WorkflowDocumentAttachment[];
+  subtasks?: WorkflowSubtaskTemplate[];
 }
 
 export interface WorkflowProjectTaskTemplate {
@@ -348,12 +362,15 @@ export interface WorkflowProjectTaskTemplate {
   sequence_number: number;
   start_day_offset: number;
   duration_days: number;
+  start_date?: string;
+  due_date?: string;
   priority: ProjectPriority;
   status: TaskStatus;
   assigned_employee_id?: string;
   assigned_employee_name?: string;
   subtasks: WorkflowSubtaskTemplate[];
   default_comments: string[];
+  documents?: WorkflowDocumentAttachment[];
 }
 
 export interface WorkflowSubStageTemplate {

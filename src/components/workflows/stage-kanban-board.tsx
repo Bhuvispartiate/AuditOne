@@ -46,6 +46,7 @@ import {
   WorkflowTemplate,
 } from "@/types";
 import { toast } from "sonner";
+import { StageTasksDialog } from "./stage-tasks-dialog";
 
 interface StageKanbanBoardProps {
   workflow: WorkflowTemplate;
@@ -816,131 +817,22 @@ export function StageKanbanBoard({
         </div>
       )}
 
-      {/* CLICKED STAGE -> STAGE TASKS OVERVIEW MODAL */}
-      <Dialog
-        open={Boolean(activeStageContext)}
-        onOpenChange={(open) => !open && setActiveStageId(null)}
-      >
-        <DialogContent className="sm:max-w-3xl rounded-[24px] max-h-[85vh] overflow-y-auto">
-          {activeStageContext && (
-            <>
-              <DialogHeader>
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <Badge variant="outline" className="text-[10px] font-bold bg-violet-50 text-violet-800 border-violet-200">
-                    M{activeStageContext.milestoneIndex + 1}: {activeStageContext.milestone.title}
-                  </Badge>
-                  <Badge variant="secondary" className="text-[10px] font-bold">
-                    {activeStageContext.tasks.length} Task{activeStageContext.tasks.length === 1 ? "" : "s"}
-                  </Badge>
-                </div>
-                <DialogTitle className="text-base font-extrabold text-[#111827] flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-indigo-600" />
-                  <span>
-                    Stage {activeStageContext.stageIndex + 1}: {activeStageContext.stage.stage_name}
-                  </span>
-                </DialogTitle>
-                <DialogDescription className="text-xs">
-                  Click any task below to open its Subtasks in Kanban view.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-3 py-2">
-                {activeStageContext.tasks.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-8 text-center text-xs text-slate-500">
-                    No tasks in this stage yet.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {activeStageContext.tasks.map((task) => {
-                      const subCount = task.subtasks?.length || 0;
-                      return (
-                        <div
-                          key={task.id}
-                          onClick={() => setActiveTaskId(task.id)}
-                          className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 space-y-2.5 cursor-pointer hover:border-violet-500 hover:shadow-xs transition-all group"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <CheckSquare className="h-3.5 w-3.5 text-violet-600 shrink-0" />
-                                <h4 className="text-xs font-extrabold text-[#111827] group-hover:text-violet-700 leading-snug">
-                                  {task.task_name}
-                                </h4>
-                              </div>
-                              {task.description && (
-                                <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
-                                  {task.description}
-                                </p>
-                              )}
-                            </div>
-                            {!isEmployee && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  pmsStore.deleteWorkflowTaskFromHierarchy(
-                                    workflow.id,
-                                    task.id
-                                  );
-                                }}
-                                className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 shrink-0"
-                                title="Delete Task"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-[10px]">
-                            <div className="flex items-center gap-1.5">
-                              <Badge variant="outline" className="text-[10px] font-bold">
-                                {task.priority}
-                              </Badge>
-                              <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
-                                <User className="h-3 w-3 text-slate-400" />
-                                {task.assigned_employee_name || "Unassigned"}
-                              </span>
-                            </div>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 font-bold text-violet-800">
-                              <ListChecks className="h-3 w-3" />
-                              {subCount} Subtask{subCount === 1 ? "" : "s"} →
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {!isEmployee && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setTaskModalTarget({
-                        milestone: activeStageContext.milestone,
-                        stage: activeStageContext.stage,
-                      });
-                      setTaskName("");
-                      setTaskDesc("");
-                      setTaskPriority("Medium");
-                      setTaskStatus(taskStatuses[0]?.label || "To Do");
-                      setTaskAssigneeId("");
-                      setTaskStartDay(1);
-                      setTaskDurationDays(3);
-                    }}
-                    className="w-full h-9 rounded-xl border-dashed border-slate-300 bg-white text-xs font-bold text-slate-700 hover:text-[#111827] gap-1.5"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Add Task</span>
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* CLICKED STAGE -> EXACT TASKS PAGE KANBAN & TASK/SUBTASK DETAIL WORKSPACE */}
+      {activeStageContext && (
+        <StageTasksDialog
+          open={Boolean(activeStageContext)}
+          onOpenChange={(isOpen) => !isOpen && setActiveStageId(null)}
+          workflowId={workflow.id}
+          milestone={activeStageContext.milestone}
+          milestoneIndex={activeStageContext.milestoneIndex}
+          stage={activeStageContext.stage}
+          stageIndex={activeStageContext.stageIndex}
+          tasks={activeStageContext.tasks}
+          employees={employees}
+          taskStatuses={taskStatuses}
+          isEmployee={isEmployee}
+        />
+      )}
 
       {/* CLICKED TASK -> SUBTASKS KANBAN VIEW MODAL */}
       <Dialog
