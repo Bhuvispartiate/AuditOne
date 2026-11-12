@@ -108,6 +108,9 @@ export function StageKanbanBoard({
   const [taskStartDay, setTaskStartDay] = useState(1);
   const [taskDurationDays, setTaskDurationDays] = useState(3);
 
+  // Clicked Stage -> Stage Tasks Overview Modal
+  const [activeStageId, setActiveStageId] = useState<string | null>(null);
+
   // Clicked Task -> Subtasks Kanban View Modal
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [newSubTitle, setNewSubTitle] = useState("");
@@ -160,6 +163,32 @@ export function StageKanbanBoard({
       .map((ms, mIdx) => ({ milestone: ms, milestoneIndex: mIdx }))
       .filter(({ milestone }) => selectedMilestoneId === "ALL" || milestone.id === selectedMilestoneId);
   }, [milestones, selectedMilestoneId]);
+
+  // Resolve currently clicked Stage for Stage Tasks Modal
+  const activeStageContext = useMemo(() => {
+    if (!activeStageId) return null;
+    for (let mIdx = 0; mIdx < milestones.length; mIdx++) {
+      const ms = milestones[mIdx];
+      const stages = ms.stages || [];
+      for (let sIdx = 0; sIdx < stages.length; sIdx++) {
+        const stg = stages[sIdx];
+        if (stg.id === activeStageId) {
+          const stageTasks: WorkflowProjectTaskTemplate[] = [];
+          (stg.sub_stages || []).forEach((ss) => {
+            (ss.tasks || []).forEach((t) => stageTasks.push(t));
+          });
+          return {
+            milestone: ms,
+            milestoneIndex: mIdx,
+            stage: stg,
+            stageIndex: sIdx,
+            tasks: stageTasks,
+          };
+        }
+      }
+    }
+    return null;
+  }, [activeStageId, milestones]);
 
   // Resolve currently clicked Task for Subtasks Kanban modal
   const activeTaskContext = useMemo(() => {
@@ -711,15 +740,28 @@ export function StageKanbanBoard({
                           (ss.tasks || []).forEach((t) => stageTasks.push(t));
                         });
 
+                        const totalSubtasks = stageTasks.reduce(
+                          (acc, t) => acc + (t.subtasks?.length || 0),
+                          0
+                        );
+
                         return (
                           <div
                             key={stage.id}
-                            className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3 space-y-2.5"
+                            onClick={() => {
+                              if (editingStageId !== stage.id) {
+                                setActiveStageId(stage.id);
+                              }
+                            }}
+                            className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 space-y-2.5 cursor-pointer hover:border-indigo-500 hover:shadow-xs transition-all group"
                           >
-                            {/* Stage Header inside Milestone Column */}
-                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                            {/* Compact Stage Overview Card */}
+                            <div className="flex items-center justify-between gap-2">
                               {!isEmployee && editingStageId === stage.id ? (
-                                <div className="flex items-center gap-1.5 w-full">
+                                <div
+                                  className="flex items-center gap-1.5 w-full"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                   <Input
                                     value={editStageName}
                                     onChange={(e) => setEditStageName(e.target.value)}
@@ -754,147 +796,65 @@ export function StageKanbanBoard({
                                 </div>
                               ) : (
                                 <>
-                                  <h3 className="text-xs font-extrabold text-[#111827] truncate flex items-center gap-1.5">
+                                  <h3 className="text-xs font-extrabold text-[#111827] group-hover:text-indigo-700 truncate flex items-center gap-1.5">
                                     <Layers className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                     <span>
                                       Stage {sIdx + 1}: {stage.stage_name}
                                     </span>
                                   </h3>
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <Badge variant="outline" className="text-[10px] font-bold">
-                                      {stageTasks.length} Task{stageTasks.length === 1 ? "" : "s"}
-                                    </Badge>
-                                    {!isEmployee && (
-                                      <>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => {
-                                            setEditingStageId(stage.id);
-                                            setEditStageName(stage.stage_name);
-                                          }}
-                                          className="h-6 w-6 rounded-lg text-slate-500 hover:bg-slate-100"
-                                          title="Rename Stage"
-                                        >
-                                          <Pencil className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() =>
-                                            pmsStore.deleteWorkflowStage(
-                                              workflow.id,
-                                              ms.id,
-                                              stage.id
-                                            )
-                                          }
-                                          className="h-6 w-6 rounded-lg text-rose-500 hover:bg-rose-50"
-                                          title="Delete Stage"
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
+                                  {!isEmployee && (
+                                    <div
+                                      className="flex items-center gap-1 shrink-0"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                          setEditingStageId(stage.id);
+                                          setEditStageName(stage.stage_name);
+                                        }}
+                                        className="h-6 w-6 rounded-lg text-slate-500 hover:bg-slate-100"
+                                        title="Rename Stage"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() =>
+                                          pmsStore.deleteWorkflowStage(
+                                            workflow.id,
+                                            ms.id,
+                                            stage.id
+                                          )
+                                        }
+                                        className="h-6 w-6 rounded-lg text-rose-500 hover:bg-rose-50"
+                                        title="Delete Stage"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  )}
                                 </>
                               )}
                             </div>
 
-                            {/* Task Cards inside this Stage */}
-                            {stageTasks.length === 0 ? (
-                              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-center text-[11px] text-slate-400">
-                                No tasks in this stage yet.
+                            <div className="flex items-center justify-between gap-2 pt-1 text-[10px]">
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="text-[10px] font-bold bg-slate-50">
+                                  {stageTasks.length} Task{stageTasks.length === 1 ? "" : "s"}
+                                </Badge>
+                                <Badge variant="outline" className="text-[10px] font-bold bg-slate-50">
+                                  {totalSubtasks} Subtask{totalSubtasks === 1 ? "" : "s"}
+                                </Badge>
                               </div>
-                            ) : (
-                              <div className="space-y-2">
-                                {stageTasks.map((task) => {
-                                  const subCount = task.subtasks?.length || 0;
-                                  return (
-                                    <div
-                                      key={task.id}
-                                      onClick={() => setActiveTaskId(task.id)}
-                                      className="rounded-xl border border-slate-300 bg-slate-50/60 hover:bg-white p-3 space-y-2 cursor-pointer hover:border-violet-500 hover:shadow-xs transition-all group"
-                                    >
-                                      <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                          <div className="flex items-center gap-1.5">
-                                            <CheckSquare className="h-3.5 w-3.5 text-violet-600 shrink-0" />
-                                            <h4 className="text-xs font-extrabold text-[#111827] group-hover:text-violet-700 leading-snug">
-                                              {task.task_name}
-                                            </h4>
-                                          </div>
-                                          {task.description && (
-                                            <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
-                                              {task.description}
-                                            </p>
-                                          )}
-                                        </div>
-                                        {!isEmployee && (
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              pmsStore.deleteWorkflowTaskFromHierarchy(
-                                                workflow.id,
-                                                task.id
-                                              );
-                                            }}
-                                            className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 shrink-0"
-                                            title="Delete Task"
-                                          >
-                                            <Trash2 className="h-3 w-3" />
-                                          </button>
-                                        )}
-                                      </div>
-
-                                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/70 text-[10px]">
-                                        <div className="flex items-center gap-1.5">
-                                          <Badge variant="outline" className="text-[10px] font-bold bg-white">
-                                            {task.priority}
-                                          </Badge>
-                                          <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
-                                            <User className="h-3 w-3 text-slate-400" />
-                                            {task.assigned_employee_name || "Unassigned"}
-                                          </span>
-                                        </div>
-                                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 font-bold text-violet-800">
-                                          <ListChecks className="h-3 w-3" />
-                                          {subCount} Subtask{subCount === 1 ? "" : "s"} →
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-
-                            {/* Add Task inside Stage */}
-                            {!isEmployee && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setTaskModalTarget({
-                                    milestone: ms,
-                                    stage,
-                                  });
-                                  setTaskName("");
-                                  setTaskDesc("");
-                                  setTaskPriority("Medium");
-                                  setTaskStatus(taskStatuses[0]?.label || "To Do");
-                                  setTaskAssigneeId("");
-                                  setTaskStartDay(1);
-                                  setTaskDurationDays(3);
-                                }}
-                                className="w-full h-8 rounded-xl border-dashed border-slate-300 bg-white text-[11px] font-bold text-slate-700 hover:text-[#111827] gap-1"
-                              >
-                                <Plus className="h-3 w-3" />
-                                <span>Add Task</span>
-                              </Button>
-                            )}
+                              <span className="font-bold text-indigo-700 group-hover:underline">
+                                View Tasks →
+                              </span>
+                            </div>
                           </div>
                         );
                       })
@@ -926,6 +886,132 @@ export function StageKanbanBoard({
           </div>
         </div>
       )}
+
+      {/* CLICKED STAGE -> STAGE TASKS OVERVIEW MODAL */}
+      <Dialog
+        open={Boolean(activeStageContext)}
+        onOpenChange={(open) => !open && setActiveStageId(null)}
+      >
+        <DialogContent className="sm:max-w-3xl rounded-[24px] max-h-[85vh] overflow-y-auto">
+          {activeStageContext && (
+            <>
+              <DialogHeader>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <Badge variant="outline" className="text-[10px] font-bold bg-violet-50 text-violet-800 border-violet-200">
+                    M{activeStageContext.milestoneIndex + 1}: {activeStageContext.milestone.title}
+                  </Badge>
+                  <Badge variant="secondary" className="text-[10px] font-bold">
+                    {activeStageContext.tasks.length} Task{activeStageContext.tasks.length === 1 ? "" : "s"}
+                  </Badge>
+                </div>
+                <DialogTitle className="text-base font-extrabold text-[#111827] flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-indigo-600" />
+                  <span>
+                    Stage {activeStageContext.stageIndex + 1}: {activeStageContext.stage.stage_name}
+                  </span>
+                </DialogTitle>
+                <DialogDescription className="text-xs">
+                  Click any task below to open its Subtasks in Kanban view.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3 py-2">
+                {activeStageContext.tasks.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-8 text-center text-xs text-slate-500">
+                    No tasks in this stage yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {activeStageContext.tasks.map((task) => {
+                      const subCount = task.subtasks?.length || 0;
+                      return (
+                        <div
+                          key={task.id}
+                          onClick={() => setActiveTaskId(task.id)}
+                          className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-3.5 space-y-2.5 cursor-pointer hover:border-violet-500 hover:shadow-xs transition-all group"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <CheckSquare className="h-3.5 w-3.5 text-violet-600 shrink-0" />
+                                <h4 className="text-xs font-extrabold text-[#111827] group-hover:text-violet-700 leading-snug">
+                                  {task.task_name}
+                                </h4>
+                              </div>
+                              {task.description && (
+                                <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                                  {task.description}
+                                </p>
+                              )}
+                            </div>
+                            {!isEmployee && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  pmsStore.deleteWorkflowTaskFromHierarchy(
+                                    workflow.id,
+                                    task.id
+                                  );
+                                }}
+                                className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 shrink-0"
+                                title="Delete Task"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-[10px]">
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="outline" className="text-[10px] font-bold">
+                                {task.priority}
+                              </Badge>
+                              <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
+                                <User className="h-3 w-3 text-slate-400" />
+                                {task.assigned_employee_name || "Unassigned"}
+                              </span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 font-bold text-violet-800">
+                              <ListChecks className="h-3 w-3" />
+                              {subCount} Subtask{subCount === 1 ? "" : "s"} →
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {!isEmployee && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTaskModalTarget({
+                        milestone: activeStageContext.milestone,
+                        stage: activeStageContext.stage,
+                      });
+                      setTaskName("");
+                      setTaskDesc("");
+                      setTaskPriority("Medium");
+                      setTaskStatus(taskStatuses[0]?.label || "To Do");
+                      setTaskAssigneeId("");
+                      setTaskStartDay(1);
+                      setTaskDurationDays(3);
+                    }}
+                    className="w-full h-9 rounded-xl border-dashed border-slate-300 bg-white text-xs font-bold text-slate-700 hover:text-[#111827] gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Task</span>
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* CLICKED TASK -> SUBTASKS KANBAN VIEW MODAL */}
       <Dialog
