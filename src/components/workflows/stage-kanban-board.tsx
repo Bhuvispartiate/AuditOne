@@ -2,17 +2,20 @@ import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Calendar,
+  Check,
   CheckSquare,
   Columns3,
   ExternalLink,
   Layers,
   ListChecks,
   Mail,
+  Pencil,
   Phone,
   Plus,
   Trash2,
   User,
   Users2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,10 +90,20 @@ export function StageKanbanBoard({
   const [newMilestoneStart, setNewMilestoneStart] = useState("");
   const [newMilestoneEnd, setNewMilestoneEnd] = useState("");
 
+  // Edit Milestone inline
+  const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
+  const [editMsTitle, setEditMsTitle] = useState("");
+  const [editMsStart, setEditMsStart] = useState("");
+  const [editMsEnd, setEditMsEnd] = useState("");
+
   // Add Stage modal
   const [showAddStage, setShowAddStage] = useState(false);
   const [targetMilestoneId, setTargetMilestoneId] = useState(milestones[0]?.id || "");
   const [newStageName, setNewStageName] = useState("");
+
+  // Edit Stage inline
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [editStageName, setEditStageName] = useState("");
 
   // Add Task modal (for a specific Stage)
   const [taskModalTarget, setTaskModalTarget] = useState<{
@@ -218,6 +231,33 @@ export function StageKanbanBoard({
     toast.success("Milestone added.");
   };
 
+  const handleSaveMilestoneEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMilestoneId || !editMsTitle.trim()) {
+      toast.error("Milestone title cannot be empty.");
+      return;
+    }
+    pmsStore.updateWorkflowMilestone(workflow.id, editingMilestoneId, {
+      title: editMsTitle.trim(),
+      start_date: editMsStart || undefined,
+      end_date: editMsEnd || undefined,
+    });
+    setEditingMilestoneId(null);
+    toast.success("Milestone updated.");
+  };
+
+  const handleSaveStageEdit = (milestoneId: string, stageId: string) => {
+    if (!editStageName.trim()) {
+      toast.error("Stage name cannot be empty.");
+      return;
+    }
+    pmsStore.updateWorkflowStage(workflow.id, milestoneId, stageId, {
+      stage_name: editStageName.trim(),
+    });
+    setEditingStageId(null);
+    toast.success("Stage renamed.");
+  };
+
   const handleCreateStage = (e: React.FormEvent) => {
     e.preventDefault();
     const msId = targetMilestoneId || milestones[0]?.id;
@@ -339,18 +379,48 @@ export function StageKanbanBoard({
             All Milestones ({milestones.length})
           </button>
           {milestones.map((ms, idx) => (
-            <button
-              key={ms.id}
-              type="button"
-              onClick={() => setSelectedMilestoneId(ms.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                selectedMilestoneId === ms.id
-                  ? "bg-violet-600 text-white border-violet-600"
-                  : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-              }`}
-            >
-              M{idx + 1}: {ms.title}
-            </button>
+            <div key={ms.id} className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSelectedMilestoneId(ms.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  selectedMilestoneId === ms.id
+                    ? "bg-violet-600 text-white border-violet-600"
+                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                }`}
+              >
+                M{idx + 1}: {ms.title}
+              </button>
+              {!isEmployee && selectedMilestoneId === ms.id && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingMilestoneId(ms.id);
+                      setEditMsTitle(ms.title);
+                      setEditMsStart(ms.start_date || "");
+                      setEditMsEnd(ms.end_date || "");
+                    }}
+                    className="h-7 w-7 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 inline-flex items-center justify-center text-slate-600"
+                    title="Edit Milestone"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      pmsStore.deleteWorkflowMilestone(workflow.id, ms.id);
+                      setSelectedMilestoneId("ALL");
+                      toast.success("Milestone deleted.");
+                    }}
+                    className="h-7 w-7 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 inline-flex items-center justify-center text-rose-600"
+                    title="Delete Milestone"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </>
+              )}
+            </div>
           ))}
         </div>
 
@@ -488,8 +558,80 @@ export function StageKanbanBoard({
         </div>
       )}
 
+      {/* Inline Edit Milestone Form */}
+      {!isEmployee && editingMilestoneId && (
+        <div className="rounded-[24px] border-[1.5px] border-indigo-300 bg-indigo-50/40 p-4">
+          <form
+            onSubmit={handleSaveMilestoneEdit}
+            className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
+          >
+            <div className="sm:col-span-5 space-y-1">
+              <label className="text-[11px] font-bold uppercase text-slate-600">
+                Rename Milestone *
+              </label>
+              <Input
+                value={editMsTitle}
+                onChange={(e) => setEditMsTitle(e.target.value)}
+                className="h-9 rounded-xl bg-white border-slate-300 text-xs"
+                autoFocus
+              />
+            </div>
+            <div className="sm:col-span-3 space-y-1">
+              <label className="text-[11px] font-bold uppercase text-slate-600">
+                Start Date
+              </label>
+              <Input
+                type="date"
+                value={editMsStart}
+                onChange={(e) => setEditMsStart(e.target.value)}
+                className="h-9 rounded-xl bg-white border-slate-300 text-xs"
+              />
+            </div>
+            <div className="sm:col-span-3 space-y-1">
+              <label className="text-[11px] font-bold uppercase text-slate-600">
+                End Date
+              </label>
+              <Input
+                type="date"
+                value={editMsEnd}
+                onChange={(e) => setEditMsEnd(e.target.value)}
+                className="h-9 rounded-xl bg-white border-slate-300 text-xs"
+              />
+            </div>
+            <div className="sm:col-span-1 flex items-center gap-1">
+              <Button
+                type="submit"
+                size="icon"
+                className="h-9 w-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white"
+                title="Save Milestone"
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={() => setEditingMilestoneId(null)}
+                className="h-9 w-9 rounded-xl border-slate-300"
+                title="Cancel"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* MAIN KANBAN BOARD: STAGE 1, STAGE 2, ... AS COLUMNS */}
-      {stageColumns.length === 0 ? (
+      {milestones.length === 0 ? (
+        <div className="rounded-[24px] border-[1.5px] border-dashed border-slate-300 bg-white p-10 text-center space-y-2">
+          <Columns3 className="h-8 w-8 mx-auto text-slate-400" />
+          <p className="text-sm font-extrabold text-[#111827]">No Milestones Created Yet</p>
+          <p className="text-xs text-[#6b7280]">
+            Click &quot;Add Milestone&quot; above to create your own custom Milestone, then add Stage columns and Tasks.
+          </p>
+        </div>
+      ) : stageColumns.length === 0 ? (
         <div className="rounded-[24px] border-[1.5px] border-dashed border-slate-300 bg-white p-10 text-center space-y-2">
           <Columns3 className="h-8 w-8 mx-auto text-slate-400" />
           <p className="text-sm font-extrabold text-[#111827]">No Stages Created Yet</p>
@@ -518,33 +660,84 @@ export function StageKanbanBoard({
                           {col.tasks.length} Tasks
                         </Badge>
                         {!isEmployee && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() =>
-                              pmsStore.deleteWorkflowStage(
-                                workflow.id,
-                                col.milestone.id,
-                                col.stage.id
-                              )
-                            }
-                            className="h-6 w-6 rounded-lg text-rose-500 hover:bg-rose-50"
-                            title="Delete Stage"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEditingStageId(col.stage.id);
+                                setEditStageName(col.stage.stage_name);
+                              }}
+                              className="h-6 w-6 rounded-lg text-slate-500 hover:bg-slate-100"
+                              title="Rename Stage"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() =>
+                                pmsStore.deleteWorkflowStage(
+                                  workflow.id,
+                                  col.milestone.id,
+                                  col.stage.id
+                                )
+                              }
+                              className="h-6 w-6 rounded-lg text-rose-500 hover:bg-rose-50"
+                              title="Delete Stage"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-extrabold text-[#111827] truncate flex items-center gap-1.5">
-                        <Layers className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                        <span>
-                          Stage {col.stageIndex + 1}: {col.stage.stage_name}
-                        </span>
-                      </h3>
+                      {!isEmployee && editingStageId === col.stage.id ? (
+                        <div className="flex items-center gap-1.5 w-full">
+                          <Input
+                            value={editStageName}
+                            onChange={(e) => setEditStageName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleSaveStageEdit(col.milestone.id, col.stage.id);
+                              } else if (e.key === "Escape") {
+                                setEditingStageId(null);
+                              }
+                            }}
+                            className="h-7 rounded-lg text-xs bg-white border-slate-300"
+                            autoFocus
+                          />
+                          <Button
+                            type="button"
+                            size="icon"
+                            onClick={() => handleSaveStageEdit(col.milestone.id, col.stage.id)}
+                            className="h-7 w-7 rounded-lg bg-neutral-900 text-white shrink-0"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => setEditingStageId(null)}
+                            className="h-7 w-7 rounded-lg border-slate-300 shrink-0"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <h3 className="text-sm font-extrabold text-[#111827] truncate flex items-center gap-1.5">
+                          <Layers className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                          <span>
+                            Stage {col.stageIndex + 1}: {col.stage.stage_name}
+                          </span>
+                        </h3>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between gap-2 pt-0.5">

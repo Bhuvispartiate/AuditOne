@@ -41,7 +41,7 @@ import {
 } from "@/types";
 import { toast } from "sonner";
 import { ProjectTimeline } from "@/components/tasks/project-timeline";
-import { WorkflowHierarchyBoard } from "@/components/workflows/workflow-hierarchy-board";
+import { StageKanbanBoard } from "@/components/workflows/stage-kanban-board";
 
 function addDays(baseIso: string, days: number): string {
   const parsed = new Date(baseIso);
@@ -606,8 +606,8 @@ export default function WorkflowsPage() {
                 </div>
               </div>
 
-              {/* 6-Level Hierarchy Board & Tree (Goal -> Milestone -> Stage -> Sub Stage -> Task -> Subtask) */}
-              <WorkflowHierarchyBoard
+              {/* Stage Kanban Board (Milestones -> Stage Columns -> Tasks -> Subtask Kanban) */}
+              <StageKanbanBoard
                 workflow={selectedWorkflow}
                 milestones={normalizedMilestones}
                 employees={employees}
@@ -617,10 +617,6 @@ export default function WorkflowsPage() {
                 tasks={allTasks}
                 taskStatuses={pmsStore.getTaskStatuses()}
                 isEmployee={isEmployee}
-                onOpenTaskModal={(tplTask) => {
-                  setActiveTplTaskId(tplTask.id);
-                  setIsTplTaskModalOpen(true);
-                }}
               />
 
               {/* Add Template Task Box (Admin Only) */}

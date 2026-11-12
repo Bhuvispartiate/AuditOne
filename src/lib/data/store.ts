@@ -1927,7 +1927,7 @@ class PMSDataStore {
   }
 
   getNormalizedWorkflowMilestones(wf: WorkflowTemplate): WorkflowMilestoneTemplate[] {
-    if (wf.milestones && wf.milestones.length > 0) {
+    if (wf.milestones !== undefined) {
       return wf.milestones.map((m, mIdx) => ({
         ...m,
         sequence_number: m.sequence_number || mIdx + 1,
@@ -1944,6 +1944,10 @@ class PMSDataStore {
     }
 
     const legacyTasks = wf.template_tasks || [];
+    if (legacyTasks.length === 0) {
+      return [];
+    }
+
     return [
       {
         id: `ms-default-${wf.id}`,
@@ -2087,6 +2091,32 @@ class PMSDataStore {
     if (!created) return null;
     this.saveWorkflowMilestones(workflowId, milestones, `Added stage "${input.stage_name.trim()}"`);
     return created;
+  }
+
+  updateWorkflowStage(
+    workflowId: string,
+    milestoneId: string,
+    stageId: string,
+    updates: { stage_name?: string; description?: string }
+  ): boolean {
+    const wf = this.workflows.find((w) => w.id === workflowId);
+    if (!wf) return false;
+    const milestones = this.getNormalizedWorkflowMilestones(wf).map((m) => {
+      if (m.id !== milestoneId) return m;
+      return {
+        ...m,
+        stages: m.stages.map((s) =>
+          s.id === stageId
+            ? {
+                ...s,
+                stage_name: updates.stage_name !== undefined ? updates.stage_name.trim() || s.stage_name : s.stage_name,
+                description: updates.description !== undefined ? updates.description.trim() || undefined : s.description,
+              }
+            : s
+        ),
+      };
+    });
+    return Boolean(this.saveWorkflowMilestones(workflowId, milestones));
   }
 
   deleteWorkflowStage(workflowId: string, milestoneId: string, stageId: string): boolean {
