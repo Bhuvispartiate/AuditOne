@@ -2034,7 +2034,7 @@ class PMSDataStore {
   updateWorkflowMilestone(
     workflowId: string,
     milestoneId: string,
-    updates: Partial<Pick<WorkflowMilestoneTemplate, "title" | "start_date" | "end_date" | "description">>
+    updates: Partial<Pick<WorkflowMilestoneTemplate, "title" | "start_date" | "end_date" | "description" | "allocated_client_ids">>
   ): boolean {
     const wf = this.workflows.find((w) => w.id === workflowId);
     if (!wf) return false;
@@ -2042,6 +2042,16 @@ class PMSDataStore {
       m.id === milestoneId ? { ...m, ...updates } : m
     );
     return Boolean(this.saveWorkflowMilestones(workflowId, milestones));
+  }
+
+  setWorkflowMilestoneClients(
+    workflowId: string,
+    milestoneId: string,
+    clientIds: string[]
+  ): boolean {
+    return this.updateWorkflowMilestone(workflowId, milestoneId, {
+      allocated_client_ids: Array.from(new Set(clientIds)),
+    });
   }
 
   deleteWorkflowMilestone(workflowId: string, milestoneId: string): boolean {

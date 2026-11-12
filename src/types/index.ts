@@ -379,6 +379,7 @@ export interface WorkflowMilestoneTemplate {
   sequence_number: number;
   start_date?: string;
   end_date?: string;
+  allocated_client_ids?: string[];
   stages: WorkflowStageTemplate[];
 }
 

@@ -611,6 +611,10 @@ export default function WorkflowsPage() {
                 workflow={selectedWorkflow}
                 milestones={normalizedMilestones}
                 employees={employees}
+                clients={pmsStore.getClients()}
+                engagements={allEngagements}
+                projects={allProjects}
+                tasks={allTasks}
                 taskStatuses={pmsStore.getTaskStatuses()}
                 isEmployee={isEmployee}
                 onOpenTaskModal={(tplTask) => {

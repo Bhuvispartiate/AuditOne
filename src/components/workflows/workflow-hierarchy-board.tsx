@@ -1,18 +1,23 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Calendar,
   CheckSquare,
   ChevronDown,
   ChevronRight,
   Columns3,
+  ExternalLink,
   FolderTree,
   GitBranch,
   Layers,
   ListChecks,
+  Mail,
   MessageSquare,
+  Phone,
   Plus,
   Trash2,
   User,
+  Users2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,8 +34,12 @@ import {
 } from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
 import {
+  Client,
   Employee,
+  Project,
   ProjectPriority,
+  ServiceEngagement,
+  Task,
   TaskStatus,
   TaskStatusConfig,
   WorkflowMilestoneTemplate,
@@ -43,6 +52,10 @@ interface WorkflowHierarchyBoardProps {
   workflow: WorkflowTemplate;
   milestones: WorkflowMilestoneTemplate[];
   employees: Employee[];
+  clients: Client[];
+  engagements: ServiceEngagement[];
+  projects: Project[];
+  tasks: Task[];
   taskStatuses: TaskStatusConfig[];
   isEmployee: boolean;
   onOpenTaskModal: (tplTask: WorkflowProjectTaskTemplate) => void;
@@ -54,11 +67,50 @@ export function WorkflowHierarchyBoard({
   workflow,
   milestones,
   employees,
+  clients,
+  engagements,
+  projects,
+  tasks,
   taskStatuses,
   isEmployee,
   onOpenTaskModal,
 }: WorkflowHierarchyBoardProps) {
   const [viewMode, setViewMode] = useState<HierarchyViewMode>("board");
+  const [selectedStageModal, setSelectedStageModal] = useState<{
+    milestoneId: string;
+    stageId: string;
+  } | null>(null);
+  const [showAllocateClients, setShowAllocateClients] = useState(false);
+
+  const serviceSubscribedClientIds = useMemo(() => {
+    const ids = new Set<string>();
+    const wfServiceLower = (workflow.service_name || "").trim().toLowerCase();
+    engagements.forEach((e) => {
+      if (e.status !== "Active") return;
+      const matches =
+        (workflow.service_id && e.service_id === workflow.service_id) ||
+        (wfServiceLower && (e.service_name || "").trim().toLowerCase() === wfServiceLower);
+      if (matches && e.client_id) ids.add(e.client_id);
+    });
+    projects.forEach((p) => {
+      if (
+        wfServiceLower &&
+        (p.service_name || "").trim().toLowerCase() === wfServiceLower &&
+        p.client_id
+      ) {
+        ids.add(p.client_id);
+      }
+    });
+    return ids;
+  }, [engagements, projects, workflow.service_id, workflow.service_name]);
+
+  const getMilestoneClients = (ms: WorkflowMilestoneTemplate): Client[] => {
+    const idSet =
+      ms.allocated_client_ids !== undefined
+        ? new Set(ms.allocated_client_ids)
+        : serviceSubscribedClientIds;
+    return clients.filter((c) => idSet.has(c.id));
+  };
 
   // Add Milestone state
   const [showAddMilestone, setShowAddMilestone] = useState(false);
@@ -325,9 +377,18 @@ export function WorkflowHierarchyBoard({
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-violet-700 block">
                         Milestone {mIdx + 1}
                       </span>
-                      <h4 className="text-sm font-extrabold text-[#111827] truncate">
-                        {ms.title}
-                      </h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-extrabold text-[#111827] truncate">
+                          {ms.title}
+                        </h4>
+                        <Badge
+                          variant="secondary"
+                          className="rounded-full text-[10px] font-bold gap-1 shrink-0"
+                        >
+                          <Users2 className="h-2.5 w-2.5" />
+                          {getMilestoneClients(ms).length}
+                        </Badge>
+                      </div>
                     </div>
                     {!isEmployee && (
                       <Button
@@ -403,12 +464,23 @@ export function WorkflowHierarchyBoard({
                         className="rounded-2xl border border-slate-300 bg-slate-50/60 p-3 space-y-2.5"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedStageModal({ milestoneId: ms.id, stageId: stg.id });
+                              setShowAllocateClients(false);
+                            }}
+                            className="flex items-center gap-1.5 min-w-0 text-left group"
+                            title="Click to view clients allocated to this milestone"
+                          >
                             <Layers className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                            <span className="text-xs font-extrabold text-[#111827] truncate">
+                            <span className="text-xs font-extrabold text-[#111827] group-hover:text-indigo-700 group-hover:underline truncate">
                               Stage {sIdx + 1}: {stg.stage_name}
                             </span>
-                          </div>
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full shrink-0">
+                              {getMilestoneClients(ms).length} Clients
+                            </span>
+                          </button>
                           {!isEmployee && (
                             <div className="flex items-center gap-1 shrink-0">
                               <Button
@@ -727,9 +799,21 @@ export function WorkflowHierarchyBoard({
                         {ms.stages.map((stg, sIdx) => (
                           <div key={stg.id} className="space-y-1.5">
                             <div className="flex items-center justify-between gap-2 rounded-lg bg-indigo-50/50 border border-indigo-200/70 px-2.5 py-1.5">
-                              <span className="font-bold text-indigo-950">
-                                Stage {sIdx + 1}: {stg.stage_name}
-                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedStageModal({ milestoneId: ms.id, stageId: stg.id });
+                                  setShowAllocateClients(false);
+                                }}
+                                className="font-bold text-indigo-950 hover:underline text-left flex items-center gap-2"
+                              >
+                                <span>
+                                  Stage {sIdx + 1}: {stg.stage_name}
+                                </span>
+                                <span className="text-[10px] font-bold text-indigo-700 bg-white border border-indigo-200 px-1.5 py-0.5 rounded-full">
+                                  {getMilestoneClients(ms).length} Clients
+                                </span>
+                              </button>
                               {!isEmployee && (
                                 <Button
                                   type="button"
@@ -960,6 +1044,235 @@ export function WorkflowHierarchyBoard({
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Stage Click -> Milestone Allocated Clients Details Dialog */}
+      {(() => {
+        const activeMs = selectedStageModal
+          ? milestones.find((m) => m.id === selectedStageModal.milestoneId)
+          : undefined;
+        const activeStg =
+          activeMs && selectedStageModal
+            ? activeMs.stages.find((s) => s.id === selectedStageModal.stageId)
+            : undefined;
+        const allocatedClients = activeMs ? getMilestoneClients(activeMs) : [];
+        const allocatedIdSet = new Set(allocatedClients.map((c) => c.id));
+
+        const toggleClientAllocation = (clientId: string) => {
+          if (!activeMs) return;
+          const nextIds = allocatedIdSet.has(clientId)
+            ? Array.from(allocatedIdSet).filter((id) => id !== clientId)
+            : [...Array.from(allocatedIdSet), clientId];
+          pmsStore.setWorkflowMilestoneClients(workflow.id, activeMs.id, nextIds);
+        };
+
+        return (
+          <Dialog
+            open={Boolean(activeMs && activeStg)}
+            onOpenChange={(open) => !open && setSelectedStageModal(null)}
+          >
+            <DialogContent className="sm:max-w-3xl rounded-[24px] max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <div className="flex items-center justify-between gap-2 flex-wrap pr-6">
+                  <div>
+                    <DialogTitle className="text-lg font-extrabold text-[#111827] flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-indigo-600" />
+                      <span>{activeStg?.stage_name}</span>
+                    </DialogTitle>
+                    <DialogDescription className="text-xs mt-1">
+                      Milestone: <strong className="text-[#111827]">{activeMs?.title}</strong>
+                      {(activeMs?.start_date || activeMs?.end_date) && (
+                        <span>
+                          {" "}
+                          ({activeMs?.start_date || "—"} → {activeMs?.end_date || "—"})
+                        </span>
+                      )}
+                      {" • "}
+                      <span>{allocatedClients.length} Allocated Client(s)</span>
+                    </DialogDescription>
+                  </div>
+
+                  {!isEmployee && activeMs && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowAllocateClients((v) => !v)}
+                      className="h-8 rounded-xl border-slate-300 text-xs font-bold gap-1.5"
+                    >
+                      <Users2 className="h-3.5 w-3.5" />
+                      <span>
+                        {showAllocateClients ? "Done Managing" : "Allocate Clients"}
+                      </span>
+                    </Button>
+                  )}
+                </div>
+              </DialogHeader>
+
+              {/* Admin-only Client Allocation Picker */}
+              {!isEmployee && activeMs && showAllocateClients && (
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold text-indigo-950">
+                      Select Clients Allocated to {activeMs.title}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        pmsStore.setWorkflowMilestoneClients(
+                          workflow.id,
+                          activeMs.id,
+                          Array.from(serviceSubscribedClientIds)
+                        )
+                      }
+                      className="h-7 px-2 text-[11px] font-bold text-indigo-700"
+                    >
+                      Select Service Subscribed ({serviceSubscribedClientIds.size})
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                    {clients.map((c) => {
+                      const checked = allocatedIdSet.has(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs cursor-pointer transition-all ${
+                            checked
+                              ? "border-indigo-400 bg-white font-bold text-[#111827]"
+                              : "border-slate-200 bg-white/60 text-slate-600"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleClientAllocation(c.id)}
+                            className="h-3.5 w-3.5 accent-indigo-600"
+                          />
+                          <span className="truncate flex-1">{c.client_name}</span>
+                          <span className="font-mono text-[10px] text-slate-400 shrink-0">
+                            {c.client_code}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Allocated Clients Details List */}
+              <div className="space-y-3">
+                {allocatedClients.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center space-y-1.5">
+                    <Users2 className="h-7 w-7 mx-auto text-slate-400" />
+                    <p className="text-sm font-bold text-[#111827]">
+                      No clients allocated to this milestone yet
+                    </p>
+                    <p className="text-xs text-[#6b7280]">
+                      Subscribe clients to {workflow.service_name || "this service"} or click &quot;Allocate Clients&quot; above.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {allocatedClients.map((client) => {
+                      const clientProj = projects.find(
+                        (p) =>
+                          p.client_id === client.id &&
+                          (!workflow.service_name ||
+                            (p.service_name || "").toLowerCase() ===
+                              workflow.service_name.toLowerCase())
+                      );
+                      const clientStageTasks = tasks.filter(
+                        (t) =>
+                          clientProj &&
+                          t.project_id === clientProj.id &&
+                          !t.parent_task_id &&
+                          (!t.milestone_id || t.milestone_id === activeMs?.id)
+                      );
+                      const completedCount = clientStageTasks.filter(
+                        (t) => t.status === "Completed"
+                      ).length;
+
+                      return (
+                        <div
+                          key={client.id}
+                          className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-extrabold text-[#111827] truncate">
+                                  {client.client_name}
+                                </span>
+                                <Badge variant="outline" className="font-mono text-[10px]">
+                                  {client.client_code}
+                                </Badge>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                                {client.nick_name ? `Nick: ${client.nick_name} • ` : ""}
+                                {client.folder_name ? `Folder: ${client.folder_name}` : client.constitution}
+                              </p>
+                            </div>
+                            <Badge
+                              className={
+                                client.status === "Active"
+                                  ? "rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px]"
+                                  : "rounded-full bg-slate-100 text-slate-600 text-[10px]"
+                              }
+                            >
+                              {client.status}
+                            </Badge>
+                          </div>
+
+                          <div className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 space-y-1 text-xs">
+                            <div className="flex items-center gap-1.5 text-slate-700">
+                              <User className="h-3 w-3 text-slate-400 shrink-0" />
+                              <span className="font-semibold truncate">
+                                {client.contact?.contact_person || client.client_name}
+                              </span>
+                            </div>
+                            {client.contact?.mobile_number && (
+                              <div className="flex items-center gap-1.5 text-slate-600 font-mono text-[11px]">
+                                <Phone className="h-3 w-3 text-slate-400 shrink-0" />
+                                <span>{client.contact.mobile_number}</span>
+                              </div>
+                            )}
+                            {client.contact?.email && (
+                              <div className="flex items-center gap-1.5 text-slate-600 text-[11px] truncate">
+                                <Mail className="h-3 w-3 text-slate-400 shrink-0" />
+                                <span className="truncate">{client.contact.email}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
+                            <span className="font-semibold text-slate-600">
+                              {clientProj
+                                ? `${completedCount}/${clientStageTasks.length} Tasks Done`
+                                : "No project synced yet"}
+                            </span>
+                            <Link to={`/clients/${client.id}`}>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 rounded-xl border-slate-300 text-[11px] font-bold gap-1"
+                              >
+                                <span>Client 360°</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }
