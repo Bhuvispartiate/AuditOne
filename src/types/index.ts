@@ -116,6 +116,8 @@ export interface Client {
   client_code: string;
   client_name: string;
   legal_name: string;
+  nick_name?: string;
+  folder_name?: string;
   reference_name?: string;
   constitution: ClientConstitution;
   category?: string;

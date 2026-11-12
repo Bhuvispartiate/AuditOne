@@ -39,10 +39,14 @@ export default function NewClientOnboardingPage() {
   const navigate = useNavigate();
   const employees = pmsStore.getEmployees();
   const availableServices = pmsStore.getServices().filter((s) => s.status === "Active");
+  const previewClientCode = pmsStore.getNextClientCode();
 
   // Section A
   const [clientName, setClientName] = useState("");
   const [legalName, setLegalName] = useState("");
+  const [nickName, setNickName] = useState("");
+  const [folderName, setFolderName] = useState("");
+  const [folderManuallyEdited, setFolderManuallyEdited] = useState(false);
   const [referenceName, setReferenceName] = useState("");
   const [constitution, setConstitution] = useState<ClientConstitution>("Private Limited");
   const [category, setCategory] = useState("Information Technology & ITES");
@@ -171,6 +175,10 @@ export default function NewClientOnboardingPage() {
       {
         client_name: clientName,
         legal_name: legalName,
+        nick_name: nickName.trim() || undefined,
+        folder_name:
+          folderName.trim() ||
+          (nickName.trim() ? `${nickName.trim()} ${previewClientCode}` : undefined),
         reference_name: referenceName || undefined,
         constitution,
         category,
@@ -316,6 +324,36 @@ export default function NewClientOnboardingPage() {
                 onChange={(e) => setLegalName(e.target.value)}
                 required
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Nick Name</Label>
+              <Input
+                placeholder="e.g. Acme"
+                value={nickName}
+                onChange={(e) => {
+                  const nextNick = e.target.value;
+                  setNickName(nextNick);
+                  if (!folderManuallyEdited) {
+                    setFolderName(nextNick.trim() ? `${nextNick.trim()} ${previewClientCode}` : "");
+                  }
+                }}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Folder Name</Label>
+              <Input
+                placeholder={`e.g. Acme ${previewClientCode}`}
+                value={folderName}
+                onChange={(e) => {
+                  setFolderName(e.target.value);
+                  setFolderManuallyEdited(Boolean(e.target.value.trim()));
+                }}
+              />
+              <p className="text-[11px] text-slate-500">
+                Auto-formatted as &quot;&lt;Nick Name&gt; {previewClientCode}&quot;
+              </p>
             </div>
 
             <div className="space-y-1.5">

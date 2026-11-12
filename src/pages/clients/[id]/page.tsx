@@ -433,6 +433,16 @@ export default function Client360ProfilePage() {
                 <span className="font-semibold text-slate-900">{client.legal_name}</span>
               </div>
               <div>
+                <span className="text-xs font-semibold text-slate-500 uppercase block">Nick Name</span>
+                <span className="font-semibold text-slate-900">{client.nick_name || "—"}</span>
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-slate-500 uppercase block">Folder Name</span>
+                <span className="font-mono font-semibold text-slate-900">
+                  {client.folder_name || (client.nick_name ? `${client.nick_name} ${client.client_code}` : "—")}
+                </span>
+              </div>
+              <div>
                 <span className="text-xs font-semibold text-slate-500 uppercase block">Reference Name</span>
                 <span>{client.reference_name || "—"}</span>
               </div>

@@ -825,18 +825,28 @@ class PMSDataStore {
     return this.enrichClient(client);
   }
 
+  getNextClientCode(): string {
+    const nextNum = this.clients.length + 1;
+    const year = new Date().getFullYear();
+    return `CLI-${year}-${String(nextNum).padStart(3, "0")}`;
+  }
+
   addClient(
     newClient: Omit<Client, "id" | "client_code" | "created_at" | "updated_at">,
     options?: { skipDefaultProject?: boolean }
   ): Client {
-    const nextNum = this.clients.length + 1;
-    const year = new Date().getFullYear();
-    const client_code = `CLI-${year}-${String(nextNum).padStart(3, "0")}`;
+    const client_code = this.getNextClientCode();
     const id = generateId("cli");
     const today = new Date().toISOString().slice(0, 10);
+    const trimmedNick = newClient.nick_name?.trim() || "";
+    const resolvedFolderName =
+      newClient.folder_name?.trim() ||
+      (trimmedNick ? `${trimmedNick} ${client_code}` : undefined);
 
     const client: Client = {
       ...newClient,
+      nick_name: trimmedNick || undefined,
+      folder_name: resolvedFolderName,
       id,
       client_code,
       contact: newClient.contact ? { ...newClient.contact, client_id: id } : undefined,

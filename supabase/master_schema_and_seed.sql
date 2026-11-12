@@ -175,6 +175,8 @@ CREATE TABLE IF NOT EXISTS clients (
     client_code VARCHAR(30) NOT NULL UNIQUE,
     client_name VARCHAR(200) NOT NULL,
     legal_name VARCHAR(250) NOT NULL,
+    nick_name VARCHAR(120),
+    folder_name VARCHAR(200),
     reference_name VARCHAR(200),
     constitution VARCHAR(50) NOT NULL CHECK (constitution IN (
         'Proprietorship', 'Partnership', 'LLP', 'Private Limited', 
@@ -188,6 +190,9 @@ CREATE TABLE IF NOT EXISTS clients (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS nick_name VARCHAR(120);
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS folder_name VARCHAR(200);
 
 CREATE TABLE IF NOT EXISTS client_contacts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
