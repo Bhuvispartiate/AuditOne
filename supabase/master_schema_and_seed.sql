@@ -649,6 +649,47 @@ CREATE TABLE IF NOT EXISTS approval_records (
 );
 
 -- ============================================================================
+-- 9B. GEO-ATTENDANCE & CUSTOM TASK STATUSES
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS office_geo_configs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    office_name VARCHAR(200) NOT NULL,
+    address TEXT,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    radius_meters INT NOT NULL DEFAULT 50 CHECK (radius_meters > 0),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    updated_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS attendance_records (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    attendance_date DATE NOT NULL,
+    check_in_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    check_out_at TIMESTAMPTZ,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    distance_meters DOUBLE PRECISION NOT NULL DEFAULT 0,
+    matched_office_id UUID REFERENCES office_geo_configs(id) ON DELETE SET NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'Present' CHECK (status IN ('Present', 'Half Day', 'Outside Geofence', 'Rejected')),
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(employee_id, attendance_date)
+);
+
+CREATE TABLE IF NOT EXISTS task_statuses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    label VARCHAR(80) NOT NULL UNIQUE,
+    color VARCHAR(30) NOT NULL DEFAULT 'slate',
+    is_completed BOOLEAN NOT NULL DEFAULT false,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================================
 -- 10. INDEXES FOR HIGH PERFORMANCE
 -- ============================================================================
 
@@ -725,6 +766,9 @@ ALTER TABLE file_objects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE office_geo_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_statuses ENABLE ROW LEVEL SECURITY;
 
 -- Base RLS Policy Helper Functions
 CREATE OR REPLACE FUNCTION current_app_user_id() RETURNS UUID AS $$
@@ -740,15 +784,45 @@ CREATE OR REPLACE FUNCTION is_user_super_admin() RETURNS BOOLEAN AS $$
     );
 $$ LANGUAGE SQL STABLE SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION is_user_admin() RETURNS BOOLEAN AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM user_roles ur
+        JOIN roles r ON ur.role_id = r.id
+        JOIN users u ON ur.user_id = u.id
+        WHERE u.email = auth.jwt() ->> 'email' AND r.code IN ('SUPER_ADMIN', 'ADMIN')
+    );
+$$ LANGUAGE SQL STABLE SECURITY DEFINER;
+
 -- RLS Policies: Authenticated active employees can read business data
 CREATE POLICY "Employees can view active directory" ON employees
     FOR SELECT USING (auth.role() = 'authenticated');
 
-CREATE POLICY "Super Admins have full access to employees" ON employees
+CREATE POLICY "Admins have full access to employees" ON employees
+    FOR ALL USING (is_user_admin());
+
+CREATE POLICY "Super Admins manage user roles" ON user_roles
     FOR ALL USING (is_user_super_admin());
 
-CREATE POLICY "Super Admins view private details" ON employee_private_details
-    FOR ALL USING (is_user_super_admin());
+CREATE POLICY "Admins view private details" ON employee_private_details
+    FOR ALL USING (is_user_admin());
+
+CREATE POLICY "Authenticated users view geo config" ON office_geo_configs
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins manage geo config" ON office_geo_configs
+    FOR ALL USING (is_user_admin());
+
+CREATE POLICY "Employees manage own attendance" ON attendance_records
+    FOR ALL USING (
+        employee_id IN (SELECT id FROM employees WHERE user_id = current_app_user_id())
+        OR is_user_admin()
+    );
+
+CREATE POLICY "Authenticated users view task statuses" ON task_statuses
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins manage task statuses" ON task_statuses
+    FOR ALL USING (is_user_admin());
 
 CREATE POLICY "Authenticated users view clients" ON clients
     FOR SELECT USING (auth.role() = 'authenticated');
@@ -846,7 +920,8 @@ FOR EACH ROW EXECUTE FUNCTION update_invoice_balances();
 
 -- 1. ROLES
 INSERT INTO roles (id, name, code, description, hierarchy_level, is_system) VALUES
-('11111111-1111-1111-1111-111111111101', 'Super Admin', 'SUPER_ADMIN', 'Full system access and master configuration authority', 1, true),
+('11111111-1111-1111-1111-111111111101', 'Super Admin', 'SUPER_ADMIN', 'Full system access, master configuration, and Admin Management authority', 1, true),
+('11111111-1111-1111-1111-111111111107', 'Admin', 'ADMIN', 'Full operational admin access to all modules except Admin Management', 1, true),
 ('11111111-1111-1111-1111-111111111102', 'Director', 'DIRECTOR', 'Executive leadership with access to finance, clients and approvals', 2, true),
 ('11111111-1111-1111-1111-111111111103', 'Head', 'HEAD', 'Department Head supervising teams, projects and allocations', 3, true),
 ('11111111-1111-1111-1111-111111111104', 'Supervisor', 'SUPERVISOR', 'Team supervisor overseeing task execution and reviewing work', 4, true),
@@ -941,4 +1016,40 @@ INSERT INTO workflow_tasks (stage_id, task_name, description, sequence_number, d
 ('77777777-7777-7777-7777-777777770005', 'Upload ITR & Generate Acknowledgement', 'DSC affixation, portal submission and ITR-V download', 1, 1, 'Urgent', true),
 ('77777777-7777-7777-7777-777777770006', 'Invoice Generation and Workpaper Archival', 'Ensure final billing is raised and papers archived in R2', 1, 2, 'Medium', true)
 ON CONFLICT DO NOTHING;
+
+-- 6. PRIMARY SUPER ADMIN ACCOUNT (rohitaju21@gmail.com)
+INSERT INTO users (id, email, full_name, is_active) VALUES
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'rohitaju21@gmail.com', 'ROHIT L', true)
+ON CONFLICT (email) DO UPDATE SET is_active = true;
+
+INSERT INTO user_roles (user_id, role_id) VALUES
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', '11111111-1111-1111-1111-111111111101')
+ON CONFLICT (user_id, role_id) DO NOTHING;
+
+INSERT INTO employees (
+    id, employee_code, user_id, first_name, last_name, full_name, email,
+    mobile_number, joining_date, employment_status, is_active
+) VALUES (
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1',
+    'EMP-001',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+    'ROHIT',
+    'L',
+    'ROHIT L',
+    'rohitaju21@gmail.com',
+    '+91 98000 00000',
+    CURRENT_DATE,
+    'Active',
+    true
+)
+ON CONFLICT (email) DO UPDATE SET is_active = true, employment_status = 'Active';
+
+-- 7. DEFAULT KANBAN / TASK STATUSES
+INSERT INTO task_statuses (label, color, is_completed, sort_order) VALUES
+('To Do', 'slate', false, 1),
+('In Progress', 'blue', false, 2),
+('Review', 'amber', false, 3),
+('Completed', 'emerald', true, 4)
+ON CONFLICT (label) DO NOTHING;
+
 
