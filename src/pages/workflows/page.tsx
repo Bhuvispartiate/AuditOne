@@ -40,7 +40,6 @@ import {
   WorkflowTemplate,
 } from "@/types";
 import { toast } from "sonner";
-import { ProjectTimeline } from "@/components/tasks/project-timeline";
 import { StageKanbanBoard } from "@/components/workflows/stage-kanban-board";
 
 function addDays(baseIso: string, days: number): string {
@@ -618,31 +617,6 @@ export default function WorkflowsPage() {
                 taskStatuses={pmsStore.getTaskStatuses()}
                 isEmployee={isEmployee}
               />
-
-              {/* Template Timeline Preview */}
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-                  <span className="text-xs font-bold text-slate-600">
-                    Timeline Preview (simulating Start Date):
-                  </span>
-                  <Input
-                    type="date"
-                    value={previewBaseDate}
-                    onChange={(e) => setPreviewBaseDate(e.target.value)}
-                    className="h-8 w-40 rounded-xl border-[1.5px] border-slate-300 bg-white text-xs font-semibold"
-                  />
-                </div>
-                <ProjectTimeline
-                  tasks={previewTimelineTasks}
-                  projectStartDate={previewBaseDate}
-                  projectDueDate={addDays(previewBaseDate, Math.max(1, totalSpanDays - 1))}
-                  onSelectTask={(tid) => {
-                    setActiveTplTaskId(tid);
-                    setIsTplTaskModalOpen(true);
-                  }}
-                  title="Workflow Project Timeline Preview (Tasks & Subtasks)"
-                />
-              </div>
 
               {/* Template Tasks Box Grid */}
               <div className="space-y-3">
