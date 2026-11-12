@@ -218,6 +218,7 @@ export function TopNav() {
                 <Link
                   to="/login"
                   onClick={() => {
+                    pmsStore.signOut();
                     createClient().auth.signOut().catch(() => {});
                   }}
                 >

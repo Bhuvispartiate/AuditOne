@@ -64,8 +64,19 @@ function EmployeeRouteGuard({ children }: { children: React.ReactNode }) {
     return pmsStore.subscribe(() => setTick((t) => t + 1));
   }, []);
 
+  const isAuthRoute = pathname === "/login" || pathname.startsWith("/auth");
+  const isAuthenticated = pmsStore.isAuthenticated();
+
+  if (!isAuthenticated && !isAuthRoute) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (isAuthenticated && pathname === "/login") {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   const currentUser = pmsStore.getCurrentUser();
-  if (isEmployeeRestricted(currentUser) && !isAllowedForEmployee(pathname)) {
+  if (isAuthenticated && isEmployeeRestricted(currentUser) && !isAllowedForEmployee(pathname)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -92,6 +103,8 @@ function SupabaseAuthListener() {
           (session.user.user_metadata?.full_name as string | undefined) ||
           (session.user.user_metadata?.name as string | undefined);
         pmsStore.signInWithEmail(session.user.email, fullName);
+      } else if (event === "SIGNED_OUT") {
+        pmsStore.signOut();
       }
     });
 
@@ -110,7 +123,7 @@ export default function App() {
       <AppShell>
         <EmployeeRouteGuard>
           <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
@@ -145,7 +158,7 @@ export default function App() {
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
 
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </EmployeeRouteGuard>
       </AppShell>

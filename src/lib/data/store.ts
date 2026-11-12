@@ -105,6 +105,7 @@ class PMSDataStore {
   private attendanceRecords: AttendanceRecord[] = [];
   private taskStatuses: TaskStatusConfig[] = [...DEFAULT_TASK_STATUSES];
   private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
+  private authenticated: boolean = false;
   private listeners: Set<() => void> = new Set();
 
   constructor() {
@@ -322,6 +323,9 @@ class PMSDataStore {
       if (parsed.currentUser && parsed.currentUser.id) {
         this.currentUser = parsed.currentUser;
       }
+      if (typeof parsed.authenticated === "boolean") {
+        this.authenticated = parsed.authenticated;
+      }
       // Keep default System Admin email synced with VITE_SUPERADMIN_EMAIL
       this.employees = this.employees.map((e) =>
         e.id === "emp-admin-01" && e.email === "admin@pmsfirm.com"
@@ -359,6 +363,7 @@ class PMSDataStore {
           attendanceRecords: this.attendanceRecords,
           taskStatuses: this.taskStatuses,
           currentUser: this.currentUser,
+          authenticated: this.authenticated,
         };
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
       } catch (error) {
@@ -497,6 +502,10 @@ class PMSDataStore {
   }
 
   // Active Session User
+  isAuthenticated(): boolean {
+    return this.authenticated;
+  }
+
   getCurrentUser(): Employee {
     return this.currentUser;
   }
@@ -505,8 +514,16 @@ class PMSDataStore {
     const found = this.employees.find(e => e.id === empId);
     if (found) {
       this.currentUser = found;
+      this.authenticated = true;
       this.persist();
+      this.notify();
     }
+  }
+
+  signOut() {
+    this.authenticated = false;
+    this.persist();
+    this.notify();
   }
 
   signInWithEmail(
@@ -542,6 +559,7 @@ class PMSDataStore {
         this.employees = [admin, ...this.employees];
       }
       this.currentUser = admin;
+      this.authenticated = true;
       this.persist();
       this.notify();
       return { ok: true, user: admin };
@@ -564,6 +582,7 @@ class PMSDataStore {
     }
 
     this.currentUser = found;
+    this.authenticated = true;
     this.persist();
     this.notify();
     return { ok: true, user: found };
