@@ -16,11 +16,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { pmsStore, INITIAL_DESIGNATIONS } from "@/lib/data/store";
+import { isSuperAdmin } from "@/lib/access";
 import { RoleCode } from "@/types";
 import { toast } from "sonner";
 
 export default function NewEmployeePage() {
   const navigate = useNavigate();
+  const currentUser = pmsStore.getCurrentUser();
+  const canAssignAdminRole = isSuperAdmin(currentUser);
   const designations = INITIAL_DESIGNATIONS;
   const currentEmployees = pmsStore.getEmployees();
   const [teams, setTeams] = useState(() => pmsStore.getTeams());
@@ -229,7 +232,8 @@ export default function NewEmployeePage() {
                   <option value="SUPERVISOR">Supervisor</option>
                   <option value="HEAD">Head</option>
                   <option value="DIRECTOR">Director</option>
-                  <option value="SUPER_ADMIN">Super Admin</option>
+                  {canAssignAdminRole && <option value="ADMIN">Admin</option>}
+                  {canAssignAdminRole && <option value="SUPER_ADMIN">Super Admin</option>}
                   <option value="TRAINEE">Trainee</option>
                 </select>
               </div>

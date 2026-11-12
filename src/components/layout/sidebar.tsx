@@ -17,6 +17,7 @@ import {
   BarChart3,
   Settings,
   MapPin,
+  ShieldCheck,
   ChevronRight,
   ChevronsLeft,
   Zap,
@@ -28,6 +29,7 @@ import { pmsStore } from "@/lib/data/store";
 import {
   isEmployeeRestricted,
   isProjectAssignedToEmployee,
+  isSuperAdmin,
   isTaskAssignedToEmployee,
   isWorkflowAssignedToEmployee,
 } from "@/lib/access";
@@ -36,6 +38,7 @@ export interface NavItem {
   title: string;
   href: string;
   icon: React.ElementType;
+  superAdminOnly?: boolean;
 }
 
 const EMPLOYEE_ALLOWED_HREFS = new Set([
@@ -59,6 +62,7 @@ const mainNavItems: NavItem[] = [
   { title: "Invoices", href: "/invoices", icon: Receipt },
   { title: "Team", href: "/teams", icon: Users },
   { title: "Employees", href: "/employees", icon: UserCheck },
+  { title: "Admins", href: "/admins", icon: ShieldCheck, superAdminOnly: true },
   { title: "Attendance", href: "/attendance", icon: MapPin },
   { title: "Documents", href: "/documents", icon: FileText },
   { title: "Reports", href: "/reports", icon: BarChart3 },
@@ -90,6 +94,7 @@ export function AppSidebar() {
 
   const currentUser = pmsStore.getCurrentUser();
   const isEmployee = isEmployeeRestricted(currentUser);
+  const isSuperAdminUser = isSuperAdmin(currentUser);
   const employeeId = currentUser?.id || "";
   const projects = pmsStore.getProjects();
   const tasks = pmsStore.getTasks();
@@ -98,7 +103,7 @@ export function AppSidebar() {
 
   const visibleNavItems = isEmployee
     ? mainNavItems.filter((item) => EMPLOYEE_ALLOWED_HREFS.has(item.href))
-    : mainNavItems;
+    : mainNavItems.filter((item) => !item.superAdminOnly || isSuperAdminUser);
 
   const visibleTasks = isEmployee
     ? tasks.filter((t) => isTaskAssignedToEmployee(t, employeeId))

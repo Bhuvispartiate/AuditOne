@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { pmsStore } from "@/lib/data/store";
 import {
+  isAdminUser,
   isTaskAssignedToEmployee,
   isProjectAssignedToEmployee,
   isClientAssignedToEmployee,
@@ -55,7 +56,7 @@ export default function DashboardPage() {
     return pmsStore.subscribe(() => setTick((t) => t + 1));
   }, []);
   const currentUser = pmsStore.getCurrentUser();
-  const isAdmin = currentUser?.role_code === "SUPER_ADMIN";
+  const isAdmin = isAdminUser(currentUser);
   const isEmployee = !isAdmin;
   const empId = currentUser?.id || "";
 

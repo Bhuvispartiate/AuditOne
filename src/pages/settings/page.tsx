@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
+import { isAdminUser } from "@/lib/access";
 import { TaskStatusColor } from "@/types";
 import { getStyleForColor, TASK_STATUS_COLOR_OPTIONS } from "@/lib/task-status-styles";
 import { toast } from "sonner";
@@ -28,7 +29,7 @@ export default function SettingsPage() {
   useEffect(() => pmsStore.subscribe(() => setTick((t) => t + 1)), []);
 
   const currentUser = pmsStore.getCurrentUser();
-  const isAdmin = currentUser?.role_code === "SUPER_ADMIN";
+  const isAdmin = isAdminUser(currentUser);
   const taskStatuses = pmsStore.getTaskStatuses();
 
   // Status customization state
@@ -43,7 +44,8 @@ export default function SettingsPage() {
 
   // Role permissions matrix state
   const roles = [
-    { code: "SUPER_ADMIN", name: "Super Admin", level: "Tier 1", clients: "Full CRUD", finance: "Full Access", workflows: "Publish", r2: "Master" },
+    { code: "SUPER_ADMIN", name: "Super Admin", level: "Tier 1", clients: "Full CRUD", finance: "Full Access", workflows: "Publish", r2: "Master + Admin Mgmt" },
+    { code: "ADMIN", name: "Admin", level: "Tier 1B", clients: "Full CRUD", finance: "Full Access", workflows: "Publish", r2: "Master" },
     { code: "DIRECTOR", name: "Director / Partner", level: "Tier 2", clients: "Full CRUD", finance: "Full Access", workflows: "Approve", r2: "Read/Write" },
     { code: "HEAD", name: "Practice Head", level: "Tier 3", clients: "View / Edit", finance: "View Invoices", workflows: "Configure", r2: "Read/Write" },
     { code: "SUPERVISOR", name: "Supervisor / Manager", level: "Tier 4", clients: "View / Edit", finance: "View Invoices", workflows: "Stage Signoff", r2: "Read/Write" },

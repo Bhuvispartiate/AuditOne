@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/app-shell";
 import { pmsStore } from "@/lib/data/store";
-import { isEmployeeRestricted } from "@/lib/access";
+import { isEmployeeRestricted, isSuperAdmin } from "@/lib/access";
 import { createClient } from "@/lib/supabase/client";
 
 import LoginPage from "@/pages/login/page";
@@ -31,6 +31,7 @@ import DocumentsPage from "@/pages/documents/page";
 import NotificationsPage from "@/pages/notifications/page";
 import ReportsPage from "@/pages/reports/page";
 import SettingsPage from "@/pages/settings/page";
+import AdminsPage from "@/pages/admins/page";
 
 function isAllowedForEmployee(pathname: string): boolean {
   if (
@@ -77,6 +78,10 @@ function EmployeeRouteGuard({ children }: { children: React.ReactNode }) {
 
   const currentUser = pmsStore.getCurrentUser();
   if (isAuthenticated && isEmployeeRestricted(currentUser) && !isAllowedForEmployee(pathname)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (isAuthenticated && pathname.startsWith("/admins") && !isSuperAdmin(currentUser)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -150,6 +155,7 @@ export default function App() {
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/employees/new" element={<NewEmployeePage />} />
           <Route path="/employees/:id" element={<EmployeeProfilePage />} />
+          <Route path="/admins" element={<AdminsPage />} />
           <Route path="/attendance" element={<AttendancePage />} />
 
           <Route path="/teams" element={<TeamsPage />} />

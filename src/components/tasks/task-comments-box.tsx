@@ -3,6 +3,7 @@ import { AtSign, CheckCheck, MessageSquare, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { pmsStore } from "@/lib/data/store";
+import { isAdminUser } from "@/lib/access";
 import { Employee } from "@/types";
 import { formatDateTime } from "@/lib/utils";
 import { toast } from "sonner";
@@ -94,7 +95,7 @@ export function TaskCommentsBox({
 
   const comments = pmsStore.getTaskComments(taskId);
   const currentUser = pmsStore.getCurrentUser();
-  const isAdmin = currentUser?.role_code === "SUPER_ADMIN";
+  const isAdmin = isAdminUser(currentUser);
   const isReadOnly = readOnly ?? !isAdmin;
   const employees = pmsStore.getEmployees();
 

@@ -12,8 +12,12 @@ import {
 
 const RESTRICTED_EMPLOYEE_DOC_CATEGORIES = new Set(["Invoice", "Payment Receipt", "Bank"]);
 
-export function isAdminUser(user?: Employee | null): boolean {
+export function isSuperAdmin(user?: Employee | null): boolean {
   return user?.role_code === "SUPER_ADMIN";
+}
+
+export function isAdminUser(user?: Employee | null): boolean {
+  return user?.role_code === "SUPER_ADMIN" || user?.role_code === "ADMIN";
 }
 
 export function isEmployeeRestricted(user?: Employee | null): boolean {

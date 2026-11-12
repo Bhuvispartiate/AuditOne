@@ -1182,12 +1182,19 @@ class PMSDataStore {
     return Boolean(cfg?.isCompleted || norm === "completed");
   }
 
+  private isCurrentUserAdmin(): boolean {
+    return (
+      this.currentUser?.role_code === "SUPER_ADMIN" ||
+      this.currentUser?.role_code === "ADMIN"
+    );
+  }
+
   addTaskStatusConfig(input: {
     label: string;
     color?: TaskStatusColor;
     isCompleted?: boolean;
   }): TaskStatusConfig | null {
-    if (this.currentUser?.role_code !== "SUPER_ADMIN") return null;
+    if (!this.isCurrentUserAdmin()) return null;
     const trimmed = input.label.trim();
     if (!trimmed) return null;
     if (this.taskStatuses.some((s) => s.label.trim().toLowerCase() === trimmed.toLowerCase())) {
@@ -1228,7 +1235,7 @@ class PMSDataStore {
     statusId: string,
     updates: Partial<Pick<TaskStatusConfig, "label" | "color" | "isCompleted">>
   ): TaskStatusConfig | null {
-    if (this.currentUser?.role_code !== "SUPER_ADMIN") return null;
+    if (!this.isCurrentUserAdmin()) return null;
     const idx = this.taskStatuses.findIndex((s) => s.id === statusId);
     if (idx === -1) return null;
 
@@ -1267,7 +1274,7 @@ class PMSDataStore {
   }
 
   moveTaskStatusConfig(statusId: string, direction: "up" | "down"): boolean {
-    if (this.currentUser?.role_code !== "SUPER_ADMIN") return false;
+    if (!this.isCurrentUserAdmin()) return false;
     const idx = this.taskStatuses.findIndex((s) => s.id === statusId);
     if (idx === -1) return false;
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
@@ -1282,7 +1289,7 @@ class PMSDataStore {
   }
 
   deleteTaskStatusConfig(statusId: string, fallbackStatus?: TaskStatus): boolean {
-    if (this.currentUser?.role_code !== "SUPER_ADMIN") return false;
+    if (!this.isCurrentUserAdmin()) return false;
     if (this.taskStatuses.length <= 1) return false;
     const target = this.taskStatuses.find((s) => s.id === statusId);
     if (!target) return false;
@@ -1302,7 +1309,7 @@ class PMSDataStore {
   }
 
   resetTaskStatusesToDefault(): void {
-    if (this.currentUser?.role_code !== "SUPER_ADMIN") return;
+    if (!this.isCurrentUserAdmin()) return;
     this.taskStatuses = DEFAULT_TASK_STATUSES.map((s) => ({ ...s }));
     this.addActivityLog("Reset task statuses to defaults", "settings");
     this.persist();
@@ -1691,7 +1698,7 @@ class PMSDataStore {
     const existingIdx = comment.read_by.findIndex((r) => r.employee_id === employee.id);
     if (existingIdx >= 0) {
       // Employees cannot mark seen messages as unseen; only Admin may adjust read receipts
-      if (this.currentUser?.role_code !== "SUPER_ADMIN") {
+      if (!this.isCurrentUserAdmin()) {
         return comment;
       }
       comment.read_by.splice(existingIdx, 1);
@@ -2119,6 +2126,140 @@ class PMSDataStore {
     this.addActivityLog(`Onboarded new employee: ${newEmployee.full_name}`, "employee", id);
     this.persist();
     return newEmployee;
+  }
+
+  /** Super Admin exclusive: create a new Admin account in the directory. */
+  createAdminUser(input: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    mobile_number?: string;
+    designation_name?: string;
+  }): { ok: boolean; employee?: Employee; error?: string } {
+    if (this.currentUser?.role_code !== "SUPER_ADMIN") {
+      return { ok: false, error: "Only Super Admin can create Admin accounts." };
+    }
+    const normalizedEmail = input.email.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      return { ok: false, error: "Enter a valid official email address." };
+    }
+    if (
+      this.employees.some(
+        (e) => (e.email || "").trim().toLowerCase() === normalizedEmail
+      )
+    ) {
+      return {
+        ok: false,
+        error: "An account with this email already exists. Promote the existing user instead.",
+      };
+    }
+
+    const first = input.first_name.trim();
+    const last = input.last_name.trim();
+    if (!first) {
+      return { ok: false, error: "First name is required." };
+    }
+
+    const fullName = [first, last].filter(Boolean).join(" ");
+    const created = this.addEmployee({
+      first_name: first,
+      last_name: last || "",
+      full_name: fullName,
+      email: normalizedEmail,
+      mobile_number: input.mobile_number?.trim() || "—",
+      designation_name: input.designation_name?.trim() || "Practice Admin",
+      joining_date: new Date().toISOString().slice(0, 10),
+      employment_status: "Active",
+      is_active: true,
+      role_code: "ADMIN",
+      assigned_projects_count: 0,
+      assigned_tasks_count: 0,
+      completed_tasks_count: 0,
+    });
+    this.addActivityLog(
+      `Created Admin account: ${created.full_name} (${created.email})`,
+      "admin",
+      created.id
+    );
+    this.persist();
+    this.notify();
+    return { ok: true, employee: created };
+  }
+
+  /** Super Admin exclusive: promote an employee to ADMIN or demote an ADMIN to another role. */
+  updateEmployeeRole(
+    employeeId: string,
+    roleCode: RoleCode
+  ): { ok: boolean; error?: string } {
+    if (this.currentUser?.role_code !== "SUPER_ADMIN") {
+      return { ok: false, error: "Only Super Admin can manage Admin roles." };
+    }
+    const idx = this.employees.findIndex((e) => e.id === employeeId);
+    if (idx === -1) {
+      return { ok: false, error: "Employee not found." };
+    }
+    const target = this.employees[idx];
+    if (isSuperAdminEmail(target.email) || target.role_code === "SUPER_ADMIN") {
+      return { ok: false, error: "Primary Super Admin role cannot be modified." };
+    }
+    if (roleCode === "SUPER_ADMIN") {
+      return { ok: false, error: "Only the configured Super Admin holds SUPER_ADMIN." };
+    }
+
+    const previousRole = target.role_code || "EMPLOYEE";
+    const updated: Employee = {
+      ...target,
+      role_code: roleCode,
+      designation_name:
+        roleCode === "ADMIN" && !target.designation_name
+          ? "Practice Admin"
+          : target.designation_name,
+    };
+    this.employees[idx] = updated;
+    this.addActivityLog(
+      `Changed role for ${updated.full_name} (${previousRole} → ${roleCode})`,
+      "admin",
+      updated.id
+    );
+    this.persist();
+    this.notify();
+    return { ok: true };
+  }
+
+  /** Activate or suspend an employee/admin account. Only Super Admin may toggle ADMIN accounts. */
+  setEmployeeActiveStatus(
+    employeeId: string,
+    isActive: boolean
+  ): { ok: boolean; error?: string } {
+    if (!this.isCurrentUserAdmin()) {
+      return { ok: false, error: "Unauthorized." };
+    }
+    const idx = this.employees.findIndex((e) => e.id === employeeId);
+    if (idx === -1) {
+      return { ok: false, error: "User not found." };
+    }
+    const target = this.employees[idx];
+    if (isSuperAdminEmail(target.email) || target.role_code === "SUPER_ADMIN") {
+      return { ok: false, error: "Super Admin account cannot be deactivated." };
+    }
+    if (target.role_code === "ADMIN" && this.currentUser?.role_code !== "SUPER_ADMIN") {
+      return { ok: false, error: "Only Super Admin can activate or suspend Admin accounts." };
+    }
+
+    const updated: Employee = {
+      ...target,
+      is_active: isActive,
+      employment_status: isActive ? "Active" : "Inactive",
+    };
+    this.employees[idx] = updated;
+    this.addActivityLog(
+      `${isActive ? "Activated" : "Suspended"} ${updated.role_code === "ADMIN" ? "Admin" : "Employee"} account: ${updated.full_name}`,
+      "admin",
+      updated.id
+    );
+    this.persist();
+    this.notify();
+    return { ok: true };
   }
 
   // Teams
