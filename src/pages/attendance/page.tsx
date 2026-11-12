@@ -286,8 +286,8 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Admin Geo-Fence Configuration Card */}
-      <GeoLocationSetupCard />
+      {/* Admin Geo-Fence Configuration Card (Admin Only) */}
+      {!isEmployee && <GeoLocationSetupCard />}
 
       {/* Employees Attendance Cards (Click Attendance) */}
       <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">

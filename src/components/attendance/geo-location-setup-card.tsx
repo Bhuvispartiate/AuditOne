@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
+import { isEmployeeRestricted } from "@/lib/access";
 import { getBrowserCoordinates } from "@/lib/geo";
 import { formatDateTime } from "@/lib/utils";
 import { toast } from "sonner";
@@ -26,6 +27,8 @@ export function GeoLocationSetupCard({
   showOpenAttendanceLink = false,
   onSaved,
 }: GeoLocationSetupCardProps) {
+  const currentUser = pmsStore.getCurrentUser();
+  const isEmployee = isEmployeeRestricted(currentUser);
   const existing = pmsStore.getOfficeGeoConfig();
 
   const [locationName, setLocationName] = useState(
@@ -110,6 +113,8 @@ export function GeoLocationSetupCard({
     toast.success(`Office Geo-Location saved (${lat.toFixed(6)}, ${lng.toFixed(6)}) within ±${rad}m.`);
     onSaved?.();
   };
+
+  if (isEmployee) return null;
 
   return (
     <div className="rounded-[24px] bg-white border-[1.5px] border-slate-300 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">
