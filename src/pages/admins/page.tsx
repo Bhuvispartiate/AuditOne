@@ -321,16 +321,16 @@ export default function AdminsManagementPage() {
 
       {/* Promote Existing Staff + Search Bar */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <Card className="lg:col-span-5 rounded-[24px] border-[1.5px] border-slate-300 shadow-2xs">
+        <Card className="lg:col-span-6 min-w-0 rounded-[24px] border-[1.5px] border-slate-300 shadow-2xs">
           <CardContent className="p-4 space-y-2">
             <label className="text-xs font-bold text-[#111827] block">
               Promote Existing Employee to Admin
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 min-w-0">
               <select
                 value={promoteEmpId}
                 onChange={(e) => setPromoteEmpId(e.target.value)}
-                className="flex-1 h-10 rounded-2xl border border-slate-300 bg-white px-3 text-xs font-semibold text-[#111827] focus:outline-none"
+                className="flex-1 min-w-0 w-full h-10 rounded-2xl border border-slate-300 bg-white px-3 text-xs font-semibold text-[#111827] focus:outline-none truncate"
               >
                 <option value="">Select active employee...</option>
                 {eligibleStaff.map((emp) => (
@@ -353,7 +353,7 @@ export default function AdminsManagementPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-7 rounded-[24px] border-[1.5px] border-slate-300 shadow-2xs">
+        <Card className="lg:col-span-6 min-w-0 rounded-[24px] border-[1.5px] border-slate-300 shadow-2xs">
           <CardContent className="p-4 flex items-center h-full">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9ca3af]" />
