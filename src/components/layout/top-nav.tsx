@@ -24,6 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
 import { isEmployeeRestricted } from "@/lib/access";
+import { createClient } from "@/lib/supabase/client";
 import { QuickCreateModal } from "@/components/layout/quick-create-modal";
 import { formatDateTime } from "@/lib/utils";
 
@@ -214,7 +215,12 @@ export function TopNav() {
                 </>
               )}
               <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium text-rose-600 focus:text-rose-700">
-                <Link to="/login">
+                <Link
+                  to="/login"
+                  onClick={() => {
+                    createClient().auth.signOut().catch(() => {});
+                  }}
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>{isEmployee ? "Switch User / Sign Out" : "Sign Out"}</span>
                 </Link>

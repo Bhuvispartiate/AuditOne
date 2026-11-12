@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShieldCheck, Lock, AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
+import { createClient, SUPERADMIN_EMAIL } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -18,25 +18,37 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    // In production with Supabase configured:
-    // const supabase = createClient();
-    // await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/auth/callback` } });
-
-    // Simulate Supabase OAuth + Active Employee Verification
-    setTimeout(() => {
-      pmsStore.setCurrentUser(selectedEmpId);
-      const user = pmsStore.getCurrentUser();
-
-      if (!user.is_active) {
-        toast.error("Access Denied: Your employee account has been deactivated.");
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: "offline",
+            prompt: "select_account",
+          },
+        },
+      });
+      if (error) {
+        toast.error(`Google Sign-In failed: ${error.message}`);
         setLoading(false);
-        return;
       }
-
-      toast.success(`Welcome back, ${user.full_name}! Signed in as ${user.role_code}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to start Google sign-in.");
       setLoading(false);
-      navigate("/dashboard");
-    }, 800);
+    }
+  };
+
+  const handleDevSwitch = () => {
+    pmsStore.setCurrentUser(selectedEmpId);
+    const user = pmsStore.getCurrentUser();
+    if (!user.is_active) {
+      toast.error("Access Denied: Your employee account has been deactivated.");
+      return;
+    }
+    toast.success(`Switched to ${user.full_name} (${user.role_code})`);
+    navigate("/dashboard");
   };
 
   return (
@@ -102,22 +114,33 @@ export default function LoginPage() {
               </span>
             </div>
 
-            {/* Role / Employee Switcher */}
-            <div className="space-y-1.5 bg-[#f9fafb] p-3 rounded-2xl border border-[#e5e7eb]">
+            {/* Role / Employee Switcher (Dev Fallback) */}
+            <div className="space-y-2 bg-[#f9fafb] p-3 rounded-2xl border border-[#e5e7eb]">
               <label className="text-xs font-semibold text-[#111827] block">
                 Active Organization Profile:
               </label>
-              <select
-                value={selectedEmpId}
-                onChange={(e) => setSelectedEmpId(e.target.value)}
-                className="w-full h-9 rounded-xl border border-[#e5e7eb] bg-white px-3 text-xs font-medium focus:outline-none"
-              >
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.full_name} — {emp.role_code} ({emp.designation_name})
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  value={selectedEmpId}
+                  onChange={(e) => setSelectedEmpId(e.target.value)}
+                  className="flex-1 h-9 rounded-xl border border-[#e5e7eb] bg-white px-3 text-xs font-medium focus:outline-none"
+                >
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.full_name} — {emp.role_code} ({emp.designation_name})
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDevSwitch}
+                  className="h-9 rounded-xl border-[#e5e7eb] text-xs font-bold shrink-0"
+                >
+                  Switch
+                </Button>
+              </div>
             </div>
 
             {/* Security checklist notice */}
@@ -127,7 +150,7 @@ export default function LoginPage() {
                 <span>Zero-Trust Enterprise Access</span>
               </div>
               <p className="text-[11px] text-[#6b7280] leading-relaxed">
-                Google OAuth accounts must be pre-registered in the active Employee Directory.
+                Google OAuth accounts must match Super Admin (<span className="font-mono font-semibold text-[#111827]">{SUPERADMIN_EMAIL}</span>) or an active Employee Directory email.
               </p>
             </div>
           </CardContent>

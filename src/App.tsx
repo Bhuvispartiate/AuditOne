@@ -3,8 +3,10 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { AppShell } from "@/components/layout/app-shell";
 import { pmsStore } from "@/lib/data/store";
 import { isEmployeeRestricted } from "@/lib/access";
+import { createClient } from "@/lib/supabase/client";
 
 import LoginPage from "@/pages/login/page";
+import AuthCallbackPage from "@/pages/auth/callback/page";
 import DashboardPage from "@/pages/dashboard/page";
 import ClientsPage from "@/pages/clients/page";
 import NewClientPage from "@/pages/clients/new/page";
@@ -34,6 +36,7 @@ function isAllowedForEmployee(pathname: string): boolean {
   if (
     pathname === "/" ||
     pathname === "/login" ||
+    pathname === "/auth/callback" ||
     pathname === "/dashboard" ||
     pathname === "/tasks" ||
     pathname === "/attendance" ||
@@ -69,14 +72,47 @@ function EmployeeRouteGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function SupabaseAuthListener() {
+  useEffect(() => {
+    const supabase = createClient();
+
+    supabase.auth.getSession().then(({ data }) => {
+      const email = data.session?.user?.email;
+      if (email) {
+        const fullName =
+          (data.session?.user?.user_metadata?.full_name as string | undefined) ||
+          (data.session?.user?.user_metadata?.name as string | undefined);
+        pmsStore.signInWithEmail(email, fullName);
+      }
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user?.email) {
+        const fullName =
+          (session.user.user_metadata?.full_name as string | undefined) ||
+          (session.user.user_metadata?.name as string | undefined);
+        pmsStore.signInWithEmail(session.user.email, fullName);
+      }
+    });
+
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <SupabaseAuthListener />
       <AppShell>
         <EmployeeRouteGuard>
           <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
 
           <Route path="/clients" element={<ClientsPage />} />

@@ -30,7 +30,7 @@ import {
   OfficeGeoConfig,
   AttendanceRecord
 } from "@/types";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, SUPERADMIN_EMAIL, isSuperAdminEmail } from "@/lib/supabase/client";
 import { calculateDistanceMeters } from "@/lib/geo";
 
 // Standard System Designations (Reference Master)
@@ -61,7 +61,7 @@ const DEFAULT_SYSTEM_ADMIN: Employee = {
   first_name: "Super",
   last_name: "Admin",
   full_name: "System Administrator",
-  email: "admin@pmsfirm.com",
+  email: SUPERADMIN_EMAIL,
   mobile_number: "+91 98000 00000",
   designation_id: "desig-dir",
   designation_name: "Managing Partner / Director",
@@ -322,6 +322,15 @@ class PMSDataStore {
       if (parsed.currentUser && parsed.currentUser.id) {
         this.currentUser = parsed.currentUser;
       }
+      // Keep default System Admin email synced with VITE_SUPERADMIN_EMAIL
+      this.employees = this.employees.map((e) =>
+        e.id === "emp-admin-01" && e.email === "admin@pmsfirm.com"
+          ? { ...e, email: SUPERADMIN_EMAIL }
+          : e
+      );
+      if (this.currentUser.id === "emp-admin-01" && this.currentUser.email === "admin@pmsfirm.com") {
+        this.currentUser = { ...this.currentUser, email: SUPERADMIN_EMAIL };
+      }
     } catch (error) {
       console.error("Failed to hydrate PMS store from localStorage:", error);
     }
@@ -498,6 +507,66 @@ class PMSDataStore {
       this.currentUser = found;
       this.persist();
     }
+  }
+
+  signInWithEmail(
+    email: string,
+    fullName?: string
+  ): { ok: boolean; user?: Employee; reason?: string } {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) {
+      return { ok: false, reason: "No email address returned by Google OAuth." };
+    }
+
+    if (isSuperAdminEmail(normalized)) {
+      let admin = this.employees.find(
+        (e) => (e.email || "").trim().toLowerCase() === normalized || e.id === "emp-admin-01"
+      );
+      if (admin) {
+        admin = {
+          ...admin,
+          email: normalized,
+          role_code: "SUPER_ADMIN",
+          is_active: true,
+          employment_status: "Active",
+          full_name:
+            fullName && admin.full_name === "System Administrator" ? fullName : admin.full_name,
+        };
+        this.employees = this.employees.map((e) => (e.id === admin!.id ? admin! : e));
+      } else {
+        admin = {
+          ...DEFAULT_SYSTEM_ADMIN,
+          email: normalized,
+          full_name: fullName || DEFAULT_SYSTEM_ADMIN.full_name,
+        };
+        this.employees = [admin, ...this.employees];
+      }
+      this.currentUser = admin;
+      this.persist();
+      this.notify();
+      return { ok: true, user: admin };
+    }
+
+    const found = this.employees.find(
+      (e) => (e.email || "").trim().toLowerCase() === normalized
+    );
+    if (!found) {
+      return {
+        ok: false,
+        reason: `Account (${email}) is not registered in the Employee Directory. Ask your Super Admin (${SUPERADMIN_EMAIL}) to add you first.`,
+      };
+    }
+    if (!found.is_active) {
+      return {
+        ok: false,
+        reason: "Access Denied: Your employee account has been deactivated.",
+      };
+    }
+
+    this.currentUser = found;
+    this.persist();
+    this.notify();
+    return { ok: true, user: found };
   }
 
   // Dashboard KPIs (100% Dynamically Calculated from Real Database State)
