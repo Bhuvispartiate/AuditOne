@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS employees (
 );
 
 -- Add head_employee_id FK to departments
+ALTER TABLE departments DROP CONSTRAINT IF EXISTS fk_dept_head;
 ALTER TABLE departments 
 ADD CONSTRAINT fk_dept_head FOREIGN KEY (head_employee_id) REFERENCES employees(id) ON DELETE SET NULL;
 
@@ -794,62 +795,81 @@ CREATE OR REPLACE FUNCTION is_user_admin() RETURNS BOOLEAN AS $$
 $$ LANGUAGE SQL STABLE SECURITY DEFINER;
 
 -- RLS Policies: Authenticated active employees can read business data
+DROP POLICY IF EXISTS "Employees can view active directory" ON employees;
 CREATE POLICY "Employees can view active directory" ON employees
     FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Super Admins have full access to employees" ON employees;
+DROP POLICY IF EXISTS "Admins have full access to employees" ON employees;
 CREATE POLICY "Admins have full access to employees" ON employees
     FOR ALL USING (is_user_admin());
 
+DROP POLICY IF EXISTS "Super Admins manage user roles" ON user_roles;
 CREATE POLICY "Super Admins manage user roles" ON user_roles
     FOR ALL USING (is_user_super_admin());
 
+DROP POLICY IF EXISTS "Super Admins view private details" ON employee_private_details;
+DROP POLICY IF EXISTS "Admins view private details" ON employee_private_details;
 CREATE POLICY "Admins view private details" ON employee_private_details
     FOR ALL USING (is_user_admin());
 
+DROP POLICY IF EXISTS "Authenticated users view geo config" ON office_geo_configs;
 CREATE POLICY "Authenticated users view geo config" ON office_geo_configs
     FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Admins manage geo config" ON office_geo_configs;
 CREATE POLICY "Admins manage geo config" ON office_geo_configs
     FOR ALL USING (is_user_admin());
 
+DROP POLICY IF EXISTS "Employees manage own attendance" ON attendance_records;
 CREATE POLICY "Employees manage own attendance" ON attendance_records
     FOR ALL USING (
         employee_id IN (SELECT id FROM employees WHERE user_id = current_app_user_id())
         OR is_user_admin()
     );
 
+DROP POLICY IF EXISTS "Authenticated users view task statuses" ON task_statuses;
 CREATE POLICY "Authenticated users view task statuses" ON task_statuses
     FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Admins manage task statuses" ON task_statuses;
 CREATE POLICY "Admins manage task statuses" ON task_statuses
     FOR ALL USING (is_user_admin());
 
+DROP POLICY IF EXISTS "Authenticated users view clients" ON clients;
 CREATE POLICY "Authenticated users view clients" ON clients
     FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated users manage clients" ON clients;
 CREATE POLICY "Authenticated users manage clients" ON clients
     FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated users view services" ON services;
 CREATE POLICY "Authenticated users view services" ON services
     FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated users view projects" ON projects;
 CREATE POLICY "Authenticated users view projects" ON projects
     FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated users view tasks" ON tasks;
 CREATE POLICY "Authenticated users view tasks" ON tasks
     FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated users view invoices" ON invoices;
 CREATE POLICY "Authenticated users view invoices" ON invoices
     FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated users view payments" ON payments;
 CREATE POLICY "Authenticated users view payments" ON payments
     FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Users view their own notifications" ON notifications;
 CREATE POLICY "Users view their own notifications" ON notifications
     FOR ALL USING (
         recipient_employee_id IN (
             SELECT id FROM employees WHERE user_id = current_app_user_id()
-        ) OR is_user_super_admin()
+        ) OR is_user_admin()
     );
 
 -- ============================================================================
