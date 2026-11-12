@@ -223,7 +223,7 @@ export function TopNav() {
                   }}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>{isEmployee ? "Switch User / Sign Out" : "Sign Out"}</span>
+                  <span>Sign Out</span>
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>

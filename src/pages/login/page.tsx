@@ -1,20 +1,11 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { pmsStore } from "@/lib/data/store";
-import { createClient, SUPERADMIN_EMAIL } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 export default function LoginPage() {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const employees = pmsStore.getEmployees();
-  const currentUser = pmsStore.getCurrentUser();
-  const [selectedEmpId, setSelectedEmpId] = useState(
-    currentUser?.id || employees[0]?.id || "emp-admin-01"
-  );
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -38,17 +29,6 @@ export default function LoginPage() {
       toast.error(err instanceof Error ? err.message : "Failed to start Google sign-in.");
       setLoading(false);
     }
-  };
-
-  const handleDevSwitch = () => {
-    pmsStore.setCurrentUser(selectedEmpId);
-    const user = pmsStore.getCurrentUser();
-    if (!user.is_active) {
-      toast.error("Access Denied: Your employee account has been deactivated.");
-      return;
-    }
-    toast.success(`Switched to ${user.full_name} (${user.role_code})`);
-    navigate("/dashboard");
   };
 
   return (
@@ -105,54 +85,6 @@ export default function LoginPage() {
               <span>{loading ? "Authenticating with Google..." : "Continue with Google"}</span>
             </Button>
 
-            <div className="relative flex items-center justify-center py-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[#f3f4f6]" />
-              </div>
-              <span className="relative bg-white px-3 text-[10px] uppercase font-bold text-[#9ca3af]">
-                Or select identity (Dev Role Switcher)
-              </span>
-            </div>
-
-            {/* Role / Employee Switcher (Dev Fallback) */}
-            <div className="space-y-2 bg-[#f9fafb] p-3 rounded-2xl border border-[#e5e7eb]">
-              <label className="text-xs font-semibold text-[#111827] block">
-                Active Organization Profile:
-              </label>
-              <div className="flex gap-2">
-                <select
-                  value={selectedEmpId}
-                  onChange={(e) => setSelectedEmpId(e.target.value)}
-                  className="flex-1 h-9 rounded-xl border border-[#e5e7eb] bg-white px-3 text-xs font-medium focus:outline-none"
-                >
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.full_name} — {emp.role_code} ({emp.designation_name})
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={handleDevSwitch}
-                  className="h-9 rounded-xl border-[#e5e7eb] text-xs font-bold shrink-0"
-                >
-                  Switch
-                </Button>
-              </div>
-            </div>
-
-            {/* Security checklist notice */}
-            <div className="rounded-2xl bg-neutral-50 p-3 border border-[#e5e7eb] text-xs text-[#111827] space-y-1">
-              <div className="flex items-center gap-1.5 font-bold">
-                <Lock className="h-3.5 w-3.5 text-[#111827]" />
-                <span>Zero-Trust Enterprise Access</span>
-              </div>
-              <p className="text-[11px] text-[#6b7280] leading-relaxed">
-                Google OAuth accounts must match Super Admin (<span className="font-mono font-semibold text-[#111827]">{SUPERADMIN_EMAIL}</span>) or an active Employee Directory email.
-              </p>
-            </div>
           </CardContent>
 
           <CardFooter className="flex flex-col gap-2 pt-0 pb-6 text-center">
