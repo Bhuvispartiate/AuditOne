@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: oxis-whatsapp-automation
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    disk:
+      name: oxis-whatsapp-data
+      mountPath: /app/dbdata
+      sizeGB: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: OXIS_GLOBAL_API_KEY
+        value: oxis_global_secret_key_change_me_in_production
+      - key: GLOBAL_API_KEY
+        value: oxis_global_secret_key_change_me_in_production
+      - key: OXEV_SERVICE_API_KEY
+        value: oxev_service_secret_key_change_me_in_production
+      - key: WHATSAPP_INSTANCE_NAME
+        value: oxev-main
+      - key: CLIENT_NAME
+        value: OXIS WhatsApp Service
+      - key: CONNECT_ON_STARTUP
+        value: "true"
+      - key: DATABASE_SAVE_MESSAGES
+        value: "true"
+      - key: WA_DEBUG
+        value: INFO
+      - key: LOG_TYPE
+        value: console

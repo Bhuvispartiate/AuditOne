@@ -12,7 +12,9 @@ import {
   RotateCcw,
   Check,
   ListChecks,
+  MessageSquare,
 } from "lucide-react";
+import { WhatsAppSettingsTab } from "@/components/settings/whatsapp-settings-tab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -123,6 +125,10 @@ export default function SettingsPage() {
       <Tabs defaultValue="statuses" className="w-full">
         <TabsList className="bg-white border border-[#e5e7eb] p-1 rounded-2xl mb-4 shadow-xs flex-wrap h-auto">
           <TabsTrigger value="statuses" className="rounded-xl font-bold text-xs">Task Statuses</TabsTrigger>
+          <TabsTrigger value="whatsapp" className="rounded-xl font-bold text-xs gap-1.5 text-emerald-700 data-[state=active]:text-emerald-900">
+            <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+            WhatsApp Automation
+          </TabsTrigger>
           <TabsTrigger value="rbac" className="rounded-xl font-bold text-xs">Role-Based Access Control (RBAC)</TabsTrigger>
           <TabsTrigger value="cloud" className="rounded-xl font-bold text-xs">Cloud Storage & Database</TabsTrigger>
           <TabsTrigger value="firm" className="rounded-xl font-bold text-xs">Firm Master Configuration</TabsTrigger>
@@ -371,6 +377,11 @@ export default function SettingsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* WHATSAPP AUTOMATION INTEGRATION */}
+        <TabsContent value="whatsapp" className="space-y-6">
+          <WhatsAppSettingsTab />
         </TabsContent>
 
         {/* RBAC MATRIX */}

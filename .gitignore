@@ -30,3 +30,10 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# whatsapp backend binaries and session data
+whatsapp-backend/linear-whatsapp.exe
+whatsapp-backend/*.exe
+whatsapp-backend/dbdata/
+whatsapp-backend/whatsapp.db*
+whatsapp-backend/.env

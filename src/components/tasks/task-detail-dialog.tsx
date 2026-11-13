@@ -6,7 +6,9 @@ import {
   Plus,
   Trash2,
   Pencil,
+  MessageSquare,
 } from "lucide-react";
+import { whatsappClient } from "@/lib/whatsapp-client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,6 +149,46 @@ export function TaskDetailDialog({
     setEditingNotes(false);
   };
 
+  const handleSendWhatsApp = async () => {
+    if (!task) return;
+    const emp = employees.find((e) => e.id === task.assigned_employee_id);
+    let targetPhone = emp?.mobile_number;
+    let targetName = emp?.full_name || "Team Member";
+
+    if (!targetPhone && project?.client_id) {
+      const client = pmsStore.getClients().find((c) => c.id === project.client_id);
+      if (client?.contact?.mobile_number) {
+        targetPhone = client.contact.mobile_number;
+        targetName = client.contact.contact_person || client.client_name || "Client";
+      }
+    }
+
+    if (!targetPhone) {
+      const manualPhone = window.prompt(
+        "Enter recipient WhatsApp mobile number (with country code, e.g., 919876543210):"
+      );
+      if (!manualPhone) return;
+      targetPhone = manualPhone;
+    }
+
+    toast.info("Sending WhatsApp notification...");
+    const res = await whatsappClient.sendTaskAssignment(
+      targetPhone,
+      targetName,
+      task.title,
+      project?.project_name || "Practice Project",
+      task.due_date
+    );
+
+    if (res.success && res.status === "SENT") {
+      toast.success(`WhatsApp alert sent to ${targetName} (+${targetPhone})!`);
+    } else {
+      toast.error(
+        `WhatsApp failed: ${res.error || res.status}. Ensure WhatsApp backend is running on port 8080.`
+      );
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[24px] border-[1.5px] border-slate-300 bg-[#f8f9fc] p-6">
@@ -189,27 +231,40 @@ export function TaskDetailDialog({
                 </Badge>
               )}
               {!isReadOnly && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const parentId = task.parent_task_id;
-                    pmsStore.deleteTask(task.id);
-                    toast.success(`Deleted ${task.task_code}`);
-                    if (parentId) {
-                      setViewingTaskId(parentId);
-                    } else {
-                      onOpenChange(false);
-                    }
-                    notifyChange();
-                  }}
-                  className="h-8 px-2.5 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold gap-1"
-                  title={`Delete ${levelLabel}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span>Delete</span>
-                </Button>
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSendWhatsApp}
+                    className="h-8 px-2.5 rounded-xl border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-bold gap-1"
+                    title="Send WhatsApp Task Alert"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>WhatsApp</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const parentId = task.parent_task_id;
+                      pmsStore.deleteTask(task.id);
+                      toast.success(`Deleted ${task.task_code}`);
+                      if (parentId) {
+                        setViewingTaskId(parentId);
+                      } else {
+                        onOpenChange(false);
+                      }
+                      notifyChange();
+                    }}
+                    className="h-8 px-2.5 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold gap-1"
+                    title={`Delete ${levelLabel}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Delete</span>
+                  </Button>
+                </>
               )}
             </div>
           </div>

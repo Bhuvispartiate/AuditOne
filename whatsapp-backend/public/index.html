@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OXIS WhatsApp Automation Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --bg-card: #131a2a;
+      --bg-card-hover: #182238;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 102, 241, 0.5);
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.25);
+      --accent-cyan: #06b6d4;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.08) 0px, transparent 50%);
+      background-attachment: fixed;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(11, 15, 25, 0.85);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #6366f1, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: white;
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-title span {
+      background: linear-gradient(to right, #818cf8, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .tag-badge {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      padding: 0.2rem 0.5rem;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #818cf8;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+
+    .mode-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.3rem 0.75rem;
+      border-radius: 9999px;
+      border: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .mode-live { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); color: #6ee7b7; }
+    .mode-connecting { background: rgba(6, 182, 212, 0.15); border-color: rgba(6, 182, 212, 0.3); color: #67e8f9; }
+    .mode-disconnected { background: rgba(244, 63, 94, 0.15); border-color: rgba(244, 63, 94, 0.3); color: #fda4af; }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.85rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--accent-amber);
+      box-shadow: 0 0 8px currentColor;
+    }
+    .status-dot.connected { background-color: var(--accent-green); }
+    .status-dot.disconnected { background-color: var(--accent-rose); }
+    .status-dot.qr_ready { background-color: var(--accent-cyan); }
+
+    /* Main Grid */
+    main {
+      flex: 1;
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 1fr 1.3fr;
+      gap: 2rem;
+    }
+
+    @media (max-width: 992px) {
+      main { grid-template-columns: 1fr; padding: 1rem; }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: relative;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .badge-primary { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
+    .badge-success { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+    .badge-amber { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .badge-danger { background: rgba(244, 63, 94, 0.2); color: #fda4af; }
+
+    /* QR Code Box */
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: rgba(11, 15, 25, 0.6);
+      border: 1px dashed var(--border-color);
+      border-radius: 12px;
+      min-height: 270px;
+      margin-bottom: 1.25rem;
+      text-align: center;
+    }
+
+    .qr-box {
+      width: 220px;
+      height: 220px;
+      background: white;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      margin-bottom: 1rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      position: relative;
+    }
+
+    .qr-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 6px;
+    }
+
+    .qr-instruction {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.65rem 1.25rem;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-color);
+      color: var(--text-main);
+    }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+
+    .btn-success {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+    .btn-success:hover { background: rgba(16, 185, 129, 0.3); }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.15);
+      border-color: rgba(244, 63, 94, 0.3);
+      color: #fda4af;
+    }
+    .btn-danger:hover { background: rgba(244, 63, 94, 0.25); }
+
+    /* Forms */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    input {
+      font-family: var(--font-sans);
+      background: rgba(11, 15, 25, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      transition: border-color 0.2s ease;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 2px var(--primary-glow);
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* WhatsApp Preview */
+    .whatsapp-preview-card {
+      background: #0d1418;
+      border: 1px solid #1f2c34;
+      border-radius: 12px;
+      padding: 1rem;
+      margin-top: 1rem;
+      background-image: radial-gradient(#1f2c34 1px, transparent 1px);
+      background-size: 16px 16px;
+    }
+
+    .chat-bubble {
+      background: #005c4b;
+      color: #e9edef;
+      border-radius: 10px 10px 0 10px;
+      padding: 0.85rem 1rem;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      position: relative;
+      margin-left: auto;
+      max-width: 90%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      white-space: pre-wrap;
+    }
+
+    .chat-bubble-time {
+      font-size: 0.65rem;
+      color: rgba(233, 237, 239, 0.6);
+      text-align: right;
+      margin-top: 0.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.25rem;
+    }
+
+    /* Console Output */
+    .console-box {
+      background: #060911;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.85rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: #a5b4fc;
+      max-height: 180px;
+      overflow-y: auto;
+      margin-top: 1rem;
+      white-space: pre-wrap;
+    }
+
+    /* Table */
+    .table-container {
+      overflow-x: auto;
+      margin-top: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    th, td {
+      padding: 0.65rem 0.85rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+    }
+
+    /* Flow Step Pills */
+    .flow-steps {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+
+    .step-pill {
+      font-size: 0.7rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .step-pill.active {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: var(--primary);
+      color: #a5b4fc;
+      font-weight: 600;
+    }
+
+    .step-arrow { color: var(--text-dim); font-size: 0.7rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-logo">Ω</div>
+      <div>
+        <div class="brand-title">OXIS <span>WhatsApp Automation</span></div>
+        <span class="tag-badge">OXEV Cashfree Dispatcher</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="mode-badge mode-live" id="dashboard-mode-badge">
+        <span id="mode-text">🟢 Live WhatsApp Engine</span>
+      </div>
+      <div class="status-pill">
+        <div class="status-dot qr_ready" id="header-status-dot"></div>
+        <span id="header-status-text">INITIALIZING</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Column: Instance Connection & Live QR Code -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <span>📱 WhatsApp QR Pairing</span>
+          </div>
+          <span class="badge badge-primary" id="instance-name-badge">oxev-main</span>
+        </div>
+
+        <div class="qr-container" id="qr-display-container">
+          <div class="qr-box" id="qr-box">
+            <div style="color: #64748b; font-size: 0.8rem;">Loading authentic WhatsApp QR...</div>
+          </div>
+          <p class="qr-instruction" id="qr-instruction">
+            Open <strong>WhatsApp</strong> on your phone ➔ <strong>Linked Devices</strong> ➔ <strong>Link a Device</strong> and scan this authentic QR code.
+          </p>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="fetchLiveQr(true)">⚡ Refresh Live QR Code</button>
+          <button class="btn btn-secondary" onclick="checkStatus()">🔄 Refresh Status</button>
+          <button class="btn btn-danger" onclick="disconnectLiveSession()">Disconnect</button>
+        </div>
+      </div>
+
+      <!-- OXEV Verification Architecture Flow -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔄 Cashfree ➔ OXEV ➔ OXIS Flow</div>
+        </div>
+        <div class="flow-steps">
+          <div class="step-pill">1. Cashfree Paid</div>
+          <span class="step-arrow">➔</span>
+          <div class="step-pill">2. OXEV Verified</div>
+          <span class="step-arrow">➔</span>
+          <div class="step-pill active">3. OXIS Dispatched</div>
+          <span class="step-arrow">➔</span>
+          <div class="step-pill">4. Student WhatsApp</div>
+        </div>
+        <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+          OXEV verifies payment authenticity from Cashfree webhook, marks registration as CONFIRMED, then calls <code>POST /api/v1/automation/payment-confirmation</code>.
+        </p>
+      </div>
+
+      <!-- Config & API Credentials -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">⚙️ API Gateway Settings</div>
+        </div>
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label>Target Service URL</label>
+          <input type="text" id="api-base-url" value="">
+        </div>
+        <div class="form-group">
+          <label>OXEV Service API Key (Bearer)</label>
+          <input type="text" id="api-key" value="oxev_service_secret_key_change_me_in_production">
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Cashfree Payment Confirmation Trial -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <span>🎉 Event Payment Confirmation Trial</span>
+          </div>
+          <span class="badge badge-success">Idempotency Guard Active</span>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Student Phone Number (with country code)</label>
+            <input type="text" id="field-phone" value="919876543210" oninput="updateLivePreview()">
+          </div>
+
+          <div class="form-group">
+            <label>Student Full Name</label>
+            <input type="text" id="field-student-name" value="Rohit Kumar" oninput="updateLivePreview()">
+          </div>
+
+          <div class="form-group">
+            <label>Event Name</label>
+            <input type="text" id="field-event-name" value="AION 2026" oninput="updateLivePreview()">
+          </div>
+
+          <div class="form-group">
+            <label>Registration ID</label>
+            <input type="text" id="field-reg-id" value="AION-1045" oninput="updateLivePreview()">
+          </div>
+
+          <div class="form-group">
+            <label>Amount Paid (₹)</label>
+            <input type="number" id="field-amount" value="299" oninput="updateLivePreview()">
+          </div>
+
+          <div class="form-group">
+            <label>Cashfree Payment ID</label>
+            <input type="text" id="field-payment-id" value="cf_pay_9384729184" oninput="updateLivePreview()">
+          </div>
+        </div>
+
+        <!-- WhatsApp Chat Bubble Preview -->
+        <label>💬 Live WhatsApp Message Bubble (Rendered Template)</label>
+        <div class="whatsapp-preview-card">
+          <div class="chat-bubble" id="whatsapp-chat-preview"></div>
+        </div>
+
+        <div style="margin-top: 1.25rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+          <button class="btn btn-primary" style="flex: 1;" onclick="triggerPaymentConfirmation()">
+            🚀 Send Confirmation Message
+          </button>
+          <button class="btn btn-secondary" onclick="testDuplicateRetry()" title="Test webhook duplicate retry">
+            🔁 Test Deduplication Retry
+          </button>
+        </div>
+
+        <!-- Real-time Console Log -->
+        <div class="console-box" id="console-output">Ready. Live backend connected on port 8080.</div>
+      </div>
+    </div>
+
+    <!-- Full Width: Message History & Audit Trail -->
+    <div class="card" style="grid-column: span 2;">
+      <div class="card-header">
+        <div class="card-title">📜 Audit Log & Dispatch History</div>
+        <button class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.3rem 0.7rem;" onclick="clearLogs()">Clear Log Table</button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Phone</th>
+              <th>Registration ID</th>
+              <th>Idempotency Key</th>
+              <th>Status</th>
+              <th>WhatsApp Msg ID / Response</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body">
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--text-dim);">No transactions sent in this session yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let isConnected = false;
+    let pollInterval = null;
+    const logs = [];
+
+    // Set base URL automatically with intelligent cloud detection & localStorage persistence
+    const savedUrl = localStorage.getItem('oxis_api_base_url');
+    const savedKey = localStorage.getItem('oxis_api_key');
+
+    let defaultOrigin = 'http://localhost:8080';
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      defaultOrigin = window.location.origin || 'http://localhost:8080';
+    } else if (window.location.hostname.includes('vercel.app') || window.location.protocol === 'file:') {
+      defaultOrigin = 'https://gitwhatsappautomation.onrender.com';
+    } else if (window.location.origin.startsWith('http')) {
+      defaultOrigin = window.location.origin;
+    }
+
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const currentUrl = isLocalhost ? defaultOrigin : (savedUrl || defaultOrigin);
+    document.getElementById('api-base-url').value = currentUrl;
+    if (savedKey) {
+      document.getElementById('api-key').value = savedKey;
+    }
+
+    document.getElementById('api-base-url').addEventListener('change', (e) => {
+      localStorage.setItem('oxis_api_base_url', e.target.value.trim());
+      fetchLiveQr(false);
+    });
+
+    document.getElementById('api-key').addEventListener('change', (e) => {
+      localStorage.setItem('oxis_api_key', e.target.value.trim());
+    });
+
+    function getBaseUrl() {
+      return document.getElementById('api-base-url').value.replace(/\/$/, '') || window.location.origin || 'http://localhost:8080';
+    }
+
+
+
+
+    function updateLivePreview() {
+      const studentName = document.getElementById('field-student-name').value || 'Student';
+      const amount = document.getElementById('field-amount').value || '0';
+      const eventName = document.getElementById('field-event-name').value || 'Event';
+      const regId = document.getElementById('field-reg-id').value || 'REG-000';
+
+      const previewText = `Hi ${studentName}! 👋\n\n🎉 Payment Successful!\n\nYour payment of ₹${amount} for ${eventName} has been successfully received.\n\n✅ Your registration is confirmed.\n\n🆔 Registration ID: ${regId}\n\nYou will receive further event updates on this WhatsApp number.\n\nThank you!\nOXEV Team 🚀`;
+
+      const previewEl = document.getElementById('whatsapp-chat-preview');
+      previewEl.innerText = previewText;
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      previewEl.innerHTML += `<div class="chat-bubble-time">${now} ✓✓</div>`;
+    }
+
+    function setStatus(status, phone = '') {
+      const dot = document.getElementById('header-status-dot');
+      const text = document.getElementById('header-status-text');
+
+      dot.className = 'status-dot';
+      text.innerText = status;
+
+      if (status === 'CONNECTED') {
+        isConnected = true;
+        dot.classList.add('connected');
+        document.getElementById('qr-box').innerHTML = `
+          <div style="color:#10b981; font-weight:700; font-size:0.9rem; text-align:center; padding:1rem;">
+            ✅ WhatsApp Connected!<br>
+            <span style="font-size:0.75rem; color:#94a3b8; font-weight:400;">Phone: ${phone || 'Linked'}</span>
+          </div>
+        `;
+        document.getElementById('qr-instruction').innerText = 'Primary instance oxev-main is active and ready to dispatch messages.';
+      } else if (status === 'QR_READY') {
+        isConnected = false;
+        dot.classList.add('qr_ready');
+        document.getElementById('qr-instruction').innerHTML = 'Open <strong>WhatsApp</strong> ➔ <strong>Linked Devices</strong> ➔ <strong>Link a Device</strong> and scan this authentic QR code.';
+      } else {
+        isConnected = false;
+        dot.classList.add('disconnected');
+      }
+    }
+
+    async function fetchLiveQr(forceConnect = false) {
+      const baseUrl = getBaseUrl();
+      const consoleOut = document.getElementById('console-output');
+
+      try {
+        if (forceConnect) {
+          consoleOut.innerText = `[INITIATING CONNECTION]: Requesting fresh session from ${baseUrl}/api/v1/instance/connect...`;
+          await fetch(`${baseUrl}/api/v1/instance/connect`, { method: 'POST' }).catch(() => {});
+          await new Promise(r => setTimeout(r, 600));
+        }
+
+        const res = await fetch(`${baseUrl}/api/v1/instance/qr`);
+        const json = await res.json();
+
+        if (json.success && json.data) {
+          if (json.data.status === 'CONNECTED') {
+            setStatus('CONNECTED', json.data.phone_number);
+            consoleOut.innerText = `[WHATSAPP CONNECTED]: Device is already paired and active.`;
+            return;
+          }
+
+          if (json.data.qrcode) {
+            const qrBox = document.getElementById('qr-box');
+            qrBox.innerHTML = `<img src="${json.data.qrcode}" alt="Authentic WhatsApp QR Code" />`;
+            setStatus('QR_READY');
+            consoleOut.innerText = `[AUTHENTIC QR READY]: Fresh WhatsApp pairing QR code loaded directly from Whatsmeow engine. Scan now with WhatsApp!`;
+          } else {
+            document.getElementById('qr-box').innerHTML = `
+              <div style="display:flex;flex-direction:column;align-items:center;gap:10px;color:#818cf8;font-size:0.8rem;padding:20px;text-align:center;">
+                <div style="width:28px;height:28px;border:3px solid rgba(99,102,241,0.3);border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;"></div>
+                <span>Generating authentic WhatsApp pairing QR code...</span>
+              </div>
+            `;
+            setTimeout(() => fetchLiveQr(false), 1200);
+          }
+        }
+      } catch (err) {
+        consoleOut.innerText = `[ERROR]: Could not reach ${baseUrl}. Please ensure the server is running.`;
+      }
+    }
+
+    async function checkStatus() {
+      const baseUrl = getBaseUrl();
+      try {
+        const res = await fetch(`${baseUrl}/api/v1/instance/status`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          if (json.data.status === 'CONNECTED') {
+            setStatus('CONNECTED', json.data.phone_number);
+          } else if (!isConnected) {
+            fetchLiveQr(false);
+          }
+        }
+      } catch (e) {}
+    }
+
+
+
+    async function disconnectLiveSession() {
+      const baseUrl = getBaseUrl();
+      const apiKey = document.getElementById('api-key').value;
+      const consoleOut = document.getElementById('console-output');
+      consoleOut.innerText = `[DISCONNECTING]: Disconnecting session...`;
+
+      try {
+        await fetch(`${baseUrl}/api/v1/instance/disconnect`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer oxis_global_secret_key_change_me_in_production` }
+        });
+        setStatus('DISCONNECTED');
+        consoleOut.innerText = `[DISCONNECTED]: Session disconnected. Click "Refresh Live QR Code" to pair again.`;
+      } catch (e) {
+        setStatus('DISCONNECTED');
+      }
+    }
+
+    async function triggerPaymentConfirmation() {
+      const baseUrl = getBaseUrl();
+      const apiKey = document.getElementById('api-key').value;
+      const consoleOut = document.getElementById('console-output');
+
+      const regId = document.getElementById('field-reg-id').value;
+      const idempotencyKey = `payment-confirmation-${regId}`;
+
+      const payload = {
+        phone: document.getElementById('field-phone').value,
+        student_name: document.getElementById('field-student-name').value,
+        event_name: document.getElementById('field-event-name').value,
+        registration_id: regId,
+        amount: Number(document.getElementById('field-amount').value),
+        payment_id: document.getElementById('field-payment-id').value,
+        idempotency_key: idempotencyKey,
+      };
+
+      consoleOut.innerText = `[DISPATCHING REQUEST] ➔ ${baseUrl}/api/v1/automation/payment-confirmation\n` + JSON.stringify(payload, null, 2);
+
+      try {
+        const res = await fetch(`${baseUrl}/api/v1/automation/payment-confirmation`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const json = await res.json();
+        consoleOut.innerText = `[HTTP ${res.status} RESPONSE]:\n` + JSON.stringify(json, null, 2);
+
+        addLogToTable({
+          time: new Date().toLocaleTimeString(),
+          phone: payload.phone,
+          refId: payload.registration_id,
+          idempotencyKey: payload.idempotency_key,
+          status: json.status || (res.ok ? 'SENT' : 'FAILED'),
+          msgId: json.data?.whatsapp_message_id || json.error?.message || json.error?.code || 'ERR',
+        });
+      } catch (e) {
+        consoleOut.innerText = `[NETWORK ERROR]: ${e.message}`;
+      }
+    }
+
+    function testDuplicateRetry() {
+      document.getElementById('console-output').innerText = "Testing webhook retry with same Registration ID (Idempotency Key)...";
+      triggerPaymentConfirmation();
+    }
+
+    function addLogToTable(log) {
+      logs.unshift(log);
+      const tbody = document.getElementById('audit-table-body');
+      tbody.innerHTML = logs.map(l => {
+        let badgeClass = 'badge-primary';
+        if (l.status === 'SENT') badgeClass = 'badge-success';
+        if (l.status === 'DUPLICATE') badgeClass = 'badge-amber';
+        if (l.status === 'FAILED') badgeClass = 'badge-danger';
+
+        return `
+          <tr>
+            <td>${l.time}</td>
+            <td><code>${l.phone}</code></td>
+            <td><strong>${l.refId}</strong></td>
+            <td><code>${l.idempotencyKey}</code></td>
+            <td><span class="badge ${badgeClass}">${l.status}</span></td>
+            <td><code>${l.msgId}</code></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function fetchHistoricalLogs() {
+      const baseUrl = getBaseUrl();
+      try {
+        const res = await fetch(`${baseUrl}/api/v1/messages/logs`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          logs.length = 0;
+          json.data.forEach(item => {
+            logs.push({
+              time: new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              phone: item.phone,
+              refId: item.reference_id || item.student_name || 'N/A',
+              idempotencyKey: item.idempotency_key || 'N/A',
+              status: item.status,
+              msgId: item.whatsapp_message_id || item.error_message || 'N/A',
+            });
+          });
+          const tbody = document.getElementById('audit-table-body');
+          tbody.innerHTML = logs.map(l => {
+            let badgeClass = 'badge-primary';
+            if (l.status === 'SENT') badgeClass = 'badge-success';
+            if (l.status === 'DUPLICATE') badgeClass = 'badge-amber';
+            if (l.status === 'FAILED') badgeClass = 'badge-danger';
+            return `
+              <tr>
+                <td>${l.time}</td>
+                <td><code>${l.phone}</code></td>
+                <td><strong>${l.refId}</strong></td>
+                <td><code>${l.idempotencyKey}</code></td>
+                <td><span class="badge ${badgeClass}">${l.status}</span></td>
+                <td><code>${l.msgId}</code></td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (e) {}
+    }
+
+    function clearLogs() {
+      logs.length = 0;
+      document.getElementById('audit-table-body').innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-dim);">No transactions sent in this session yet.</td>
+        </tr>
+      `;
+    }
+
+    // Auto-initialize & poll status
+    updateLivePreview();
+    fetchLiveQr(false);
+    fetchHistoricalLogs();
+    pollInterval = setInterval(checkStatus, 3000);
+  </script>
+</body>
+</html>

@@ -43,6 +43,7 @@ import {
 } from "@/types";
 import { toast } from "sonner";
 import { ProjectTimeline } from "@/components/tasks/project-timeline";
+import { whatsappClient } from "@/lib/whatsapp-client";
 
 interface StageTasksDialogProps {
   open: boolean;
@@ -337,6 +338,44 @@ export function StageTasksDialog({
       { documents: prevDocs.filter((d) => d.id !== docId) },
       "Document removed"
     );
+  };
+
+  const handleSendWhatsAppInWorkflow = async () => {
+    if (!activeEntry) return;
+    const item = activeEntry.item;
+    const emp = employees.find((e) => e.id === item.assigned_employee_id);
+    let targetPhone = emp?.mobile_number;
+    let targetName = emp?.full_name || "Team Member";
+
+    if (!targetPhone) {
+      const manualPhone = window.prompt(
+        "Enter recipient WhatsApp mobile number (with country code, e.g., 919876543210):"
+      );
+      if (!manualPhone) return;
+      targetPhone = manualPhone;
+    }
+
+    const title =
+      activeEntry.kind === "task"
+        ? (item as WorkflowProjectTaskTemplate).task_name
+        : (item as WorkflowSubtaskTemplate).title;
+
+    toast.info("Sending WhatsApp notification...");
+    const res = await whatsappClient.sendTaskAssignment(
+      targetPhone,
+      targetName,
+      title,
+      `Stage ${stageIndex + 1}: ${stage.stage_name} (${milestone.title})`,
+      item.due_date
+    );
+
+    if (res.success && res.status === "SENT") {
+      toast.success(`WhatsApp alert sent to ${targetName} (+${targetPhone})!`);
+    } else {
+      toast.error(
+        `WhatsApp failed: ${res.error || res.status}. Ensure WhatsApp backend is running on port 8080.`
+      );
+    }
   };
 
   const timelineTask: Task = useMemo(() => {
@@ -852,39 +891,52 @@ export function StageTasksDialog({
                       {activeEntry.item.status || taskStatuses[0]?.label || "To Do"}
                     </Badge>
                     {!isEmployee && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          if (activeEntry.kind === "task") {
-                            pmsStore.deleteWorkflowTaskFromHierarchy(
-                              workflowId,
-                              activeEntry.item.id
-                            );
-                            setViewingItemId(null);
-                          } else {
-                            pmsStore.deleteWorkflowSubtaskFromHierarchy(
-                              workflowId,
-                              "",
-                              activeEntry.item.id
-                            );
-                            if (parentEntry) {
-                              openDetailFor(
-                                parentEntry.item.id,
-                                parentEntry.item.description
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleSendWhatsAppInWorkflow}
+                          className="h-8 px-2.5 rounded-xl border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-bold gap-1"
+                          title="Send WhatsApp Alert"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>WhatsApp</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (activeEntry.kind === "task") {
+                              pmsStore.deleteWorkflowTaskFromHierarchy(
+                                workflowId,
+                                activeEntry.item.id
                               );
-                            } else {
                               setViewingItemId(null);
+                            } else {
+                              pmsStore.deleteWorkflowSubtaskFromHierarchy(
+                                workflowId,
+                                "",
+                                activeEntry.item.id
+                              );
+                              if (parentEntry) {
+                                openDetailFor(
+                                  parentEntry.item.id,
+                                  parentEntry.item.description
+                                );
+                              } else {
+                                setViewingItemId(null);
+                              }
                             }
-                          }
-                          toast.success("Deleted.");
-                        }}
-                        className="h-8 px-2.5 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold gap-1"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        <span>Delete</span>
-                      </Button>
+                            toast.success("Deleted.");
+                          }}
+                          className="h-8 px-2.5 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold gap-1"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span>Delete</span>
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

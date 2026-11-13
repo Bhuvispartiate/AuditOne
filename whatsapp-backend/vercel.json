@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://gitwhatsappautomation.onrender.com/api/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://gitwhatsappautomation.onrender.com/health"
+    },
+    {
+      "source": "/swagger",
+      "destination": "https://gitwhatsappautomation.onrender.com/swagger/index.html"
+    },
+    {
+      "source": "/swagger/:path*",
+      "destination": "https://gitwhatsappautomation.onrender.com/swagger/:path*"
+    },
+    {
+      "source": "/docs",
+      "destination": "https://gitwhatsappautomation.onrender.com/swagger/index.html"
+    },
+    {
+      "source": "/manager",
+      "destination": "https://gitwhatsappautomation.onrender.com/manager"
+    },
+    {
+      "source": "/manager/:path*",
+      "destination": "https://gitwhatsappautomation.onrender.com/manager/:path*"
+    },
+    {
+      "source": "/assets/:path*",
+      "destination": "https://gitwhatsappautomation.onrender.com/assets/:path*"
+    }
+  ]
+}
