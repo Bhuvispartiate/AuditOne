@@ -282,12 +282,36 @@ export interface TaskStatusConfig {
 
 export type TaskStatus = string;
 
+export interface TaskSubCategory {
+  id: string;
+  category_id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  created_at: string;
+}
+
+export interface TaskCategory {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  sub_categories: TaskSubCategory[];
+  created_at: string;
+}
+
 export interface Task {
   id: string;
   task_code: string;
   project_id: string;
   project_name?: string;
   parent_task_id?: string;
+  category_id?: string;
+  category_name?: string;
+  sub_category_id?: string;
+  sub_category_name?: string;
   project_workflow_stage_id?: string;
   milestone_id?: string;
   milestone_title?: string;

@@ -16,6 +16,8 @@ import {
   TaskStatus,
   TaskStatusColor,
   TaskStatusConfig,
+  TaskCategory,
+  TaskSubCategory,
   TaskComment,
   CommentReadReceipt,
   WorkflowTemplate,
@@ -57,6 +59,200 @@ export const DEFAULT_TASK_STATUSES: TaskStatusConfig[] = [
   { id: "st-under-review", label: "Under Review", color: "sky" },
   { id: "st-blocked", label: "Blocked", color: "rose" },
   { id: "st-completed", label: "Completed", color: "emerald", isCompleted: true },
+];
+
+export const DEFAULT_TASK_CATEGORIES: TaskCategory[] = [
+  {
+    id: "cat-tax",
+    name: "Taxation & Compliance",
+    code: "TAX",
+    description: "Direct tax, GST returns, TDS compliance, and international taxation workflows.",
+    color: "violet",
+    icon: "Receipt",
+    created_at: new Date().toISOString(),
+    sub_categories: [
+      {
+        id: "subcat-gst",
+        category_id: "cat-tax",
+        name: "Indirect Tax (GST)",
+        code: "GST",
+        description: "GSTR-1, GSTR-3B, GSTR-9, ITC reconciliations and e-invoicing.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-income-tax",
+        category_id: "cat-tax",
+        name: "Direct Tax / Income Tax",
+        code: "IT",
+        description: "ITR filings, advance tax computations, AIS/TIS review, and tax audits.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-tds",
+        category_id: "cat-tax",
+        name: "TDS & TCS Returns",
+        code: "TDS",
+        description: "Quarterly 24Q, 26Q, 27Q filings, Form 16/16A generation and challan matching.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-intl-tax",
+        category_id: "cat-tax",
+        name: "Transfer Pricing & Cross-Border",
+        code: "TP",
+        description: "Form 3CEB, master file, local file, and DTAA treaty advisory.",
+        created_at: new Date().toISOString(),
+      },
+    ],
+  },
+  {
+    id: "cat-audit",
+    name: "Audit & Assurance",
+    code: "AUDIT",
+    description: "Statutory audits, internal risk control assessments, and special review engagements.",
+    color: "sky",
+    icon: "ShieldCheck",
+    created_at: new Date().toISOString(),
+    sub_categories: [
+      {
+        id: "subcat-stat-audit",
+        category_id: "cat-audit",
+        name: "Statutory Financial Audit",
+        code: "STAT",
+        description: "Balance sheet, P&L audit, CARO 2020 verification, and independent auditor reports.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-internal-audit",
+        category_id: "cat-audit",
+        name: "Internal & Operations Audit",
+        code: "INT",
+        description: "Internal financial controls (IFC), SOP compliance, and risk registers.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-tax-audit",
+        category_id: "cat-audit",
+        name: "Tax Audit (Form 3CD)",
+        code: "3CD",
+        description: "Clause-by-clause scrutiny under Section 44AB of the Income Tax Act.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-stock-audit",
+        category_id: "cat-audit",
+        name: "Bank Concurrent & Stock Audit",
+        code: "STOCK",
+        description: "Physical inventory counting, drawing power audits, and NPA reviews.",
+        created_at: new Date().toISOString(),
+      },
+    ],
+  },
+  {
+    id: "cat-roc",
+    name: "Corporate & Secretarial",
+    code: "ROC",
+    description: "MCA / ROC annual filings, secretarial compliance, and entity incorporations.",
+    color: "amber",
+    icon: "Building2",
+    created_at: new Date().toISOString(),
+    sub_categories: [
+      {
+        id: "subcat-roc-annual",
+        category_id: "cat-roc",
+        name: "Annual ROC Filings",
+        code: "ANNUAL",
+        description: "AOC-4, MGT-7, DPT-3, MSME-1, and board meeting minutes compliance.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-incorporation",
+        category_id: "cat-roc",
+        name: "Entity Incorporation & Setup",
+        code: "INCORP",
+        description: "Private Limited, LLP, OPC, Section 8 company registrations and SPICe+ filing.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-director-changes",
+        category_id: "cat-roc",
+        name: "Director & Capital Changes",
+        code: "DIR",
+        description: "DIR-3 KYC, appointment/resignation (DIR-12), and share allotment (PAS-3).",
+        created_at: new Date().toISOString(),
+      },
+    ],
+  },
+  {
+    id: "cat-acc",
+    name: "Accounting & Bookkeeping",
+    code: "ACC",
+    description: "Day-to-day transaction processing, ledger balancing, payroll, and financial statements.",
+    color: "emerald",
+    icon: "BookOpen",
+    created_at: new Date().toISOString(),
+    sub_categories: [
+      {
+        id: "subcat-bookkeeping",
+        category_id: "cat-acc",
+        name: "Monthly Bookkeeping & Finalization",
+        code: "BOOK",
+        description: "Purchase/Sales ledger entry, bank statement reconciliation, and trial balance.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-payroll",
+        category_id: "cat-acc",
+        name: "Payroll, PF & ESI Processing",
+        code: "PAY",
+        description: "Monthly salary registers, payslip dispatch, EPF, and ESIC challan filing.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-mis",
+        category_id: "cat-acc",
+        name: "MIS & Financial Reporting",
+        code: "MIS",
+        description: "Monthly executive summaries, cash flow forecasting, and KPI dashboards.",
+        created_at: new Date().toISOString(),
+      },
+    ],
+  },
+  {
+    id: "cat-adv",
+    name: "Business Advisory & Legal",
+    code: "ADV",
+    description: "Due diligence, valuation reports, trademark registrations, and notice replies.",
+    color: "slate",
+    icon: "Briefcase",
+    created_at: new Date().toISOString(),
+    sub_categories: [
+      {
+        id: "subcat-due-diligence",
+        category_id: "cat-adv",
+        name: "Due Diligence & Valuation",
+        code: "DD",
+        description: "Financial, tax & legal due diligence for M&A, investment, and valuations.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-notices",
+        category_id: "cat-adv",
+        name: "Notice Representation & Appeals",
+        code: "NOTICE",
+        description: "Drafting responses to scrutiny notices (Sec 148, 143(1), GST ASMT-10).",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-ip-cert",
+        category_id: "cat-adv",
+        name: "IP & Startup Registrations",
+        code: "IP",
+        description: "Trademark applications, DPIIT startup recognition, and ISO certifications.",
+        created_at: new Date().toISOString(),
+      },
+    ],
+  },
 ];
 
 // Default System Administrator Profile for initial system access
@@ -109,6 +305,7 @@ class PMSDataStore {
   private officeGeoConfig: OfficeGeoConfig | null = null;
   private attendanceRecords: AttendanceRecord[] = [];
   private taskStatuses: TaskStatusConfig[] = [...DEFAULT_TASK_STATUSES];
+  private taskCategories: TaskCategory[] = [...DEFAULT_TASK_CATEGORIES];
   private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
   private authenticated: boolean = false;
   private listeners: Set<() => void> = new Set();
@@ -326,6 +523,11 @@ class PMSDataStore {
     if (Array.isArray(parsed.taskStatuses) && parsed.taskStatuses.length > 0) {
       this.taskStatuses = parsed.taskStatuses;
     }
+    if (Array.isArray(parsed.taskCategories) && parsed.taskCategories.length > 0) {
+      this.taskCategories = parsed.taskCategories;
+    } else if (this.taskCategories.length === 0) {
+      this.taskCategories = [...DEFAULT_TASK_CATEGORIES];
+    }
     if (typeof parsed.updatedAt === "number") {
       this.localUpdatedAt = parsed.updatedAt;
     }
@@ -357,6 +559,7 @@ class PMSDataStore {
       officeGeoConfig: this.officeGeoConfig,
       attendanceRecords: this.attendanceRecords,
       taskStatuses: this.taskStatuses,
+      taskCategories: this.taskCategories,
       updatedAt,
     };
   }
@@ -1453,6 +1656,225 @@ class PMSDataStore {
     this.persist();
   }
 
+  // Task Categories & Sub-categories
+  getTaskCategories(): TaskCategory[] {
+    if (!this.taskCategories || this.taskCategories.length === 0) {
+      this.taskCategories = DEFAULT_TASK_CATEGORIES.map((c) => ({
+        ...c,
+        sub_categories: c.sub_categories.map((s) => ({ ...s })),
+      }));
+    }
+    return this.taskCategories;
+  }
+
+  getTaskCategoryById(categoryId: string): TaskCategory | undefined {
+    return this.getTaskCategories().find((c) => c.id === categoryId);
+  }
+
+  addTaskCategory(data: {
+    name: string;
+    code?: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+  }): TaskCategory {
+    const id = generateId("cat");
+    const code = (data.code || data.name.slice(0, 4)).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const newCategory: TaskCategory = {
+      id,
+      name: data.name.trim(),
+      code: code || "CAT",
+      description: data.description?.trim() || "",
+      color: data.color || "violet",
+      icon: data.icon || "Layers",
+      created_at: new Date().toISOString(),
+      sub_categories: [
+        {
+          id: generateId("subcat"),
+          category_id: id,
+          name: "General",
+          code: "GEN",
+          description: `General task group under ${data.name.trim()}`,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    };
+    this.taskCategories.push(newCategory);
+    this.addActivityLog(`Created task category: ${newCategory.name}`, "task", id);
+    this.persist();
+    return newCategory;
+  }
+
+  updateTaskCategory(id: string, updates: Partial<TaskCategory>): boolean {
+    const idx = this.taskCategories.findIndex((c) => c.id === id);
+    if (idx === -1) return false;
+    this.taskCategories[idx] = {
+      ...this.taskCategories[idx],
+      ...updates,
+    };
+    if (updates.name) {
+      this.tasks.forEach((t) => {
+        if (t.category_id === id) t.category_name = updates.name;
+      });
+    }
+    this.persist();
+    return true;
+  }
+
+  deleteTaskCategory(id: string): boolean {
+    const cat = this.taskCategories.find((c) => c.id === id);
+    if (!cat) return false;
+    this.taskCategories = this.taskCategories.filter((c) => c.id !== id);
+    this.addActivityLog(`Deleted task category: ${cat.name}`, "task", id);
+    this.persist();
+    return true;
+  }
+
+  addTaskSubCategory(
+    categoryId: string,
+    data: { name: string; code?: string; description?: string }
+  ): TaskSubCategory | undefined {
+    const cat = this.taskCategories.find((c) => c.id === categoryId);
+    if (!cat) return undefined;
+    const subId = generateId("subcat");
+    const code = (data.code || data.name.slice(0, 4)).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const newSub: TaskSubCategory = {
+      id: subId,
+      category_id: categoryId,
+      name: data.name.trim(),
+      code: code || "SUB",
+      description: data.description?.trim() || "",
+      created_at: new Date().toISOString(),
+    };
+    if (!cat.sub_categories) cat.sub_categories = [];
+    cat.sub_categories.push(newSub);
+    this.addActivityLog(`Added sub-category "${newSub.name}" under ${cat.name}`, "task", subId);
+    this.persist();
+    return newSub;
+  }
+
+  updateTaskSubCategory(
+    categoryId: string,
+    subCategoryId: string,
+    updates: Partial<TaskSubCategory>
+  ): boolean {
+    const cat = this.taskCategories.find((c) => c.id === categoryId);
+    if (!cat || !cat.sub_categories) return false;
+    const subIdx = cat.sub_categories.findIndex((s) => s.id === subCategoryId);
+    if (subIdx === -1) return false;
+    cat.sub_categories[subIdx] = {
+      ...cat.sub_categories[subIdx],
+      ...updates,
+    };
+    if (updates.name) {
+      this.tasks.forEach((t) => {
+        if (t.sub_category_id === subCategoryId) t.sub_category_name = updates.name;
+      });
+    }
+    this.persist();
+    return true;
+  }
+
+  deleteTaskSubCategory(categoryId: string, subCategoryId: string): boolean {
+    const cat = this.taskCategories.find((c) => c.id === categoryId);
+    if (!cat || !cat.sub_categories) return false;
+    const sub = cat.sub_categories.find((s) => s.id === subCategoryId);
+    cat.sub_categories = cat.sub_categories.filter((s) => s.id !== subCategoryId);
+    this.addActivityLog(`Deleted sub-category "${sub?.name}" under ${cat.name}`, "task", subCategoryId);
+    this.persist();
+    return true;
+  }
+
+  public ensureTaskCategorized(task: Task): Task {
+    if (task.category_id && task.sub_category_id) return task;
+    const text = `${task.title} ${task.project_name || ""} ${task.description || ""}`.toLowerCase();
+    let catId = "cat-tax";
+    let subCatId = "subcat-gst";
+    let catName = "Taxation & Compliance";
+    let subCatName = "Indirect Tax (GST)";
+
+    if (
+      text.includes("audit") ||
+      text.includes("caro") ||
+      text.includes("ifc") ||
+      text.includes("stock") ||
+      text.includes("statutory")
+    ) {
+      catId = "cat-audit";
+      catName = "Audit & Assurance";
+      if (text.includes("tax audit") || text.includes("3cd")) {
+        subCatId = "subcat-tax-audit";
+        subCatName = "Tax Audit (Form 3CD)";
+      } else if (text.includes("internal")) {
+        subCatId = "subcat-internal-audit";
+        subCatName = "Internal & Operations Audit";
+      } else {
+        subCatId = "subcat-stat-audit";
+        subCatName = "Statutory Financial Audit";
+      }
+    } else if (
+      text.includes("roc") ||
+      text.includes("mca") ||
+      text.includes("incorporation") ||
+      text.includes("director") ||
+      text.includes("aoc-4") ||
+      text.includes("mgt-7")
+    ) {
+      catId = "cat-roc";
+      catName = "Corporate & Secretarial";
+      if (text.includes("incorporat") || text.includes("formation")) {
+        subCatId = "subcat-incorporation";
+        subCatName = "Entity Incorporation & Setup";
+      } else {
+        subCatId = "subcat-roc-annual";
+        subCatName = "Annual ROC Filings";
+      }
+    } else if (
+      text.includes("bookkeep") ||
+      text.includes("account") ||
+      text.includes("ledger") ||
+      text.includes("payroll") ||
+      text.includes("mis")
+    ) {
+      catId = "cat-acc";
+      catName = "Accounting & Bookkeeping";
+      if (text.includes("payroll") || text.includes("salary") || text.includes("epf")) {
+        subCatId = "subcat-payroll";
+        subCatName = "Payroll, PF & ESI Processing";
+      } else {
+        subCatId = "subcat-bookkeeping";
+        subCatName = "Monthly Bookkeeping & Finalization";
+      }
+    } else if (
+      text.includes("tds") ||
+      text.includes("26as") ||
+      text.includes("26q") ||
+      text.includes("form 16")
+    ) {
+      catId = "cat-tax";
+      subCatId = "subcat-tds";
+      catName = "Taxation & Compliance";
+      subCatName = "TDS & TCS Returns";
+    } else if (
+      text.includes("itr") ||
+      text.includes("income tax") ||
+      text.includes("advance tax")
+    ) {
+      catId = "cat-tax";
+      subCatId = "subcat-income-tax";
+      catName = "Taxation & Compliance";
+      subCatName = "Direct Tax / Income Tax";
+    }
+
+    return {
+      ...task,
+      category_id: task.category_id || catId,
+      category_name: task.category_name || catName,
+      sub_category_id: task.sub_category_id || subCatId,
+      sub_category_name: task.sub_category_name || subCatName,
+    };
+  }
+
   // Tasks, Subtasks & Task Comments
   private enrichTask(task: Task, visited = new Set<string>()): Task {
     if (visited.has(task.id)) {
@@ -1469,8 +1891,10 @@ class PMSDataStore {
       (d) => d.entity_type === "task" && d.entity_id === task.id
     ).length;
 
+    const categorized = this.ensureTaskCategorized(task);
+
     return {
-      ...task,
+      ...categorized,
       subtasks,
       comments_count: commentsCount,
       attachments_count: attachmentsCount,
@@ -1495,6 +1919,14 @@ class PMSDataStore {
     return this.tasks
       .filter((t) => t.project_id === projectId && !t.parent_task_id)
       .map((t) => this.enrichTask(t));
+  }
+
+  getTasksBySubCategory(subCategoryId: string): Task[] {
+    return this.getTasks().filter((t) => t.sub_category_id === subCategoryId);
+  }
+
+  getTasksByCategory(categoryId: string): Task[] {
+    return this.getTasks().filter((t) => t.category_id === categoryId);
   }
 
   getSubtasks(parentTaskId: string): Task[] {
