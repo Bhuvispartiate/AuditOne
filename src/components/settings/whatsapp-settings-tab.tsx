@@ -8,7 +8,6 @@ import {
   RefreshCw,
   Send,
   Smartphone,
-  Terminal,
   Unplug,
   Wifi,
   WifiOff,
@@ -35,8 +34,7 @@ export function WhatsAppSettingsTab() {
   const [qrData, setQrData] = useState<WhatsAppQRResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [apiUrl, setApiUrl] = useState(whatsappClient.getBaseUrl());
-  const [apiKey, setApiKey] = useState(whatsappClient.getApiKey());
+  const [apiUrl] = useState(whatsappClient.getBaseUrl());
   const [logs, setLogs] = useState<WhatsAppAuditLog[]>([]);
 
   // Test sender state
@@ -71,14 +69,6 @@ export function WhatsAppSettingsTab() {
     }, 5000);
     return () => clearInterval(interval);
   }, []);
-
-  const handleSaveConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    whatsappClient.setBaseUrl(apiUrl);
-    whatsappClient.setApiKey(apiKey);
-    toast.success("WhatsApp configuration saved. Testing connection...");
-    fetchStatusAndQr();
-  };
 
   const handleConnect = async () => {
     setConnecting(true);
@@ -264,8 +254,8 @@ export function WhatsAppSettingsTab() {
                 To activate automated messaging, launch the backend engine by running the included start script:
               </p>
               <div className="rounded-xl bg-neutral-900 text-white font-mono text-[11px] p-2.5 flex items-center justify-between gap-2">
-                <span>whatsapp-backend\start_linear_whatsapp.bat</span>
-                <span className="text-emerald-400 font-sans text-[10px] font-bold">Port 8080</span>
+                <span>npm run whatsapp</span>
+                <span className="text-emerald-400 font-sans text-[10px] font-bold">Port 8085</span>
               </div>
             </div>
           )}
@@ -316,135 +306,70 @@ export function WhatsAppSettingsTab() {
       </Card>
 
       {/* 2. TEST DISPATCHER & PRESET TEMPLATES */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <Card className="rounded-[24px] border-[1.5px] border-slate-300 shadow-xs">
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-sm font-extrabold text-[#111827] flex items-center gap-2">
-              <Send className="h-4 w-4 text-emerald-600" />
-              <span>Instant Test Message Sender</span>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Test automated messaging templates to any mobile number with country code.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-5">
-            <form onSubmit={handleSendTest} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-700 uppercase">
-                  Recipient WhatsApp Number *
-                </label>
-                <Input
-                  placeholder="e.g. 919876543210 (without + or spaces)"
-                  value={testPhone}
-                  onChange={(e) => setTestPhone(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300 text-xs"
-                />
-              </div>
+      <Card className="rounded-[24px] border-[1.5px] border-slate-300 shadow-xs">
+        <CardHeader className="pb-3 border-b">
+          <CardTitle className="text-sm font-extrabold text-[#111827] flex items-center gap-2">
+            <Send className="h-4 w-4 text-emerald-600" />
+            <span>Instant Test Message Sender</span>
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Test automated messaging templates to any mobile number with country code.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-5">
+          <form onSubmit={handleSendTest} className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-700 uppercase">
+                Recipient WhatsApp Number *
+              </label>
+              <Input
+                placeholder="e.g. 919876543210 (without + or spaces)"
+                value={testPhone}
+                onChange={(e) => setTestPhone(e.target.value)}
+                className="h-9 rounded-xl border-slate-300 text-xs"
+              />
+            </div>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-700 uppercase">
-                  Message Preset
-                </label>
-                <select
-                  value={testTemplate}
-                  onChange={(e) => handleTemplateChange(e.target.value)}
-                  className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-semibold"
-                >
-                  <option value="custom">Custom Message</option>
-                  <option value="task">Task Allocated Notification</option>
-                  <option value="milestone">Milestone / Stage Progress</option>
-                  <option value="invoice">Invoice Payment Reminder</option>
-                  <option value="documents">Document Requisition Alert</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-700 uppercase">
-                  Message Body
-                </label>
-                <Textarea
-                  rows={5}
-                  value={testMessage}
-                  onChange={(e) => setTestMessage(e.target.value)}
-                  className="rounded-xl border-slate-300 text-xs font-mono"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={sending || status.status === "OFFLINE"}
-                className="w-full h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-700 uppercase">
+                Message Preset
+              </label>
+              <select
+                value={testTemplate}
+                onChange={(e) => handleTemplateChange(e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-semibold"
               >
-                <Send className="h-3.5 w-3.5" />
-                <span>{sending ? "Sending..." : "Dispatch Test WhatsApp"}</span>
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                <option value="custom">Custom Message</option>
+                <option value="task">Task Allocated Notification</option>
+                <option value="milestone">Milestone / Stage Progress</option>
+                <option value="invoice">Invoice Payment Reminder</option>
+                <option value="documents">Document Requisition Alert</option>
+              </select>
+            </div>
 
-        {/* 3. ENGINE CONFIGURATION */}
-        <Card className="rounded-[24px] border-[1.5px] border-slate-300 shadow-xs">
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-sm font-extrabold text-[#111827] flex items-center gap-2">
-              <Terminal className="h-4 w-4 text-violet-600" />
-              <span>Engine Connection Settings</span>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Configure local or remote WhatsApp service endpoint and API credentials.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-5">
-            <form onSubmit={handleSaveConfig} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-700 uppercase">
-                  Backend API URL
-                </label>
-                <Input
-                  value={apiUrl}
-                  onChange={(e) => setApiUrl(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300 text-xs"
-                />
-                <p className="text-[10px] text-slate-500">
-                  Default local server: <code>http://localhost:8080</code>
-                </p>
-              </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-700 uppercase">
+                Message Body
+              </label>
+              <Textarea
+                rows={4}
+                value={testMessage}
+                onChange={(e) => setTestMessage(e.target.value)}
+                className="rounded-xl border-slate-300 text-xs font-mono"
+              />
+            </div>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-700 uppercase">
-                  API Key / Secret
-                </label>
-                <Input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300 text-xs"
-                />
-                <p className="text-[10px] text-slate-500">
-                  Matches <code>OXIS_GLOBAL_API_KEY</code> in <code>whatsapp-backend/.env</code>
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1 text-xs text-slate-600">
-                <p className="font-bold text-[#111827]">Engine Files Location</p>
-                <p className="text-[11px] font-mono text-slate-700">
-                  d:\New folder (3)\whatsapp-backend
-                </p>
-                <p className="text-[10px] text-slate-500">
-                  To rebuild the binary anytime: <code>go build -o linear-whatsapp.exe ./oxis_backend/server.go</code>
-                </p>
-              </div>
-
-              <Button
-                type="submit"
-                variant="outline"
-                className="w-full h-9 rounded-xl border-slate-300 text-xs font-bold"
-              >
-                Save &amp; Re-check Connection
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+            <Button
+              type="submit"
+              disabled={sending || status.status === "OFFLINE"}
+              className="w-full h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{sending ? "Sending..." : "Dispatch Test WhatsApp"}</span>
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       {/* 4. SENT MESSAGES AUDIT LOG */}
       <Card className="rounded-[24px] border-[1.5px] border-slate-300 shadow-xs">
