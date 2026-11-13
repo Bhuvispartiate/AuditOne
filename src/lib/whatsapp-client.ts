@@ -55,7 +55,7 @@ export interface WhatsAppAuditLog {
 
 const STORAGE_KEY_URL = "pms_whatsapp_api_url";
 const STORAGE_KEY_KEY = "pms_whatsapp_api_key";
-const DEFAULT_API_URL = "http://localhost:8080";
+const DEFAULT_API_URL = "http://localhost:8085";
 const DEFAULT_API_KEY = "oxis_global_secret_key_change_me_in_production";
 
 class WhatsAppClientService {

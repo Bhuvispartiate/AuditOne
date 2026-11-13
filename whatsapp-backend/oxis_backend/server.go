@@ -5,10 +5,12 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -114,6 +116,35 @@ func NewWhatsAppManager(db *gorm.DB, instanceName string, authDSN string) (*What
 	return wm, nil
 }
 
+func fetchWhatsAppWebVersion() (uint32, uint32, uint32) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("https://web.whatsapp.com/sw.js")
+	if err == nil {
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err == nil {
+			patterns := []string{
+				`"client_revision":\s*(\d+)`,
+				`\\"client_revision\\":\s*(\d+)`,
+				`client_revision\\?\\"?:[\s]*(\d+)`,
+				`["']client_revision["'][\s]*:[\s]*(\d+)`,
+				`client_revision.*?(\d+)`,
+			}
+			for _, pattern := range patterns {
+				re := regexp.MustCompile(pattern)
+				matches := re.FindStringSubmatch(string(body))
+				if len(matches) >= 2 {
+					if rev, err := strconv.Atoi(matches[1]); err == nil && rev > 0 {
+						return 2, 3000, uint32(rev)
+					}
+				}
+			}
+		}
+	}
+	// Fallback to latest confirmed valid version
+	return 2, 3000, 1054468000
+}
+
 func (wm *WhatsAppManager) Start(forceNewPairing bool) error {
 	wm.mu.Lock()
 	if wm.isStarting {
@@ -146,6 +177,15 @@ func (wm *WhatsAppManager) Start(forceNewPairing bool) error {
 			deviceStore = wm.container.NewDevice()
 		}
 	}
+
+	maj, min, patch := fetchWhatsAppWebVersion()
+	fmt.Printf(" [WhatsApp] Using WhatsApp Web client version: %d.%d.%d\n", maj, min, patch)
+	if store.DeviceProps.Version == nil {
+		store.DeviceProps.Version = &waCompanionReg.DeviceProps_AppVersion{}
+	}
+	store.DeviceProps.Version.Primary = proto.Uint32(maj)
+	store.DeviceProps.Version.Secondary = proto.Uint32(min)
+	store.DeviceProps.Version.Tertiary = proto.Uint32(patch)
 
 	store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
 	store.DeviceProps.Os = proto.String("Chrome (Windows)")
