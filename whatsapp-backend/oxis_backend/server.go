@@ -83,6 +83,9 @@ type WhatsAppManager struct {
 }
 
 func NewWhatsAppManager(db *gorm.DB, instanceName string, authDSN string) (*WhatsAppManager, error) {
+	maj, min, patch := fetchWhatsAppWebVersion()
+	store.SetWAVersion(store.WAVersionContainer{maj, min, patch})
+
 	wm := &WhatsAppManager{
 		db:           db,
 		instanceName: instanceName,
@@ -145,6 +148,11 @@ func fetchWhatsAppWebVersion() (uint32, uint32, uint32) {
 	return 2, 3000, 1054468000
 }
 
+func init() {
+	maj, min, patch := fetchWhatsAppWebVersion()
+	store.SetWAVersion(store.WAVersionContainer{maj, min, patch})
+}
+
 func (wm *WhatsAppManager) Start(forceNewPairing bool) error {
 	wm.mu.Lock()
 	if wm.isStarting {
@@ -179,6 +187,7 @@ func (wm *WhatsAppManager) Start(forceNewPairing bool) error {
 	}
 
 	maj, min, patch := fetchWhatsAppWebVersion()
+	store.SetWAVersion(store.WAVersionContainer{maj, min, patch})
 	fmt.Printf(" [WhatsApp] Using WhatsApp Web client version: %d.%d.%d\n", maj, min, patch)
 	if store.DeviceProps.Version == nil {
 		store.DeviceProps.Version = &waCompanionReg.DeviceProps_AppVersion{}
@@ -295,6 +304,21 @@ func (wm *WhatsAppManager) eventHandler(evt interface{}) {
 		wm.currentRawQR = ""
 		fmt.Printf(" [OXIS] WhatsApp PairSuccess Event Received: %s\n", wm.connectedJID)
 		wm.mu.Unlock()
+
+	case *events.ClientOutdated:
+		wm.mu.Lock()
+		wm.status = "DISCONNECTED"
+		wm.connectedJID = ""
+		wm.currentQR = ""
+		wm.currentRawQR = ""
+		wm.mu.Unlock()
+		fmt.Printf(" [OXIS] WhatsApp Client Outdated event received. Refreshing version and pairing...\n")
+		go func() {
+			time.Sleep(2 * time.Second)
+			maj, min, patch := fetchWhatsAppWebVersion()
+			store.SetWAVersion(store.WAVersionContainer{maj, min, patch})
+			_ = wm.Start(true)
+		}()
 
 	case *events.LoggedOut:
 		wm.mu.Lock()
