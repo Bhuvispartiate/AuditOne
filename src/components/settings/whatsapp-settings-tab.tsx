@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Send,
   Smartphone,
+  Terminal,
   Unplug,
   Wifi,
   WifiOff,
