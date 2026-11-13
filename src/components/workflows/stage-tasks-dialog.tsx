@@ -32,6 +32,7 @@ import { pmsStore } from "@/lib/data/store";
 import {
   Employee,
   ProjectPriority,
+  Task,
   TaskStatus,
   TaskStatusConfig,
   WorkflowDocumentAttachment,
@@ -41,6 +42,7 @@ import {
   WorkflowSubtaskTemplate,
 } from "@/types";
 import { toast } from "sonner";
+import { ProjectTimeline } from "@/components/tasks/project-timeline";
 
 interface StageTasksDialogProps {
   open: boolean;
@@ -336,6 +338,69 @@ export function StageTasksDialog({
       "Document removed"
     );
   };
+
+  const timelineTask: Task = useMemo(() => {
+    if (!activeEntry) {
+      return {
+        id: "none",
+        task_code: "TASK",
+        title: "Task",
+        description: "",
+        project_id: workflowId,
+        start_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date().toISOString().slice(0, 10),
+        status: "To Do",
+        priority: "Medium",
+        created_at: new Date().toISOString(),
+        subtasks: [],
+      };
+    }
+    const mapSubToTask = (s: WorkflowSubtaskTemplate): Task => ({
+      id: s.id,
+      task_code: s.title,
+      title: s.title,
+      description: s.description || "",
+      project_id: workflowId,
+      start_date:
+        s.start_date ||
+        activeEntry.item.start_date ||
+        new Date().toISOString().slice(0, 10),
+      due_date:
+        s.due_date ||
+        activeEntry.item.due_date ||
+        new Date().toISOString().slice(0, 10),
+      status: s.status || "To Do",
+      priority: s.priority || "Medium",
+      assigned_employee_id: s.assigned_employee_id,
+      assigned_employee_name: s.assigned_employee_name,
+      created_at: new Date().toISOString(),
+      subtasks: (s.subtasks || []).map(mapSubToTask),
+    });
+
+    const isTask = activeEntry.kind === "task";
+    const title = isTask
+      ? (activeEntry.item as WorkflowProjectTaskTemplate).task_name
+      : (activeEntry.item as WorkflowSubtaskTemplate).title;
+    const start =
+      activeEntry.item.start_date || new Date().toISOString().slice(0, 10);
+    const due = activeEntry.item.due_date || start;
+
+    return {
+      id: activeEntry.item.id,
+      task_code: title,
+      title: title,
+      description: activeEntry.item.description || "",
+      project_id: workflowId,
+      start_date: start,
+      due_date: due,
+      status: activeEntry.item.status || "To Do",
+      priority: activeEntry.item.priority || "Medium",
+      assigned_employee_id: activeEntry.item.assigned_employee_id,
+      assigned_employee_name: activeEntry.item.assigned_employee_name,
+      created_at: new Date().toISOString(),
+      subtasks: (activeEntry.item.subtasks || []).map(mapSubToTask),
+    };
+  }, [activeEntry, workflowId]);
 
   // Suppress unused import warning if findSubtaskInList not needed externally
   void findSubtaskInList;
@@ -1154,7 +1219,65 @@ export function StageTasksDialog({
                   )}
                 </div>
 
-                {/* BOX 3: Documents Upload */}
+                {/* BOX 3: Click-to-Expand Timeline for this Task / Subtask / Sub-subtask */}
+                <ProjectTimeline
+                  key={`tl-${activeEntry.item.id}`}
+                  tasks={[timelineTask]}
+                  projectStartDate={timelineTask.start_date}
+                  projectDueDate={timelineTask.due_date}
+                  title="Task & Subtasks Timeline"
+                  onSelectTask={(subId) => openDetailFor(subId)}
+                  collapsible
+                  defaultExpanded={false}
+                />
+
+                {/* BOX 4: Comments */}
+                <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-3">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                    <MessageSquare className="h-4 w-4 text-violet-600" />
+                    <span>
+                      Comments ({(activeEntry.item.default_comments || []).length})
+                    </span>
+                  </h4>
+
+                  {(activeEntry.item.default_comments || []).length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-400">
+                      No comments yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {(activeEntry.item.default_comments || []).map((c, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-xs text-[#111827]"
+                        >
+                          {c}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {!isEmployee && (
+                    <form onSubmit={handleAddComment} className="flex gap-2">
+                      <Input
+                        placeholder="Write a comment or instruction..."
+                        value={commentInput}
+                        onChange={(e) => setCommentInput(e.target.value)}
+                        className="h-9 rounded-xl border-slate-300 text-xs"
+                      />
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="h-9 px-3 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        <span>Post</span>
+                      </Button>
+                    </form>
+                  )}
+                </div>
+
+                {/* BOX 5: Documents Upload */}
                 <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
@@ -1211,52 +1334,6 @@ export function StageTasksDialog({
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-
-                {/* BOX 4: Comments */}
-                <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-3">
-                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                    <MessageSquare className="h-4 w-4 text-violet-600" />
-                    <span>
-                      Comments ({(activeEntry.item.default_comments || []).length})
-                    </span>
-                  </h4>
-
-                  {(activeEntry.item.default_comments || []).length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-400">
-                      No comments yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {(activeEntry.item.default_comments || []).map((c, idx) => (
-                        <div
-                          key={idx}
-                          className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-xs text-[#111827]"
-                        >
-                          {c}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {!isEmployee && (
-                    <form onSubmit={handleAddComment} className="flex gap-2">
-                      <Input
-                        placeholder="Write a comment or instruction..."
-                        value={commentInput}
-                        onChange={(e) => setCommentInput(e.target.value)}
-                        className="h-9 rounded-xl border-slate-300 text-xs"
-                      />
-                      <Button
-                        type="submit"
-                        size="sm"
-                        className="h-9 px-3 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1"
-                      >
-                        <Send className="h-3.5 w-3.5" />
-                        <span>Post</span>
-                      </Button>
-                    </form>
                   )}
                 </div>
               </div>

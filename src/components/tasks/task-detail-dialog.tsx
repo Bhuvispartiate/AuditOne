@@ -476,10 +476,7 @@ export function TaskDetailDialog({
             )}
           </div>
 
-          {/* BOX 3: Documents Upload for this Task / Subtask / Sub-subtask */}
-          <TaskDocumentsBox task={task} onChanged={notifyChange} readOnly={isReadOnly} />
-
-          {/* BOX 4: Click-to-Expand Timeline for this Task / Subtask / Sub-subtask */}
+          {/* BOX 3: Click-to-Expand Timeline for this Task / Subtask / Sub-subtask */}
           <ProjectTimeline
             key={`tl-${task.id}`}
             tasks={[task]}
@@ -491,13 +488,16 @@ export function TaskDetailDialog({
             defaultExpanded={false}
           />
 
-          {/* BOX 5: Read-Receipt Comments Box for this Task / Subtask / Sub-subtask */}
+          {/* BOX 4: Read-Receipt Comments Box for this Task / Subtask / Sub-subtask */}
           <TaskCommentsBox
             taskId={task.id}
             assignedEmployeeId={task.assigned_employee_id}
             onUpdated={notifyChange}
             readOnly={isReadOnly}
           />
+
+          {/* BOX 5: Documents Upload for this Task / Subtask / Sub-subtask */}
+          <TaskDocumentsBox task={task} onChanged={notifyChange} readOnly={isReadOnly} />
         </div>
       </DialogContent>
     </Dialog>
