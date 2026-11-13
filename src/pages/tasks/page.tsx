@@ -11,13 +11,11 @@ import {
   GripVertical,
   MoreVertical,
   Pencil,
-  ArrowRight,
-  ArrowUpRight,
   CheckCircle2,
+  FolderPlus,
   Clock,
-  Layers,
   Sparkles,
-  FolderTree,
+  GitBranch,
   Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,7 +42,6 @@ import {
   isTaskAssignedToEmployee,
   isClientAssignedToEmployee,
 } from "@/lib/access";
-import { getStyleForColor } from "@/lib/task-status-styles";
 import { formatDate } from "@/lib/utils";
 import {
   Task,
@@ -56,45 +53,44 @@ import {
 import { toast } from "sonner";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 
-// Distinct pastel accent colors for Sub-group column headers (matching the requested design)
-const SUB_GROUP_ACCENTS = [
-  { bar: "bg-cyan-500", text: "text-cyan-700", border: "border-t-cyan-500" },
-  { bar: "bg-lime-500", text: "text-lime-700", border: "border-t-lime-500" },
-  { bar: "bg-orange-500", text: "text-orange-700", border: "border-t-orange-500" },
-  { bar: "bg-violet-500", text: "text-violet-700", border: "border-t-violet-500" },
-  { bar: "bg-sky-500", text: "text-sky-700", border: "border-t-sky-500" },
-  { bar: "bg-rose-500", text: "text-rose-700", border: "border-t-rose-500" },
-  { bar: "bg-emerald-500", text: "text-emerald-700", border: "border-t-emerald-500" },
-  { bar: "bg-amber-500", text: "text-amber-700", border: "border-t-amber-500" },
-];
-
-// Soft pastel status pill styles (similar to the screenshot: Open, Approval pending, Kiruba Action, In Progress, etc.)
+// Pastel colors for status badges matching user's reference screenshot
 function getStatusBadgeStyle(status: string) {
-  const s = status.toLowerCase();
-  if (s.includes("open") || s.includes("todo") || s.includes("to do")) {
-    return "bg-orange-100 text-orange-800 border-orange-200";
-  }
+  const s = (status || "").toLowerCase().trim();
   if (s.includes("approval") || s.includes("pending")) {
-    return "bg-pink-100 text-pink-800 border-pink-200";
+    return "bg-pink-100 text-pink-700 border-pink-200 hover:bg-pink-200";
   }
-  if (s.includes("action") || s.includes("review")) {
-    return "bg-cyan-100 text-cyan-800 border-cyan-200";
+  if (s.includes("hold") || s.includes("action") || s.includes("blocked")) {
+    return "bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-200";
   }
-  if (s.includes("progress") || s.includes("active")) {
-    return "bg-blue-100 text-blue-800 border-blue-200";
+  if (s.includes("open") || s.includes("todo") || s.includes("to do")) {
+    return "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200";
   }
-  if (s.includes("hold") || s.includes("blocked")) {
-    return "bg-amber-100 text-amber-800 border-amber-200";
+  if (s.includes("progress")) {
+    return "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200";
   }
-  if (s.includes("completed") || s.includes("done")) {
-    return "bg-emerald-100 text-emerald-800 border-emerald-200";
+  if (s.includes("complete") || s.includes("done")) {
+    return "bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200";
   }
-  return "bg-slate-100 text-slate-800 border-slate-200";
+  if (s.includes("review")) {
+    return "bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200";
+  }
+  return "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200";
 }
 
+// Top accent borders for sub-group columns
+const COLUMN_ACCENTS = [
+  "border-t-teal-400",
+  "border-t-lime-500",
+  "border-t-amber-500",
+  "border-t-sky-500",
+  "border-t-violet-500",
+  "border-t-pink-500",
+  "border-t-indigo-500",
+  "border-t-emerald-500",
+];
+
 function TasksContent() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const initialCategoryParam = searchParams.get("category");
+  const [searchParams] = useSearchParams();
   const autoCreate = searchParams.get("create") === "true";
 
   const currentUser = pmsStore.getCurrentUser();
@@ -104,41 +100,39 @@ function TasksContent() {
   const [tick, setTick] = useState(0);
   void tick;
 
-  const categories = pmsStore.getTaskCategories();
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
-    initialCategoryParam && categories.some((c) => c.id === initialCategoryParam)
-      ? initialCategoryParam
-      : categories[0]?.id || "cat-tax"
-  );
+  // Selected Category filter ("ALL" or specific category ID)
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("ALL");
 
-  // Filters & Search
+  // Search & Filter state
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [assigneeFilter, setAssigneeFilter] = useState("ALL");
 
-  // Drag & drop state (moving tasks between Sub-group columns)
+  // Drag & drop state (dragging task between sub-group columns)
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
-  const [dragOverSubGroupId, setDragOverSubGroupId] = useState<string | null>(null);
+  const [dragOverSubId, setDragOverSubId] = useState<string | null>(null);
 
-  // Quick inline task creation per sub-group column
-  const [quickInputs, setQuickInputs] = useState<Record<string, string>>({});
-  const [activeQuickInputSubId, setActiveQuickInputSubId] = useState<string | null>(null);
-
-  // Detail Modal & Full Create Modal
+  // Modals state
+  const [isModalOpen, setIsModalOpen] = useState(autoCreate && !isEmployee);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(autoCreate && !isEmployee);
-  const [createTaskTargetSubId, setCreateTaskTargetSubId] = useState<string>("");
 
-  // Sub-category Add / Edit Modal
+  // Inline Quick Task Adder inputs per sub-group column { [subCategoryId]: string }
+  const [inlineTaskInputs, setInlineTaskInputs] = useState<Record<string, string>>({});
+
+  // Add / Edit Sub-category Modal
   const [isSubCategoryModalOpen, setIsSubCategoryModalOpen] = useState(false);
-  const [editingSubCategory, setEditingSubCategory] = useState<TaskSubCategory | null>(null);
+  const [editingSubCategory, setEditingSubCategory] = useState<{
+    sub: TaskSubCategory;
+    categoryId: string;
+  } | null>(null);
+  const [targetCategoryIdForNewSub, setTargetCategoryIdForNewSub] = useState<string>("");
   const [subName, setSubName] = useState("");
   const [subCode, setSubCode] = useState("");
   const [subDesc, setSubDesc] = useState("");
 
-  // Category Add / Edit Modal
+  // Add / Edit Category Modal
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<TaskCategory | null>(null);
   const [catName, setCatName] = useState("");
@@ -151,19 +145,14 @@ function TasksContent() {
     return unsub;
   }, []);
 
-  // Sync category change to URL
-  const handleSelectCategory = (catId: string) => {
-    setSelectedCategoryId(catId);
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set("category", catId);
-    setSearchParams(nextParams, { replace: true });
-  };
-
+  const categories = pmsStore.getTaskCategories();
   const allTasks = pmsStore.getTasks();
   const projects = pmsStore.getProjects();
   const allClients = pmsStore.getClients();
   const allEngagements = pmsStore.getAllEngagements();
   const employees = pmsStore.getEmployees();
+  const taskStatuses = pmsStore.getTaskStatuses();
+  const statusNames = taskStatuses.map((s) => s.label);
 
   const tasks = isEmployee
     ? allTasks.filter((t) => isTaskAssignedToEmployee(t, empId))
@@ -173,24 +162,14 @@ function TasksContent() {
         isClientAssignedToEmployee(c, empId, projects, allTasks, allEngagements)
       )
     : allClients;
-  const taskStatuses = pmsStore.getTaskStatuses();
-  const statusNames = taskStatuses.map((s) => s.label);
 
-  const selectedCategory =
-    categories.find((c) => c.id === selectedCategoryId) || categories[0];
-  const subCategories: TaskSubCategory[] = selectedCategory?.sub_categories || [];
-
-  // Filter tasks belonging to the active Category
-  const categoryTasks = tasks.filter((t) => t.category_id === selectedCategory?.id);
-
-  // Full Task Form State
+  // New task form state
   const [taskTitle, setTaskTitle] = useState("");
+  const [targetSubIdForNewTask, setTargetSubIdForNewTask] = useState<string>("");
   const [projectId, setProjectId] = useState(projects[0]?.id || "");
   const [assignedEmployeeId, setAssignedEmployeeId] = useState(employees[0]?.id || "");
   const [priority, setPriority] = useState<ProjectPriority>("Medium");
-  const [initialStatus, setInitialStatus] = useState<TaskStatus>(
-    pmsStore.getDefaultStatusName()
-  );
+  const [initialStatus, setInitialStatus] = useState<TaskStatus>(pmsStore.getDefaultStatusName());
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(
     new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10)
@@ -205,65 +184,100 @@ function TasksContent() {
     }
   }, [projects, projectId]);
 
-  // Open Task Overview Dialog
+  // Flatten all sub-categories across the selected category (or all categories)
+  const visibleSubCategories = React.useMemo(() => {
+    const list: Array<{ sub: TaskSubCategory; category: TaskCategory }> = [];
+    categories.forEach((cat) => {
+      if (selectedCategoryFilter !== "ALL" && cat.id !== selectedCategoryFilter) return;
+      (cat.sub_categories || []).forEach((sub) => {
+        list.push({ sub, category: cat });
+      });
+    });
+    return list;
+  }, [categories, selectedCategoryFilter]);
+
+  // Filter tasks based on search, client, status, and assignee
+  const matchesTaskFilters = (t: Task) => {
+    const proj = projects.find((p) => p.id === t.project_id);
+    const matchesSearch =
+      !search.trim() ||
+      t.title.toLowerCase().includes(search.toLowerCase()) ||
+      t.task_code.toLowerCase().includes(search.toLowerCase()) ||
+      (t.project_name && t.project_name.toLowerCase().includes(search.toLowerCase())) ||
+      (proj?.client_name && proj.client_name.toLowerCase().includes(search.toLowerCase())) ||
+      (t.assigned_employee_name &&
+        t.assigned_employee_name.toLowerCase().includes(search.toLowerCase()));
+
+    const matchesClient = clientFilter === "ALL" || proj?.client_id === clientFilter;
+    const matchesStatus = statusFilter === "ALL" || t.status === statusFilter;
+    const matchesAssignee =
+      assigneeFilter === "ALL" || t.assigned_employee_id === assigneeFilter;
+
+    return matchesSearch && matchesClient && matchesStatus && matchesAssignee;
+  };
+
   const handleOpenDetail = (taskId: string) => {
     setActiveTaskId(taskId);
     setIsDetailOpen(true);
   };
 
-  // Drag and Drop: Moving a task from one Sub-group column to another
-  const handleDropOnSubGroup = (targetSub: TaskSubCategory) => {
-    if (!draggingTaskId) return;
-    const task = tasks.find((t) => t.id === draggingTaskId);
-    setDraggingTaskId(null);
-    setDragOverSubGroupId(null);
-
-    if (task && task.sub_category_id !== targetSub.id) {
-      pmsStore.updateTask(task.id, {
-        sub_category_id: targetSub.id,
-        sub_category_name: targetSub.name,
-        category_id: selectedCategory.id,
-        category_name: selectedCategory.name,
-      });
-      toast.success(`Moved "${task.title}" to ${targetSub.name}`);
-    }
-  };
-
-  // Quick Inline Task Creator on column header
-  const handleQuickAddTask = (subId: string, subName: string) => {
-    const title = (quickInputs[subId] || "").trim();
+  // Inline Quick Task Add directly from column header input
+  const handleInlineTaskCreate = (sub: TaskSubCategory, cat: TaskCategory) => {
+    const title = (inlineTaskInputs[sub.id] || "").trim();
     if (!title) return;
 
     const parentProj = projects[0];
-    const defaultAssignee = employees[0];
-    const today = new Date().toISOString().slice(0, 10);
-    const inAWeek = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    if (!parentProj) {
+      toast.error("Please create at least one project first.");
+      return;
+    }
 
-    pmsStore.addTask({
+    const created = pmsStore.addTask({
       title,
-      project_id: parentProj?.id || "default",
-      project_name: parentProj?.project_name,
-      category_id: selectedCategory.id,
-      category_name: selectedCategory.name,
-      sub_category_id: subId,
-      sub_category_name: subName,
-      assigned_employee_id: defaultAssignee?.id,
-      assigned_employee_name: defaultAssignee?.full_name,
+      project_id: parentProj.id,
+      project_name: parentProj.project_name,
+      category_id: cat.id,
+      category_name: cat.name,
+      sub_category_id: sub.id,
+      sub_category_name: sub.name,
+      assigned_employee_id: employees[0]?.id,
+      assigned_employee_name: employees[0]?.full_name,
       priority: "Medium",
-      start_date: today,
-      due_date: inAWeek,
-      status: pmsStore.getDefaultStatusName(),
-      description: `Task in ${selectedCategory.name} → ${subName}`,
+      status: "Open",
+      due_date: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
+      description: `Deliverable task under ${sub.name}`,
       created_by: currentUser.id,
       created_by_name: currentUser.full_name,
     });
 
-    setQuickInputs({ ...quickInputs, [subId]: "" });
-    toast.success(`Created task "${title}" in ${subName}`);
+    setInlineTaskInputs((prev) => ({ ...prev, [sub.id]: "" }));
+    toast.success(`Task ${created.task_code} added to ${sub.name}`);
   };
 
-  // Full Task Create Dialog Handler
-  const handleCreateFullTask = (e: React.FormEvent) => {
+  // Drag and Drop between Sub-group columns
+  const handleDropOnSubCategory = (targetSub: TaskSubCategory, targetCat: TaskCategory) => {
+    if (isEmployee || !draggingTaskId) return;
+    const dragged = tasks.find((t) => t.id === draggingTaskId);
+    setDraggingTaskId(null);
+    setDragOverSubId(null);
+
+    if (dragged && dragged.sub_category_id !== targetSub.id) {
+      pmsStore.updateTask(dragged.id, {
+        sub_category_id: targetSub.id,
+        sub_category_name: targetSub.name,
+        category_id: targetCat.id,
+        category_name: targetCat.name,
+      });
+      toast.success(`Moved ${dragged.task_code} to "${targetSub.name}"`);
+    }
+  };
+
+  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
+    pmsStore.updateTaskStatus(taskId, newStatus);
+    toast.success(`Task status updated to ${newStatus}`);
+  };
+
+  const handleCreateTaskModalSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskTitle.trim()) {
       toast.error("Please enter a task title.");
@@ -274,7 +288,26 @@ function TasksContent() {
       return;
     }
 
-    const targetSub = subCategories.find((s) => s.id === createTaskTargetSubId) || subCategories[0];
+    // Resolve target sub-category and category
+    let targetSub: TaskSubCategory | undefined;
+    let targetCat: TaskCategory | undefined;
+
+    if (targetSubIdForNewTask) {
+      for (const cat of categories) {
+        const found = (cat.sub_categories || []).find((s) => s.id === targetSubIdForNewTask);
+        if (found) {
+          targetSub = found;
+          targetCat = cat;
+          break;
+        }
+      }
+    }
+
+    if (!targetSub && visibleSubCategories[0]) {
+      targetSub = visibleSubCategories[0].sub;
+      targetCat = visibleSubCategories[0].category;
+    }
+
     const proj = projects.find((p) => p.id === projectId);
     const emp = employees.find((e) => e.id === assignedEmployeeId);
 
@@ -282,8 +315,8 @@ function TasksContent() {
       title: taskTitle.trim(),
       project_id: projectId,
       project_name: proj?.project_name,
-      category_id: selectedCategory?.id,
-      category_name: selectedCategory?.name,
+      category_id: targetCat?.id,
+      category_name: targetCat?.name,
       sub_category_id: targetSub?.id,
       sub_category_name: targetSub?.name,
       assigned_employee_id: assignedEmployeeId,
@@ -311,44 +344,43 @@ function TasksContent() {
       });
     });
 
-    toast.success(`Task ${created.task_code} created in ${targetSub?.name}.`);
-    setIsCreateTaskModalOpen(false);
+    toast.success(
+      `Task ${created.task_code} created under ${targetSub?.name || "General"}`
+    );
+    setIsModalOpen(false);
     setTaskTitle("");
     setDescription("");
     setDraftSubtaskInput("");
     setDraftSubtasks([]);
   };
 
-  // Change Task Status inline
-  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
-    pmsStore.updateTaskStatus(taskId, newStatus);
-    toast.success(`Status updated to "${newStatus}"`);
-  };
-
-  // Sub-category Modal Save
+  // Add / Edit Sub-group
   const handleSaveSubCategory = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCategory) return;
     if (!subName.trim()) {
       toast.error("Please enter a sub-group name.");
       return;
     }
 
+    const catId = editingSubCategory?.categoryId || targetCategoryIdForNewSub || categories[0]?.id;
+    if (!catId) return;
+
     if (editingSubCategory) {
-      pmsStore.updateTaskSubCategory(selectedCategory.id, editingSubCategory.id, {
+      pmsStore.updateTaskSubCategory(catId, editingSubCategory.sub.id, {
         name: subName.trim(),
         code: subCode.trim(),
         description: subDesc.trim(),
       });
       toast.success("Sub-group updated.");
     } else {
-      const created = pmsStore.addTaskSubCategory(selectedCategory.id, {
+      const created = pmsStore.addTaskSubCategory(catId, {
         name: subName.trim(),
         code: subCode.trim(),
         description: subDesc.trim(),
       });
       toast.success(`Sub-group "${created?.name}" created.`);
     }
+
     setIsSubCategoryModalOpen(false);
     setEditingSubCategory(null);
     setSubName("");
@@ -356,14 +388,20 @@ function TasksContent() {
     setSubDesc("");
   };
 
-  // Category Modal Save
+  const handleDeleteSubCategory = (sub: TaskSubCategory, catId: string) => {
+    if (confirm(`Are you sure you want to delete sub-group column "${sub.name}"?`)) {
+      pmsStore.deleteTaskSubCategory(catId, sub.id);
+      toast.success("Sub-group deleted.");
+    }
+  };
+
+  // Add / Edit Category
   const handleSaveCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!catName.trim()) {
       toast.error("Please enter a category name.");
       return;
     }
-
     if (editingCategory) {
       pmsStore.updateTaskCategory(editingCategory.id, {
         name: catName.trim(),
@@ -379,7 +417,6 @@ function TasksContent() {
         description: catDesc.trim(),
         color: catColor,
       });
-      setSelectedCategoryId(created.id);
       toast.success(`Category "${created.name}" created.`);
     }
     setIsCategoryModalOpen(false);
@@ -387,36 +424,6 @@ function TasksContent() {
     setCatName("");
     setCatCode("");
     setCatDesc("");
-  };
-
-  // Filter tasks inside a sub-group column
-  const getFilteredColumnTasks = (subId: string) => {
-    return tasks.filter((t) => {
-      if (t.sub_category_id !== subId) return false;
-
-      // Status filter
-      if (statusFilter !== "ALL" && t.status !== statusFilter) return false;
-
-      // Client filter
-      const proj = projects.find((p) => p.id === t.project_id);
-      if (clientFilter !== "ALL" && proj?.client_id !== clientFilter) return false;
-
-      // Assignee filter
-      if (assigneeFilter !== "ALL" && t.assigned_employee_id !== assigneeFilter) return false;
-
-      // Text search
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const matches =
-          t.title.toLowerCase().includes(q) ||
-          t.task_code.toLowerCase().includes(q) ||
-          (t.project_name && t.project_name.toLowerCase().includes(q)) ||
-          (proj?.client_name && proj.client_name.toLowerCase().includes(q));
-        if (!matches) return false;
-      }
-
-      return true;
-    });
   };
 
   return (
@@ -427,15 +434,14 @@ function TasksContent() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
-            Task Management Engine
+            Task Management Kanban
           </h1>
           <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Kanban board organized by <strong>Sub-groups</strong> under{" "}
-            <span className="font-bold text-slate-800">{selectedCategory?.name}</span>. Drag deliverable cards between sub-groups.
+            Kanban columns organized by <strong>Sub-groups</strong>. Drag deliverable cards between sub-groups to reallocate or click to view details.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {!isEmployee && (
             <>
               <Button
@@ -444,24 +450,28 @@ function TasksContent() {
                 size="sm"
                 onClick={() => {
                   setEditingSubCategory(null);
+                  setTargetCategoryIdForNewSub(
+                    selectedCategoryFilter !== "ALL" ? selectedCategoryFilter : categories[0]?.id || ""
+                  );
                   setSubName("");
                   setSubCode("");
                   setSubDesc("");
                   setIsSubCategoryModalOpen(true);
                 }}
-                className="h-9 rounded-xl border-slate-300 text-xs font-bold gap-1.5 bg-white text-slate-700 hover:bg-slate-50"
+                className="h-9 rounded-2xl border-slate-300 bg-white text-xs font-bold gap-1.5 shadow-xs"
               >
-                <Plus className="h-4 w-4" />
-                <span>Add Sub-group Column</span>
+                <FolderPlus className="h-3.5 w-3.5 text-violet-600" />
+                <span>Add Sub-group</span>
               </Button>
 
               <Button
+                type="button"
                 onClick={() => {
-                  setCreateTaskTargetSubId(subCategories[0]?.id || "");
-                  setIsCreateTaskModalOpen(true);
+                  setTargetSubIdForNewTask(visibleSubCategories[0]?.sub.id || "");
+                  setIsModalOpen(true);
                 }}
                 size="sm"
-                className="h-9 bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-xl shadow-xs font-bold text-xs"
+                className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-2xl shadow-xs font-bold h-9"
               >
                 <Plus className="h-4 w-4" />
                 <span>Create Task</span>
@@ -472,41 +482,40 @@ function TasksContent() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. CATEGORY SWITCHER TABS BAR                                             */}
+      {/* 2. CATEGORY SELECTOR TABS BAR                                             */}
       {/* ========================================================================= */}
-      <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1 border-b border-slate-200">
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-2 flex items-center gap-1">
-            <Layers className="h-3.5 w-3.5" />
-            <span>Category:</span>
-          </span>
+      <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 border-b border-slate-200">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSelectedCategoryFilter("ALL")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 border ${
+              selectedCategoryFilter === "ALL"
+                ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
+                : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            All Categories ({categories.length})
+          </button>
 
-          {categories.map((cat) => {
-            const isSelected = cat.id === selectedCategoryId;
-            const catTaskCount = tasks.filter((t) => t.category_id === cat.id).length;
-
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => handleSelectCategory(cat.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 border ${
-                  isSelected
-                    ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
-                    : "bg-white text-slate-600 border-slate-300 hover:bg-slate-100 hover:text-slate-900"
-                }`}
-              >
-                <span>{cat.name}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {catTaskCount}
-                </span>
-              </button>
-            );
-          })}
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setSelectedCategoryFilter(cat.id)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 border flex items-center gap-1.5 ${
+                selectedCategoryFilter === cat.id
+                  ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
+                  : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+              }`}
+            >
+              <span className="font-mono text-[10px] opacity-75">{cat.code}</span>
+              <span>{cat.name}</span>
+              <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full border border-slate-200 font-semibold">
+                {cat.sub_categories?.length || 0}
+              </span>
+            </button>
+          ))}
         </div>
 
         {!isEmployee && (
@@ -519,48 +528,47 @@ function TasksContent() {
               setCatName("");
               setCatCode("");
               setCatDesc("");
+              setCatColor("violet");
               setIsCategoryModalOpen(true);
             }}
-            className="h-8 text-xs font-bold text-violet-700 hover:text-violet-900 hover:bg-violet-50 shrink-0 gap-1"
+            className="h-8 px-2.5 rounded-xl text-slate-500 hover:text-slate-900 text-xs font-bold gap-1 shrink-0"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>New Category</span>
+            <span>Category</span>
           </Button>
         )}
       </div>
 
       {/* ========================================================================= */}
-      {/* 3. FILTER AND SEARCH BAR                                                  */}
+      {/* 3. SEARCH & ADVANCED FILTER STRIP                                         */}
       {/* ========================================================================= */}
-      <Card className="shadow-xs rounded-[22px] border-[1.5px] border-slate-300">
-        <CardContent className="p-3.5 flex flex-col md:flex-row gap-3 items-center">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9ca3af]" />
+      <Card className="shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[22px] border-[1.5px] border-slate-300">
+        <CardContent className="p-3.5 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[240px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9ca3af]" />
             <Input
               type="search"
-              placeholder={`Search ${selectedCategory?.name} tasks by title, code, client...`}
+              placeholder="Search tasks by title, code, client, or assignee..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-9 rounded-xl border-slate-300 text-xs font-medium bg-white"
+              className="pl-9 h-9 rounded-xl border-slate-300 text-xs font-medium bg-white"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-            {/* Status Filter */}
+          <div className="flex items-center gap-2 flex-wrap">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-[#111827] focus:outline-none"
             >
-              <option value="ALL">All Statuses ({statusNames.length})</option>
-              {statusNames.map((st) => (
-                <option key={st} value={st}>
-                  {st}
+              <option value="ALL">All Statuses</option>
+              {statusNames.map((s) => (
+                <option key={s} value={s}>
+                  Status: {s}
                 </option>
               ))}
             </select>
 
-            {/* Client Filter */}
             <select
               value={clientFilter}
               onChange={(e) => setClientFilter(e.target.value)}
@@ -574,383 +582,377 @@ function TasksContent() {
               ))}
             </select>
 
-            {/* Assignee Filter */}
             <select
               value={assigneeFilter}
               onChange={(e) => setAssigneeFilter(e.target.value)}
               className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-[#111827] focus:outline-none"
             >
-              <option value="ALL">All Assignees ({employees.length})</option>
+              <option value="ALL">All Assignees</option>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.full_name}
                 </option>
               ))}
             </select>
+
+            {(search || clientFilter !== "ALL" || statusFilter !== "ALL" || assigneeFilter !== "ALL") && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearch("");
+                  setClientFilter("ALL");
+                  setStatusFilter("ALL");
+                  setAssigneeFilter("ALL");
+                }}
+                className="h-9 text-xs text-rose-600 font-bold hover:bg-rose-50"
+              >
+                Reset Filters
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
       {/* ========================================================================= */}
-      {/* 4. SUB-GROUPS KANBAN BOARD (COLUMNS = SUB-GROUPS)                         */}
+      {/* 4. SUB-GROUP KANBAN BOARD VIEW (EACH COLUMN = A SUB-GROUP)                */}
       {/* ========================================================================= */}
-      <div className="flex gap-4 overflow-x-auto pb-6 items-start">
-        {subCategories.length === 0 ? (
-          <div className="w-full rounded-[24px] border-[1.5px] border-dashed border-slate-300 bg-white p-12 text-center space-y-3">
-            <Layers className="h-10 w-10 text-slate-300 mx-auto" />
-            <h3 className="text-base font-extrabold text-[#111827]">
-              No Sub-groups in &ldquo;{selectedCategory?.name}&rdquo;
-            </h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Add sub-group columns (e.g. GST Registrations, Company Incorporations, General) to manage deliverables side-by-side.
-            </p>
+      {visibleSubCategories.length === 0 ? (
+        <div className="rounded-[24px] border-[1.5px] border-dashed border-slate-300 bg-white p-12 text-center space-y-3">
+          <FolderPlus className="h-10 w-10 text-slate-300 mx-auto" />
+          <h3 className="text-base font-extrabold text-[#111827]">
+            No Sub-groups Found
+          </h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Create a sub-group column (e.g. General, GST Registrations, Company Incorporations) to organize tasks in a Kanban board.
+          </p>
+          {!isEmployee && (
+            <Button
+              onClick={() => {
+                setEditingSubCategory(null);
+                setTargetCategoryIdForNewSub(categories[0]?.id || "");
+                setIsSubCategoryModalOpen(true);
+              }}
+              className="bg-neutral-900 text-white rounded-xl text-xs font-bold gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add First Sub-group</span>
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="overflow-x-auto pb-6">
+          <div className="grid grid-flow-col auto-cols-[minmax(330px,360px)] gap-4 items-start">
+            {visibleSubCategories.map(({ sub, category: cat }, colIdx) => {
+              const accentBorder = COLUMN_ACCENTS[colIdx % COLUMN_ACCENTS.length];
+              const columnTasks = tasks.filter(
+                (t) => t.sub_category_id === sub.id && matchesTaskFilters(t)
+              );
+              const isOver = dragOverSubId === sub.id;
+
+              return (
+                <div
+                  key={sub.id}
+                  onDragOver={(e) => {
+                    if (isEmployee) return;
+                    e.preventDefault();
+                    setDragOverSubId(sub.id);
+                  }}
+                  onDragLeave={() => setDragOverSubId((prev) => (prev === sub.id ? null : prev))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleDropOnSubCategory(sub, cat);
+                  }}
+                  className={`rounded-[22px] border-[1.5px] bg-[#f8fafc] flex flex-col max-h-[82vh] transition-all border-t-[5px] ${accentBorder} ${
+                    isOver
+                      ? "border-neutral-900 bg-slate-100/90 shadow-md scale-[1.01]"
+                      : "border-slate-300 shadow-xs"
+                  }`}
+                >
+                  {/* Column Header: Sub-group Name + Count + Quick Add / Options */}
+                  <div className="p-3.5 bg-white border-b border-slate-200 rounded-t-[16px] space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 truncate">
+                        <h2 className="text-sm font-extrabold text-[#111827] truncate">
+                          {sub.name}
+                        </h2>
+                        <span className="font-mono text-[11px] font-extrabold px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-300 text-slate-700 shrink-0">
+                          {columnTasks.length}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {!isEmployee && (
+                          <>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setTargetSubIdForNewTask(sub.id);
+                                setIsModalOpen(true);
+                              }}
+                              className="h-7 w-7 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                              title="Add Task to this Sub-group"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100"
+                                >
+                                  <MoreVertical className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setEditingSubCategory({ sub, categoryId: cat.id });
+                                    setSubName(sub.name);
+                                    setSubCode(sub.code || "");
+                                    setSubDesc(sub.description || "");
+                                    setIsSubCategoryModalOpen(true);
+                                  }}
+                                  className="text-xs font-semibold gap-1.5"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  <span>Rename Sub-group</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteSubCategory(sub, cat.id)}
+                                  className="text-xs font-semibold text-rose-600 gap-1.5 focus:text-rose-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span>Delete Sub-group</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Inline Quick Task Creator input under header */}
+                    {!isEmployee && (
+                      <div className="relative">
+                        <Input
+                          placeholder="+ Task Title, @mention assignee..."
+                          value={inlineTaskInputs[sub.id] || ""}
+                          onChange={(e) =>
+                            setInlineTaskInputs((prev) => ({
+                              ...prev,
+                              [sub.id]: e.target.value,
+                            }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleInlineTaskCreate(sub, cat);
+                            }
+                          }}
+                          className="h-8 rounded-xl border-slate-200 bg-slate-50/70 text-xs placeholder:text-slate-400 focus:bg-white"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Column Body: Vertical Cards List */}
+                  <div className="p-3 space-y-3 overflow-y-auto flex-1 min-h-[180px]">
+                    {columnTasks.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-6 text-center text-[11px] text-slate-400">
+                        {isEmployee ? "No tasks assigned here" : "Drop tasks here or add above"}
+                      </div>
+                    ) : (
+                      columnTasks.map((task) => {
+                        const parentProj = projects.find((p) => p.id === task.project_id);
+                        const subtasks = task.subtasks || [];
+                        const statusStyle = getStatusBadgeStyle(task.status);
+                        const assigneeName = task.assigned_employee_name || "Unassigned";
+                        const assigneeInitials = assigneeName
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase();
+
+                        return (
+                          <div
+                            key={task.id}
+                            draggable={!isEmployee}
+                            onDragStart={() => {
+                              if (!isEmployee) setDraggingTaskId(task.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggingTaskId(null);
+                              setDragOverSubId(null);
+                            }}
+                            onClick={() => handleOpenDetail(task.id)}
+                            className={`rounded-2xl border-[1.5px] border-slate-200 bg-white p-3.5 shadow-xs hover:border-slate-400 hover:shadow-sm transition-all space-y-2.5 cursor-pointer group ${
+                              isEmployee ? "" : "active:cursor-grabbing"
+                            }`}
+                          >
+                            {/* Card Top: Title */}
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-extrabold text-sm text-[#111827] leading-snug group-hover:text-violet-800 transition-colors">
+                                {task.title}
+                              </h3>
+
+                              {!isEmployee && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    pmsStore.deleteTask(task.id);
+                                    toast.success(`Deleted ${task.task_code}`);
+                                  }}
+                                  className="text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+                                  title="Delete Task"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Card Middle: Status Badge + Assignee Pill */}
+                            <div
+                              className="flex items-center justify-between gap-2 flex-wrap pt-0.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {/* Status Badge Dropdown */}
+                              {isEmployee ? (
+                                <span
+                                  className={`font-bold text-[11px] px-2.5 py-0.5 rounded-lg border transition-colors ${statusStyle}`}
+                                >
+                                  {task.status}
+                                </span>
+                              ) : (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className={`font-bold text-[11px] px-2.5 py-0.5 rounded-lg border transition-colors flex items-center gap-1 ${statusStyle}`}
+                                    >
+                                      <span>{task.status}</span>
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start" className="w-36 rounded-xl">
+                                    {statusNames.map((st) => (
+                                      <DropdownMenuItem
+                                        key={st}
+                                        onClick={() => handleStatusChange(task.id, st)}
+                                        className="text-xs font-semibold"
+                                      >
+                                        {st}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+
+                              {/* Assignee Avatar + Name */}
+                              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 max-w-[140px] truncate">
+                                <div className="h-5 w-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[9px] font-bold shrink-0">
+                                  {assigneeInitials}
+                                </div>
+                                <span className="truncate">{assigneeName}</span>
+                              </div>
+                            </div>
+
+                            {/* Card Bottom: Metadata (Subtasks, Comments, Project) */}
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-[10px] text-slate-500 font-medium">
+                              <span className="truncate max-w-[160px]">
+                                {parentProj?.client_name
+                                  ? `${parentProj.client_name} • ${task.project_name || parentProj.project_name}`
+                                  : task.task_code}
+                              </span>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {subtasks.length > 0 && (
+                                  <span className="inline-flex items-center gap-1 text-slate-600 font-semibold">
+                                    <GitBranch className="h-3 w-3 text-slate-400" />
+                                    <span>{subtasks.length}</span>
+                                  </span>
+                                )}
+
+                                <span className="inline-flex items-center gap-1 text-slate-600 font-semibold">
+                                  <MessageSquare className="h-3 w-3 text-slate-400" />
+                                  <span>{task.comments_count || 0}</span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* End of Kanban: "+ Add Sub-group Column" card */}
             {!isEmployee && (
-              <Button
+              <div
                 onClick={() => {
                   setEditingSubCategory(null);
+                  setTargetCategoryIdForNewSub(
+                    selectedCategoryFilter !== "ALL" ? selectedCategoryFilter : categories[0]?.id || ""
+                  );
                   setSubName("");
                   setSubCode("");
                   setSubDesc("");
                   setIsSubCategoryModalOpen(true);
                 }}
-                className="bg-neutral-900 text-white rounded-xl text-xs font-bold gap-1.5"
+                className="w-[280px] rounded-[22px] border-[1.5px] border-dashed border-slate-300 hover:border-neutral-900 bg-white/70 hover:bg-white p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all text-slate-500 hover:text-slate-900 group min-h-[160px]"
               >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add First Sub-group Column</span>
-              </Button>
+                <div className="h-9 w-9 rounded-full bg-slate-100 group-hover:bg-neutral-900 group-hover:text-white flex items-center justify-center transition-colors">
+                  <Plus className="h-4 w-4" />
+                </div>
+                <span className="text-xs font-extrabold">Add Sub-group Column</span>
+              </div>
             )}
           </div>
-        ) : (
-          subCategories.map((sub, colIdx) => {
-            const columnTasks = getFilteredColumnTasks(sub.id);
-            const accent = SUB_GROUP_ACCENTS[colIdx % SUB_GROUP_ACCENTS.length];
-            const isOver = dragOverSubGroupId === sub.id;
-
-            return (
-              <div
-                key={sub.id}
-                onDragOver={(e) => {
-                  if (isEmployee) return;
-                  e.preventDefault();
-                  setDragOverSubGroupId(sub.id);
-                }}
-                onDragLeave={() =>
-                  setDragOverSubGroupId((prev) => (prev === sub.id ? null : prev))
-                }
-                onDrop={(e) => {
-                  if (isEmployee) return;
-                  e.preventDefault();
-                  handleDropOnSubGroup(sub);
-                }}
-                className={`w-[330px] shrink-0 rounded-[22px] border-[1.5px] bg-[#f8fafc] flex flex-col max-h-[82vh] transition-all shadow-xs ${
-                  isOver
-                    ? "border-neutral-900 bg-slate-200/90 ring-2 ring-neutral-900/10"
-                    : "border-slate-300"
-                }`}
-              >
-                {/* Thin Colored Top Accent Line (matching requested reference image) */}
-                <div className={`h-1.5 w-full rounded-t-[20px] ${accent.bar}`} />
-
-                {/* Sub-group Column Header */}
-                <div className="p-3.5 bg-white border-b border-slate-200 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <h2 className="text-sm font-extrabold text-[#111827] truncate">
-                      {sub.name}
-                    </h2>
-                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
-                      {columnTasks.length}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {!isEmployee && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setCreateTaskTargetSubId(sub.id);
-                          setIsCreateTaskModalOpen(true);
-                        }}
-                        className="h-7 w-7 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100"
-                        title="Add Task to this Sub-group"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    )}
-
-                    {!isEmployee && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100"
-                          >
-                            <MoreVertical className="h-3.5 w-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40 rounded-xl">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditingSubCategory(sub);
-                              setSubName(sub.name);
-                              setSubCode(sub.code || "");
-                              setSubDesc(sub.description || "");
-                              setIsSubCategoryModalOpen(true);
-                            }}
-                            className="text-xs gap-2 font-medium"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            <span>Rename Sub-group</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              if (
-                                confirm(
-                                  `Delete sub-group "${sub.name}"? Tasks inside it will need to be reassigned.`
-                                )
-                              ) {
-                                pmsStore.deleteTaskSubCategory(selectedCategory.id, sub.id);
-                                toast.success("Sub-group deleted.");
-                              }
-                            }}
-                            className="text-xs gap-2 font-medium text-rose-600 focus:text-rose-700"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            <span>Delete Sub-group</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                </div>
-
-                {/* Inline Quick Add Input (matching screenshot: + Task Title, @mention assignee 👤 ↗) */}
-                {!isEmployee && (
-                  <div className="p-2.5 pb-0">
-                    <div className="relative flex items-center">
-                      <Input
-                        placeholder="+ Task Title, @mention assignee"
-                        value={quickInputs[sub.id] || ""}
-                        onChange={(e) =>
-                          setQuickInputs({ ...quickInputs, [sub.id]: e.target.value })
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleQuickAddTask(sub.id, sub.name);
-                          }
-                        }}
-                        className="h-9 rounded-xl bg-white border-slate-300 text-xs placeholder:text-slate-400 pr-16 shadow-2xs focus-visible:ring-1 focus-visible:ring-slate-400"
-                      />
-                      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-slate-400">
-                        {(quickInputs[sub.id] || "").trim() ? (
-                          <button
-                            type="button"
-                            onClick={() => handleQuickAddTask(sub.id, sub.name)}
-                            className="h-6 px-1.5 rounded-md bg-neutral-900 text-white flex items-center justify-center text-[10px] font-bold"
-                            title="Save Task"
-                          >
-                            ↵
-                          </button>
-                        ) : (
-                          <>
-                            <User className="h-3.5 w-3.5 text-slate-400 hover:text-slate-600 cursor-pointer" />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCreateTaskTargetSubId(sub.id);
-                                setIsCreateTaskModalOpen(true);
-                              }}
-                              className="h-6 w-6 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700"
-                              title="Full task details"
-                            >
-                              <ArrowUpRight className="h-3.5 w-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Task Cards Column Body */}
-                <div className="p-2.5 space-y-2.5 overflow-y-auto flex-1">
-                  {columnTasks.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-white/70 py-8 text-center text-[11px] text-slate-400">
-                      {isEmployee
-                        ? "No tasks in this sub-group"
-                        : "Drop deliverable card here"}
-                    </div>
-                  ) : (
-                    columnTasks.map((task) => {
-                      const parentProj = projects.find((p) => p.id === task.project_id);
-                      const subtasks = task.subtasks || [];
-                      const commentsCount = task.comments_count || 0;
-                      const statusStyle = getStatusBadgeStyle(task.status);
-                      const assigneeInitial = (task.assigned_employee_name || "U")[0]?.toUpperCase();
-
-                      return (
-                        <div
-                          key={task.id}
-                          draggable={!isEmployee}
-                          onDragStart={() => {
-                            if (!isEmployee) setDraggingTaskId(task.id);
-                          }}
-                          onDragEnd={() => {
-                            setDraggingTaskId(null);
-                            setDragOverSubGroupId(null);
-                          }}
-                          onClick={() => handleOpenDetail(task.id)}
-                          className={`rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs hover:border-slate-400 hover:shadow-xs transition-all space-y-2.5 cursor-pointer group ${
-                            isEmployee ? "" : "active:cursor-grabbing"
-                          }`}
-                        >
-                          {/* Task Title & Code */}
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <h4 className="font-extrabold text-[13px] text-[#111827] leading-snug group-hover:text-violet-700 transition-colors">
-                                {task.title}
-                              </h4>
-                              {parentProj?.client_name && (
-                                <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate">
-                                  {parentProj.client_name}
-                                </p>
-                              )}
-                            </div>
-                            <span className="font-mono text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded shrink-0">
-                              {task.task_code}
-                            </span>
-                          </div>
-
-                          {/* Middle Row: Status Tag & Assignee Avatar (Matching Screenshot) */}
-                          <div className="flex items-center justify-between gap-2 pt-0.5">
-                            {/* Status Tag Pill */}
-                            <div onClick={(e) => e.stopPropagation()}>
-                              {isEmployee ? (
-                                <span
-                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${statusStyle}`}
-                                >
-                                  {task.status}
-                                </span>
-                              ) : (
-                                <select
-                                  value={task.status}
-                                  onChange={(e) =>
-                                    handleStatusChange(task.id, e.target.value as TaskStatus)
-                                  }
-                                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border cursor-pointer focus:outline-none ${statusStyle}`}
-                                >
-                                  {statusNames.map((st) => (
-                                    <option key={st} value={st}>
-                                      {st}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
-                            </div>
-
-                            {/* Assignee Avatar + Short Name */}
-                            {task.assigned_employee_name ? (
-                              <div
-                                className="flex items-center gap-1.5 min-w-0"
-                                title={`Assigned to ${task.assigned_employee_name}`}
-                              >
-                                <div className="h-5 w-5 rounded-full bg-violet-100 text-violet-800 border border-violet-200 flex items-center justify-center text-[9px] font-extrabold shrink-0">
-                                  {assigneeInitial}
-                                </div>
-                                <span className="text-[10px] font-medium text-slate-600 truncate max-w-[85px]">
-                                  {task.assigned_employee_name.split(" ")[0]}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 italic">
-                                Unassigned
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Bottom Stats: Subtasks & Comments (like Babjee Partnership ⑂ 2 · 💬 1) */}
-                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-[10px] text-slate-500">
-                            <div className="flex items-center gap-3">
-                              {subtasks.length > 0 && (
-                                <span
-                                  className="inline-flex items-center gap-1 font-semibold text-slate-600"
-                                  title={`${subtasks.length} Subtasks`}
-                                >
-                                  <ListChecks className="h-3 w-3 text-slate-400" />
-                                  <span>{subtasks.length}</span>
-                                </span>
-                              )}
-
-                              {commentsCount > 0 && (
-                                <span
-                                  className="inline-flex items-center gap-1 font-semibold text-slate-600"
-                                  title={`${commentsCount} Comments`}
-                                >
-                                  <MessageSquare className="h-3 w-3 text-sky-500" />
-                                  <span>{commentsCount}</span>
-                                </span>
-                              )}
-                            </div>
-
-                            <span className="text-[9px] text-slate-400 font-mono">
-                              {formatDate(task.due_date)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            );
-          })
-        )}
-
-        {/* Far Right: "+ Add Sub-group Column" dashed card */}
-        {!isEmployee && subCategories.length > 0 && (
-          <div
-            onClick={() => {
-              setEditingSubCategory(null);
-              setSubName("");
-              setSubCode("");
-              setSubDesc("");
-              setIsSubCategoryModalOpen(true);
-            }}
-            className="w-[260px] shrink-0 min-h-[180px] rounded-[22px] border-[1.5px] border-dashed border-slate-300 hover:border-slate-900 bg-white/60 hover:bg-white p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all group text-slate-500 hover:text-slate-900"
-          >
-            <div className="h-9 w-9 rounded-xl bg-slate-100 group-hover:bg-neutral-900 group-hover:text-white flex items-center justify-center transition-colors">
-              <Plus className="h-4 w-4" />
-            </div>
-            <span className="text-xs font-extrabold">Add Sub-group</span>
-            <span className="text-[10px] text-slate-400 text-center">
-              Create a new deliverable column
-            </span>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
-      {/* MODAL: ADD / EDIT SUB-GROUP COLUMN                                        */}
+      {/* MODAL: ADD / EDIT SUB-CATEGORY                                            */}
       {/* ========================================================================= */}
       <Dialog open={isSubCategoryModalOpen} onOpenChange={setIsSubCategoryModalOpen}>
         <DialogContent className="max-w-md rounded-[24px] border-[1.5px] border-slate-300">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900">
-              {editingSubCategory
-                ? "Rename Sub-group Column"
-                : `Add Sub-group Column to "${selectedCategory?.name}"`}
+              {editingSubCategory ? "Edit Sub-group" : "Add Sub-group Column"}
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSaveSubCategory} className="space-y-4 py-2">
+            {!editingSubCategory && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700">Practice Category *</label>
+                <select
+                  value={targetCategoryIdForNewSub || categories[0]?.id || ""}
+                  onChange={(e) => setTargetCategoryIdForNewSub(e.target.value)}
+                  className="w-full h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-700">Sub-group Column Name *</label>
               <Input
-                placeholder="e.g. GST Registrations, Company Incorporations, General"
+                placeholder="e.g. General, GST Registrations, Company Incorporations"
                 value={subName}
                 onChange={(e) => setSubName(e.target.value)}
                 required
@@ -958,9 +960,9 @@ function TasksContent() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Short Code</label>
+              <label className="text-xs font-semibold text-slate-700">Sub-group Code</label>
               <Input
-                placeholder="e.g. GST, ROC, GEN"
+                placeholder="e.g. GEN, GST, INCORP"
                 value={subCode}
                 onChange={(e) => setSubCode(e.target.value.toUpperCase())}
                 maxLength={6}
@@ -970,7 +972,7 @@ function TasksContent() {
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-700">Description</label>
               <Textarea
-                placeholder="Scope of deliverables in this sub-group column..."
+                placeholder="Description of deliverables managed in this sub-group..."
                 value={subDesc}
                 onChange={(e) => setSubDesc(e.target.value)}
                 rows={3}
@@ -1000,7 +1002,7 @@ function TasksContent() {
         <DialogContent className="max-w-md rounded-[24px] border-[1.5px] border-slate-300">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900">
-              {editingCategory ? "Edit Task Category" : "Add Task Category"}
+              {editingCategory ? "Edit Task Category" : "Add Practice Category"}
             </DialogTitle>
           </DialogHeader>
 
@@ -1008,27 +1010,45 @@ function TasksContent() {
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-700">Category Name *</label>
               <Input
-                placeholder="e.g. Taxation & Compliance, Audit & Assurance"
+                placeholder="e.g. General Practice, Taxation & Compliance"
                 value={catName}
                 onChange={(e) => setCatName(e.target.value)}
                 required
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Short Code</label>
-              <Input
-                placeholder="e.g. TAX, AUDIT"
-                value={catCode}
-                onChange={(e) => setCatCode(e.target.value.toUpperCase())}
-                maxLength={6}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700">Category Code</label>
+                <Input
+                  placeholder="e.g. GEN, TAX, AUDIT"
+                  value={catCode}
+                  onChange={(e) => setCatCode(e.target.value.toUpperCase())}
+                  maxLength={6}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700">Theme Color</label>
+                <select
+                  value={catColor}
+                  onChange={(e) => setCatColor(e.target.value)}
+                  className="w-full h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold"
+                >
+                  <option value="violet">Violet</option>
+                  <option value="sky">Sky Blue</option>
+                  <option value="emerald">Emerald Green</option>
+                  <option value="amber">Amber / Orange</option>
+                  <option value="rose">Rose Red</option>
+                  <option value="slate">Slate Gray</option>
+                </select>
+              </div>
             </div>
 
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-700">Description</label>
               <Textarea
-                placeholder="Scope of services and compliance practice..."
+                placeholder="Scope of services and compliance deliverables..."
                 value={catDesc}
                 onChange={(e) => setCatDesc(e.target.value)}
                 rows={3}
@@ -1052,10 +1072,10 @@ function TasksContent() {
       </Dialog>
 
       {/* ========================================================================= */}
-      {/* MODAL: FULL CREATE TASK DIALOG                                            */}
+      {/* MODAL: CREATE DELIVERABLE TASK                                            */}
       {/* ========================================================================= */}
       {!isEmployee && (
-        <Dialog open={isCreateTaskModalOpen} onOpenChange={setIsCreateTaskModalOpen}>
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="max-w-lg rounded-[24px] border-[1.5px] border-slate-300">
             <DialogHeader>
               <DialogTitle className="text-lg font-bold text-slate-900">
@@ -1063,36 +1083,27 @@ function TasksContent() {
               </DialogTitle>
             </DialogHeader>
 
-            <form onSubmit={handleCreateFullTask} className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Category</label>
-                  <div className="h-10 rounded-xl bg-slate-100 border border-slate-200 px-3 flex items-center text-xs font-bold text-slate-800">
-                    {selectedCategory?.name}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Sub-group Column *</label>
-                  <select
-                    value={createTaskTargetSubId || subCategories[0]?.id}
-                    onChange={(e) => setCreateTaskTargetSubId(e.target.value)}
-                    className="w-full h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold"
-                    required
-                  >
-                    {subCategories.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <form onSubmit={handleCreateTaskModalSubmit} className="space-y-4 py-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700">Sub-group Column *</label>
+                <select
+                  value={targetSubIdForNewTask || visibleSubCategories[0]?.sub.id || ""}
+                  onChange={(e) => setTargetSubIdForNewTask(e.target.value)}
+                  className="w-full h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold"
+                  required
+                >
+                  {visibleSubCategories.map(({ sub, category: cat }) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name} ({cat.name})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">Task Title *</label>
                 <Input
-                  placeholder="e.g. Sunlight Residency, Siddiq, Marutham"
+                  placeholder="e.g. Sunlight Residency, Siddiq, Hydralilly"
                   value={taskTitle}
                   onChange={(e) => setTaskTitle(e.target.value)}
                   required
@@ -1132,20 +1143,6 @@ function TasksContent() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Priority</label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value as ProjectPriority)}
-                    className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-semibold"
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Urgent">Urgent</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700">Initial Status</label>
                   <select
                     value={initialStatus}
@@ -1157,6 +1154,20 @@ function TasksContent() {
                         {s}
                       </option>
                     ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">Priority</label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as ProjectPriority)}
+                    className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-semibold"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Urgent">Urgent</option>
                   </select>
                 </div>
               </div>
@@ -1184,21 +1195,20 @@ function TasksContent() {
               <div className="space-y-2 pt-2 border-t border-slate-200">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-slate-700">
-                    Subtasks ({draftSubtasks.length})
+                    Checklist Checklist / Subtasks ({draftSubtasks.length})
                   </label>
                   <span className="text-[10px] text-slate-500 font-medium">Optional checklist</span>
                 </div>
                 <div className="flex gap-2">
                   <Input
-                    placeholder="e.g. Collect PAN & Aadhaar documents"
+                    placeholder="e.g. Scrutinize 26AS, draft challan"
                     value={draftSubtaskInput}
                     onChange={(e) => setDraftSubtaskInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        const trimmed = draftSubtaskInput.trim();
-                        if (trimmed) {
-                          setDraftSubtasks([...draftSubtasks, trimmed]);
+                        if (draftSubtaskInput.trim()) {
+                          setDraftSubtasks((prev) => [...prev, draftSubtaskInput.trim()]);
                           setDraftSubtaskInput("");
                         }
                       }
@@ -1209,9 +1219,8 @@ function TasksContent() {
                     type="button"
                     variant="outline"
                     onClick={() => {
-                      const trimmed = draftSubtaskInput.trim();
-                      if (trimmed) {
-                        setDraftSubtasks([...draftSubtasks, trimmed]);
+                      if (draftSubtaskInput.trim()) {
+                        setDraftSubtasks((prev) => [...prev, draftSubtaskInput.trim()]);
                         setDraftSubtaskInput("");
                       }
                     }}
@@ -1233,7 +1242,7 @@ function TasksContent() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => setDraftSubtasks(draftSubtasks.filter((_, i) => i !== idx))}
+                          onClick={() => setDraftSubtasks((prev) => prev.filter((_, i) => i !== idx))}
                           className="text-rose-600 hover:underline text-[11px] font-bold shrink-0"
                         >
                           Remove
@@ -1246,10 +1255,10 @@ function TasksContent() {
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">
-                  Instructions &amp; Checkpoints
+                  Work Instructions &amp; Guidance
                 </label>
                 <Textarea
-                  placeholder="Specific client instructions, filing checkpoints..."
+                  placeholder="Task guidance, attachments requirement..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
@@ -1260,7 +1269,7 @@ function TasksContent() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsCreateTaskModalOpen(false)}
+                  onClick={() => setIsModalOpen(false)}
                 >
                   Cancel
                 </Button>
@@ -1273,7 +1282,7 @@ function TasksContent() {
         </Dialog>
       )}
 
-      {/* Full Task Detail Modal */}
+      {/* Task Overview / Detail Dialog */}
       <TaskDetailDialog
         taskId={activeTaskId}
         open={isDetailOpen}

@@ -53,15 +53,51 @@ export const SYSTEM_DESIGNATIONS: Designation[] = [
 export const INITIAL_DESIGNATIONS = SYSTEM_DESIGNATIONS;
 
 export const DEFAULT_TASK_STATUSES: TaskStatusConfig[] = [
+  { id: "st-open", label: "Open", color: "amber" },
   { id: "st-todo", label: "To Do", color: "slate" },
   { id: "st-in-progress", label: "In Progress", color: "violet" },
-  { id: "st-pending", label: "Pending", color: "amber" },
+  { id: "st-approval-pending", label: "Approval pending", color: "rose" },
+  { id: "st-hold", label: "Hold", color: "sky" },
   { id: "st-under-review", label: "Under Review", color: "sky" },
-  { id: "st-blocked", label: "Blocked", color: "rose" },
   { id: "st-completed", label: "Completed", color: "emerald", isCompleted: true },
 ];
 
 export const DEFAULT_TASK_CATEGORIES: TaskCategory[] = [
+  {
+    id: "cat-general",
+    name: "General Practice",
+    code: "GEN",
+    description: "General compliance, workflow execution, registrations, and corporate setups.",
+    color: "sky",
+    icon: "Layers",
+    created_at: new Date().toISOString(),
+    sub_categories: [
+      {
+        id: "subcat-general",
+        category_id: "cat-general",
+        name: "General",
+        code: "GEN",
+        description: "General workflows, IE code, trademark, and recurring tasks.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-gst-reg",
+        category_id: "cat-general",
+        name: "GST Registrations",
+        code: "GST",
+        description: "New GST registrations, amendments, address changes, and cancellations.",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "subcat-company-incorp",
+        category_id: "cat-general",
+        name: "Company Incorporations",
+        code: "INCORP",
+        description: "Company incorporation, LLP formation, partnership deeds, and COI.",
+        created_at: new Date().toISOString(),
+      },
+    ],
+  },
   {
     id: "cat-tax",
     name: "Taxation & Compliance",
@@ -1788,12 +1824,22 @@ class PMSDataStore {
   public ensureTaskCategorized(task: Task): Task {
     if (task.category_id && task.sub_category_id) return task;
     const text = `${task.title} ${task.project_name || ""} ${task.description || ""}`.toLowerCase();
-    let catId = "cat-tax";
-    let subCatId = "subcat-gst";
-    let catName = "Taxation & Compliance";
-    let subCatName = "Indirect Tax (GST)";
+    let catId = "cat-general";
+    let subCatId = "subcat-general";
+    let catName = "General Practice";
+    let subCatName = "General";
 
-    if (
+    if (text.includes("gst") || text.includes("registration")) {
+      catId = "cat-general";
+      subCatId = "subcat-gst-reg";
+      catName = "General Practice";
+      subCatName = "GST Registrations";
+    } else if (text.includes("incorp") || text.includes("partnership") || text.includes("company")) {
+      catId = "cat-general";
+      subCatId = "subcat-company-incorp";
+      catName = "General Practice";
+      subCatName = "Company Incorporations";
+    } else if (
       text.includes("audit") ||
       text.includes("caro") ||
       text.includes("ifc") ||
@@ -1815,20 +1861,14 @@ class PMSDataStore {
     } else if (
       text.includes("roc") ||
       text.includes("mca") ||
-      text.includes("incorporation") ||
       text.includes("director") ||
       text.includes("aoc-4") ||
       text.includes("mgt-7")
     ) {
       catId = "cat-roc";
       catName = "Corporate & Secretarial";
-      if (text.includes("incorporat") || text.includes("formation")) {
-        subCatId = "subcat-incorporation";
-        subCatName = "Entity Incorporation & Setup";
-      } else {
-        subCatId = "subcat-roc-annual";
-        subCatName = "Annual ROC Filings";
-      }
+      subCatId = "subcat-roc-annual";
+      subCatName = "Annual ROC Filings";
     } else if (
       text.includes("bookkeep") ||
       text.includes("account") ||
