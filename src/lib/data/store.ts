@@ -2324,8 +2324,66 @@ class PMSDataStore {
     if (!this.taskCategories || this.taskCategories.length === 0) {
       this.taskCategories = DEFAULT_TASK_CATEGORIES.map((c) => ({
         ...c,
-        sub_categories: c.sub_categories.map((s) => ({ ...s })),
+        sub_categories: (c.sub_categories || []).map((s) => ({ ...s })),
       }));
+      this.persist();
+    } else {
+      let changed = false;
+
+      // Ensure any missing default categories are present
+      DEFAULT_TASK_CATEGORIES.forEach((dc) => {
+        if (
+          !this.taskCategories.some(
+            (c) =>
+              c.id === dc.id ||
+              c.code === dc.code ||
+              c.name.toLowerCase() === dc.name.toLowerCase()
+          )
+        ) {
+          this.taskCategories.push({
+            ...dc,
+            sub_categories: (dc.sub_categories || []).map((s) => ({ ...s })),
+          });
+          changed = true;
+        }
+      });
+
+      // Ensure every category has its sub-groups populated
+      this.taskCategories = this.taskCategories.map((c) => {
+        const defaultMatch = DEFAULT_TASK_CATEGORIES.find(
+          (dc) =>
+            dc.id === c.id ||
+            dc.code === c.code ||
+            dc.name.toLowerCase() === c.name.toLowerCase()
+        );
+        let subs = c.sub_categories;
+        if (!Array.isArray(subs) || subs.length === 0) {
+          changed = true;
+          subs =
+            defaultMatch &&
+            Array.isArray(defaultMatch.sub_categories) &&
+            defaultMatch.sub_categories.length > 0
+              ? defaultMatch.sub_categories.map((s) => ({ ...s, category_id: c.id }))
+              : [
+                  {
+                    id: generateId("subcat"),
+                    category_id: c.id,
+                    name: "General",
+                    code: "GEN",
+                    description: `General task group under ${c.name}`,
+                    created_at: new Date().toISOString(),
+                  },
+                ];
+        }
+        return {
+          ...c,
+          sub_categories: subs,
+        };
+      });
+
+      if (changed) {
+        this.persist();
+      }
     }
     return this.taskCategories;
   }
@@ -2444,6 +2502,28 @@ class PMSDataStore {
     const sub = cat.sub_categories.find((s) => s.id === subCategoryId);
     cat.sub_categories = cat.sub_categories.filter((s) => s.id !== subCategoryId);
     this.addActivityLog(`Deleted sub-category "${sub?.name}" under ${cat.name}`, "task", subCategoryId);
+    this.persist();
+    return true;
+  }
+
+  updateTaskSubCategoryAssignment(taskId: string, targetSubCategoryId: string): boolean {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) return false;
+    let foundSub: TaskSubCategory | undefined;
+    let foundCat: TaskCategory | undefined;
+    for (const cat of this.getTaskCategories()) {
+      const sub = (cat.sub_categories || []).find((s) => s.id === targetSubCategoryId);
+      if (sub) {
+        foundSub = sub;
+        foundCat = cat;
+        break;
+      }
+    }
+    if (!foundSub || !foundCat) return false;
+    task.sub_category_id = foundSub.id;
+    task.sub_category_name = foundSub.name;
+    task.category_id = foundCat.id;
+    task.category_name = foundCat.name;
     this.persist();
     return true;
   }
