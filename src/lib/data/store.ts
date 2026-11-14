@@ -30,6 +30,7 @@ import {
   Payment,
   PaymentMode,
   FileObject,
+  DocumentFolder,
   Notification,
   ActivityLog,
   DashboardKPIs,
@@ -288,6 +289,45 @@ export const DEFAULT_TASK_CATEGORIES: TaskCategory[] = [
         created_at: new Date().toISOString(),
       },
     ],
+  },
+];
+
+export const DEFAULT_DOCUMENT_FOLDERS: DocumentFolder[] = [
+  {
+    id: "fld-client-kyc",
+    name: "Client KYC & Registrations",
+    path: "/clients/kyc",
+    description: "PAN cards, GST certificates, Incorporation deeds, MOA/AOA files.",
+    created_at: new Date().toISOString(),
+    created_by: "emp-admin-01",
+    created_by_name: "Admin User",
+  },
+  {
+    id: "fld-statutory-audits",
+    name: "Statutory Audits & Workpapers",
+    path: "/audits/statutory",
+    description: "CARO checklists, balance sheet working notes, bank confirmations.",
+    created_at: new Date().toISOString(),
+    created_by: "emp-admin-01",
+    created_by_name: "Admin User",
+  },
+  {
+    id: "fld-tax-returns",
+    name: "Income Tax & 3CD Returns",
+    path: "/tax/returns",
+    description: "ITR acknowledgements, tax audit 3CD reports, computation sheets.",
+    created_at: new Date().toISOString(),
+    created_by: "emp-admin-01",
+    created_by_name: "Admin User",
+  },
+  {
+    id: "fld-gst-filings",
+    name: "GST Monthly & Annual Filings",
+    path: "/gst/monthly",
+    description: "GSTR-1, GSTR-3B filed acknowledgements and 2B reconciliation workpapers.",
+    created_at: new Date().toISOString(),
+    created_by: "emp-admin-01",
+    created_by_name: "Admin User",
   },
 ];
 
@@ -840,6 +880,7 @@ class PMSDataStore {
   private invoices: Invoice[] = [];
   private payments: Payment[] = [];
   private documents: FileObject[] = [];
+  private documentFolders: DocumentFolder[] = [...DEFAULT_DOCUMENT_FOLDERS];
   private notifications: Notification[] = [];
   private activityLogs: ActivityLog[] = [];
   private officeGeoConfig: OfficeGeoConfig | null = null;
@@ -1171,6 +1212,11 @@ class PMSDataStore {
     if (Array.isArray(parsed.documents) && parsed.documents.length > 0) {
       this.documents = this.mergeById(this.documents, parsed.documents);
     }
+    if (Array.isArray(parsed.documentFolders) && parsed.documentFolders.length > 0) {
+      this.documentFolders = this.mergeById(this.documentFolders, parsed.documentFolders);
+    } else if (this.documentFolders.length === 0) {
+      this.documentFolders = [...DEFAULT_DOCUMENT_FOLDERS];
+    }
     if (Array.isArray(parsed.notifications) && parsed.notifications.length > 0) {
       this.notifications = this.mergeById(this.notifications, parsed.notifications);
     }
@@ -1217,6 +1263,7 @@ class PMSDataStore {
       invoices: this.invoices,
       payments: this.payments,
       documents: this.documents,
+      documentFolders: this.documentFolders,
       notifications: this.notifications,
       activityLogs: this.activityLogs,
       officeGeoConfig: this.officeGeoConfig,
@@ -4084,29 +4131,258 @@ class PMSDataStore {
     return newTeam;
   }
 
-  // Documents (Cloudflare R2 Metadata)
+  // Documents (Cloudflare R2 Metadata) & Centralized Recycle Bin Recovery Engine
   getDocuments(): FileObject[] {
+    return this.documents.filter((d) => !d.is_deleted);
+  }
+
+  getAllDocuments(): FileObject[] {
     return [...this.documents];
   }
 
   getDocumentsByEntity(entityType: string, entityId: string): FileObject[] {
-    return this.documents.filter((d) => d.entity_type === entityType && d.entity_id === entityId);
+    return this.documents.filter(
+      (d) => !d.is_deleted && d.entity_type === entityType && d.entity_id === entityId
+    );
   }
 
   addDocument(docData: Omit<FileObject, "id" | "created_at">): FileObject {
     const id = generateId("doc");
-    const newDoc: FileObject = { ...docData, id, created_at: new Date().toISOString() };
+    const newDoc: FileObject = {
+      ...docData,
+      id,
+      created_at: new Date().toISOString(),
+      is_deleted: false,
+    };
     this.documents.unshift(newDoc);
     this.addActivityLog(`Uploaded document: ${newDoc.file_name}`, "document", id);
+    this.persist();
     return newDoc;
   }
 
-  deleteDocument(docId: string): boolean {
-    const target = this.documents.find((d) => d.id === docId);
-    if (!target) return false;
-    this.documents = this.documents.filter((d) => d.id !== docId);
-    this.addActivityLog(`Removed document: ${target.file_name}`, "document", docId);
+  // Soft Delete (Moves to Recycle Bin with 25 days recovery window)
+  deleteDocument(docId: string, user?: Employee): boolean {
+    return this.softDeleteDocument(docId, user);
+  }
+
+  softDeleteDocument(docId: string, currentUser?: Employee): boolean {
+    const doc = this.documents.find((d) => d.id === docId);
+    if (!doc) return false;
+    const user = currentUser || this.currentUser;
+    doc.is_deleted = true;
+    doc.deleted_at = new Date().toISOString();
+    doc.deleted_by = user.id;
+    doc.deleted_by_name = user.full_name;
+    // 25 Days recovery deadline
+    doc.recovery_deadline = new Date(Date.now() + 25 * 86400000).toISOString();
+    this.addActivityLog(
+      `Moved document "${doc.file_name}" to Recycle Bin (25-day recovery window) by ${user.full_name}`,
+      "document",
+      docId
+    );
+    this.persist();
     return true;
+  }
+
+  restoreDocument(docId: string, currentUser?: Employee): boolean {
+    const doc = this.documents.find((d) => d.id === docId);
+    if (!doc) return false;
+    const user = currentUser || this.currentUser;
+    doc.is_deleted = false;
+    delete doc.deleted_at;
+    delete doc.deleted_by;
+    delete doc.deleted_by_name;
+    delete doc.recovery_deadline;
+    this.addActivityLog(
+      `Restored document "${doc.file_name}" from Recycle Bin by ${user.full_name}`,
+      "document",
+      docId
+    );
+    this.persist();
+    return true;
+  }
+
+  permanentlyDeleteDocument(docId: string, currentUser?: Employee): boolean {
+    const doc = this.documents.find((d) => d.id === docId);
+    if (!doc) return false;
+    const user = currentUser || this.currentUser;
+    this.documents = this.documents.filter((d) => d.id !== docId);
+    this.addActivityLog(
+      `Permanently deleted document "${doc.file_name}" via Recycle Bin authorization (${user.full_name})`,
+      "document",
+      docId
+    );
+    this.persist();
+    return true;
+  }
+
+  // Folders & Recycle Bin
+  getDocumentFolders(): DocumentFolder[] {
+    if (!this.documentFolders || this.documentFolders.length === 0) {
+      this.documentFolders = DEFAULT_DOCUMENT_FOLDERS.map((f) => ({ ...f }));
+      this.persist();
+    }
+    return this.documentFolders.filter((f) => !f.is_deleted);
+  }
+
+  getAllDocumentFolders(): DocumentFolder[] {
+    return [...this.documentFolders];
+  }
+
+  addDocumentFolder(data: {
+    name: string;
+    client_id?: string;
+    description?: string;
+  }): DocumentFolder {
+    const id = generateId("fld");
+    const client = data.client_id ? this.getClientById(data.client_id) : undefined;
+    const newFolder: DocumentFolder = {
+      id,
+      name: data.name.trim(),
+      path: `/${client ? `clients/${client.client_code}` : "general"}/${data.name.toLowerCase().replace(/\s+/g, "_")}`,
+      client_id: data.client_id,
+      client_name: client?.client_name,
+      description: data.description?.trim() || "",
+      created_at: new Date().toISOString(),
+      created_by: this.currentUser.id,
+      created_by_name: this.currentUser.full_name,
+      is_deleted: false,
+    };
+    this.documentFolders.unshift(newFolder);
+    this.addActivityLog(`Created document folder: ${newFolder.name}`, "document", id);
+    this.persist();
+    return newFolder;
+  }
+
+  softDeleteFolder(folderId: string, currentUser?: Employee): boolean {
+    const folder = this.documentFolders.find((f) => f.id === folderId);
+    if (!folder) return false;
+    const user = currentUser || this.currentUser;
+    folder.is_deleted = true;
+    folder.deleted_at = new Date().toISOString();
+    folder.deleted_by = user.id;
+    folder.deleted_by_name = user.full_name;
+    folder.recovery_deadline = new Date(Date.now() + 25 * 86400000).toISOString();
+
+    let containedDocs = 0;
+    this.documents.forEach((d) => {
+      if (d.folder_id === folderId) {
+        d.is_deleted = true;
+        d.deleted_at = folder.deleted_at;
+        d.deleted_by = user.id;
+        d.deleted_by_name = user.full_name;
+        d.recovery_deadline = folder.recovery_deadline;
+        containedDocs++;
+      }
+    });
+
+    this.addActivityLog(
+      `Moved folder "${folder.name}" (${containedDocs} items) to Recycle Bin (25-day recovery window) by ${user.full_name}`,
+      "document",
+      folderId
+    );
+    this.persist();
+    return true;
+  }
+
+  restoreFolder(folderId: string, currentUser?: Employee): boolean {
+    const folder = this.documentFolders.find((f) => f.id === folderId);
+    if (!folder) return false;
+    const user = currentUser || this.currentUser;
+    folder.is_deleted = false;
+    delete folder.deleted_at;
+    delete folder.deleted_by;
+    delete folder.deleted_by_name;
+    delete folder.recovery_deadline;
+
+    this.documents.forEach((d) => {
+      if (d.folder_id === folderId) {
+        d.is_deleted = false;
+        delete d.deleted_at;
+        delete d.deleted_by;
+        delete d.deleted_by_name;
+        delete d.recovery_deadline;
+      }
+    });
+
+    this.addActivityLog(
+      `Restored folder "${folder.name}" from Recycle Bin by ${user.full_name}`,
+      "document",
+      folderId
+    );
+    this.persist();
+    return true;
+  }
+
+  permanentlyDeleteFolder(folderId: string, currentUser?: Employee): boolean {
+    const folder = this.documentFolders.find((f) => f.id === folderId);
+    if (!folder) return false;
+    const user = currentUser || this.currentUser;
+    this.documentFolders = this.documentFolders.filter((f) => f.id !== folderId);
+    this.documents = this.documents.filter((d) => d.folder_id !== folderId);
+    this.addActivityLog(
+      `Permanently deleted folder "${folder.name}" via Recycle Bin authorization (${user.full_name})`,
+      "document",
+      folderId
+    );
+    this.persist();
+    return true;
+  }
+
+  getRecycleBinItems() {
+    const deletedDocs = this.documents.filter((d) => Boolean(d.is_deleted));
+    const deletedFlds = this.documentFolders.filter((f) => Boolean(f.is_deleted));
+    return {
+      documents: deletedDocs,
+      folders: deletedFlds,
+      totalCount: deletedDocs.length + deletedFlds.length,
+    };
+  }
+
+  restoreAllRecycleBin(currentUser?: Employee): number {
+    const user = currentUser || this.currentUser;
+    let count = 0;
+    this.documents.forEach((d) => {
+      if (d.is_deleted) {
+        d.is_deleted = false;
+        delete d.deleted_at;
+        delete d.deleted_by;
+        delete d.deleted_by_name;
+        delete d.recovery_deadline;
+        count++;
+      }
+    });
+    this.documentFolders.forEach((f) => {
+      if (f.is_deleted) {
+        f.is_deleted = false;
+        delete f.deleted_at;
+        delete f.deleted_by;
+        delete f.deleted_by_name;
+        delete f.recovery_deadline;
+        count++;
+      }
+    });
+    this.addActivityLog(
+      `Restored all items from Recycle Bin (${count} items restored by ${user.full_name})`,
+      "document"
+    );
+    this.persist();
+    return count;
+  }
+
+  emptyRecycleBin(currentUser?: Employee): number {
+    const user = currentUser || this.currentUser;
+    const total =
+      this.documents.filter((d) => d.is_deleted).length +
+      this.documentFolders.filter((f) => f.is_deleted).length;
+    this.documents = this.documents.filter((d) => !d.is_deleted);
+    this.documentFolders = this.documentFolders.filter((f) => !f.is_deleted);
+    this.addActivityLog(
+      `Emptied Recycle Bin: permanently erased ${total} documents and folders (${user.full_name})`,
+      "document"
+    );
+    this.persist();
+    return total;
   }
 
   // Notifications

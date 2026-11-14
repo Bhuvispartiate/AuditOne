@@ -41,7 +41,8 @@ function isAllowedForEmployee(pathname: string): boolean {
     pathname === "/dashboard" ||
     pathname === "/tasks" ||
     pathname === "/attendance" ||
-    pathname === "/documents"
+    pathname === "/documents" ||
+    pathname === "/recycle-bin"
   ) {
     return true;
   }
@@ -182,6 +183,7 @@ export default function App() {
 
           <Route path="/teams" element={<TeamsPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
+          <Route path="/recycle-bin" element={<DocumentsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />

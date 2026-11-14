@@ -22,7 +22,8 @@ import {
   ChevronsLeft,
   Zap,
   ChevronDown,
-  HelpCircle
+  HelpCircle,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { pmsStore } from "@/lib/data/store";
@@ -49,6 +50,7 @@ const EMPLOYEE_ALLOWED_HREFS = new Set([
   "/workflows",
   "/attendance",
   "/documents",
+  "/recycle-bin",
 ]);
 
 const mainNavItems: NavItem[] = [
@@ -65,6 +67,7 @@ const mainNavItems: NavItem[] = [
   { title: "Admins", href: "/admins", icon: ShieldCheck, superAdminOnly: true },
   { title: "Attendance", href: "/attendance", icon: MapPin },
   { title: "Documents", href: "/documents", icon: FileText },
+  { title: "Recycle Bin", href: "/recycle-bin", icon: Trash2 },
   { title: "Reports", href: "/reports", icon: BarChart3 },
 ];
 

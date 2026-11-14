@@ -637,6 +637,30 @@ export interface FileObject {
   expiry_date?: string;
   download_url?: string;
   created_at: string;
+  folder_id?: string;
+  folder_name?: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
+  deleted_by_name?: string;
+  recovery_deadline?: string; // 25 days from deleted_at
+}
+
+export interface DocumentFolder {
+  id: string;
+  name: string;
+  path: string;
+  client_id?: string;
+  client_name?: string;
+  description?: string;
+  created_at: string;
+  created_by?: string;
+  created_by_name?: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
+  deleted_by_name?: string;
+  recovery_deadline?: string;
 }
 
 export interface Notification {

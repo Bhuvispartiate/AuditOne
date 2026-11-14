@@ -698,28 +698,6 @@ function TasksContent() {
                       <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
                         {cat.description || "Practice category deliverable group."}
                       </p>
-
-                      {/* Sub-groups preview pills */}
-                      <div className="space-y-1.5 pt-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                          Sub-groups Kanban ({cat.sub_categories?.length || 0})
-                        </span>
-                        <div className="flex flex-wrap gap-1.5 max-h-16 overflow-hidden">
-                          {(cat.sub_categories || []).slice(0, 3).map((sub) => (
-                            <span
-                              key={sub.id}
-                              className="inline-flex items-center text-[10px] font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg border border-slate-200"
-                            >
-                              {sub.name}
-                            </span>
-                          ))}
-                          {(cat.sub_categories?.length || 0) > 3 && (
-                            <span className="text-[10px] font-bold text-slate-400 self-center">
-                              +{(cat.sub_categories?.length || 0) - 3} more
-                            </span>
-                          )}
-                        </div>
-                      </div>
                     </div>
 
                     {/* Bottom Progress & Action Row */}
@@ -766,9 +744,6 @@ function TasksContent() {
                   {selectedCategory.name}
                 </h1>
               </div>
-              <p className="text-xs text-[#6b7280] font-medium max-w-2xl">
-                {selectedCategory.description || "Practice category"}. Each column below represents a distinct <strong>sub-group</strong> holding its dedicated tasks and deliverables.
-              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
