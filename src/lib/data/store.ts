@@ -319,6 +319,510 @@ function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export const DEFAULT_SERVICES: Service[] = [
+  {
+    id: "srv-monthly-3b",
+    service_code: "SRV-GST-3B",
+    service_name: "GST Monthly 3B Filing",
+    description: "Monthly summary return filing for outward and inward supplies along with tax payment.",
+    default_fee: 3500,
+    default_gst_rate: 18,
+    billing_type: "Recurring",
+    status: "Active",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "srv-gstr-1",
+    service_code: "SRV-GST-GSTR1",
+    service_name: "GSTR-1 Monthly Return",
+    description: "Detailed statement of outward supplies and invoice-level upload on the GST portal.",
+    default_fee: 4000,
+    default_gst_rate: 18,
+    billing_type: "Recurring",
+    status: "Active",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "srv-gst-reg",
+    service_code: "SRV-GST-REG",
+    service_name: "GST Registration & Amendment",
+    description: "New GST number procurement, core and non-core amendments, and address updates.",
+    default_fee: 5000,
+    default_gst_rate: 18,
+    billing_type: "One-time",
+    status: "Active",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "srv-company-incorp",
+    service_code: "SRV-ROC-INCORP",
+    service_name: "Company Incorporation (Pvt Ltd / LLP)",
+    description: "SPICe+ Part A & B filing, name approval, DSC, DIN, MOA/AOA drafting, and certificate of incorporation.",
+    default_fee: 15000,
+    default_gst_rate: 18,
+    billing_type: "One-time",
+    status: "Active",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "srv-stat-audit",
+    service_code: "SRV-AUD-STAT",
+    service_name: "Statutory Financial Audit",
+    description: "Independent annual financial statement examination, CARO compliance, and audit report issuance.",
+    default_fee: 45000,
+    default_gst_rate: 18,
+    billing_type: "Recurring",
+    status: "Active",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "srv-itr-corporate",
+    service_code: "SRV-IT-CORP",
+    service_name: "Corporate Income Tax Return (ITR-6)",
+    description: "Tax audit finalization, balance sheet computation, MAT calculations, and ITR-6 e-filing.",
+    default_fee: 25000,
+    default_gst_rate: 18,
+    billing_type: "Recurring",
+    status: "Active",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "srv-tds-returns",
+    service_code: "SRV-TAX-TDS",
+    service_name: "TDS Quarterly Filing (24Q / 26Q)",
+    description: "Challan reconciliation, TDS return preparation, FVU validation, and Form 16 generation.",
+    default_fee: 3000,
+    default_gst_rate: 18,
+    billing_type: "Recurring",
+    status: "Active",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "srv-trademark-reg",
+    service_code: "SRV-IP-TM",
+    service_name: "Trademark Application & Prosecution",
+    description: "Brand name search, TM-A filing, classification search, examination report reply, and hearing attendance.",
+    default_fee: 7500,
+    default_gst_rate: 18,
+    billing_type: "One-time",
+    status: "Active",
+    created_at: new Date().toISOString(),
+  },
+];
+
+export const DEFAULT_WORKFLOWS: WorkflowTemplate[] = [
+  {
+    id: "wf-gst-reg",
+    workflow_code: "WF-GST-REG",
+    workflow_name: "GST Registration Execution Workflow",
+    service_id: "srv-gst-reg",
+    service_name: "GST Registration & Amendment",
+    description: "End-to-end standard operating procedure for new GST registrations, verification, and ARN approval.",
+    is_active: true,
+    version: 1,
+    created_at: new Date().toISOString(),
+    milestones: [
+      {
+        id: "ms-gst-1",
+        sequence_number: 1,
+        title: "Client Document Collection & KYC Verification",
+        description: "Gather PAN, Aadhaar, electricity bill, rent agreement, and NOC from applicant.",
+        stages: [
+          {
+            id: "st-gst-1",
+            stage_name: "Document Scrutiny",
+            sequence_number: 1,
+            description: "Verify document clarity, address correctness, and authorized signatory DSC.",
+            sub_stages: [
+              {
+                id: "subst-gst-1",
+                sub_stage_name: "PAN & Electricity Bill Validation",
+                sequence_number: 1,
+                tasks: [
+                  {
+                    id: "tt-gst-1",
+                    task_name: "Verify Owner KYC & Commercial Address Proof",
+                    description: "Check consumer number on EB bill matches municipality tax receipt and NOC.",
+                    sequence_number: 1,
+                    start_day_offset: 0,
+                    duration_days: 2,
+                    priority: "High",
+                    status: "Open",
+                    subtasks: [],
+                    default_comments: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "ms-gst-2",
+        sequence_number: 2,
+        title: "Portal Application & Aadhaar Authentication",
+        description: "Generate TRN, fill Part B, execute Aadhaar OTP e-sign, and obtain ARN.",
+        stages: [
+          {
+            id: "st-gst-2",
+            stage_name: "TRN & Form Submission",
+            sequence_number: 1,
+            description: "Submit online application on GST portal.",
+            sub_stages: [
+              {
+                id: "subst-gst-2",
+                sub_stage_name: "Aadhaar e-KYC Verification",
+                sequence_number: 1,
+                tasks: [
+                  {
+                    id: "tt-gst-2",
+                    task_name: "Complete Aadhaar OTP Authentication with Client",
+                    description: "Coordinate with client to click authentication link and input OTP.",
+                    sequence_number: 1,
+                    start_day_offset: 2,
+                    duration_days: 2,
+                    priority: "Urgent",
+                    status: "Open",
+                    subtasks: [],
+                    default_comments: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "ms-gst-3",
+        sequence_number: 3,
+        title: "Officer Clarification / Approval & Certificate Dispatch",
+        description: "Track ARN status, reply to any clarification notice (REG-03), and download GSTIN REG-06 certificate.",
+        stages: [
+          {
+            id: "st-gst-3",
+            stage_name: "ARN Tracking & Certificate Handover",
+            sequence_number: 1,
+            description: "Download certificate and dispatch login credentials to client.",
+            sub_stages: [
+              {
+                id: "subst-gst-3",
+                sub_stage_name: "Welcome Kit & Final Dispatch",
+                sequence_number: 1,
+                tasks: [
+                  {
+                    id: "tt-gst-3",
+                    task_name: "Generate Client Welcome Kit with GSTIN and Credentials",
+                    description: "Send official intimation letter and GST registration certificate PDF to client email.",
+                    sequence_number: 1,
+                    start_day_offset: 4,
+                    duration_days: 3,
+                    priority: "Medium",
+                    status: "Open",
+                    subtasks: [],
+                    default_comments: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "wf-company-incorp",
+    workflow_code: "WF-ROC-INCORP",
+    workflow_name: "Company Incorporation & Compliance Workflow",
+    service_id: "srv-company-incorp",
+    service_name: "Company Incorporation (Pvt Ltd / LLP)",
+    description: "SPICe+ Part A name reservation, Part B drafting, AGILE-PRO-S, and Certificate of Incorporation issuance.",
+    is_active: true,
+    version: 1,
+    created_at: new Date().toISOString(),
+    milestones: [
+      {
+        id: "ms-incorp-1",
+        sequence_number: 1,
+        title: "Name Reservation (SPICe+ Part A)",
+        description: "Run name availability search on MCA portal and file RUN / SPICe+ Part A.",
+        stages: [
+          {
+            id: "st-incorp-1",
+            stage_name: "Name Scrutiny & Submission",
+            sequence_number: 1,
+            sub_stages: [
+              {
+                id: "subst-incorp-1",
+                sub_stage_name: "MCA Name Check",
+                sequence_number: 1,
+                tasks: [
+                  {
+                    id: "tt-inc-1",
+                    task_name: "Draft 2 Proposed Names with Main Object Alignment",
+                    description: "Verify trademark conflicts under Class 35/42 before submission.",
+                    sequence_number: 1,
+                    start_day_offset: 0,
+                    duration_days: 2,
+                    priority: "High",
+                    status: "Open",
+                    subtasks: [],
+                    default_comments: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "ms-incorp-2",
+        sequence_number: 2,
+        title: "SPICe+ Part B, MOA, AOA & DSC Affixing",
+        description: "Draft e-MOA (INC-33), e-AOA (INC-34), INC-9 declaration, and affix director DSCs.",
+        stages: [
+          {
+            id: "st-incorp-2",
+            stage_name: "Statutory Form Finalization",
+            sequence_number: 1,
+            sub_stages: [
+              {
+                id: "subst-incorp-2",
+                sub_stage_name: "DSC Signing & MCA Upload",
+                sequence_number: 1,
+                tasks: [
+                  {
+                    id: "tt-inc-2",
+                    task_name: "Affix Class 3 DSC on SPICe+ Part B & Pay MCA Fee",
+                    description: "Pre-scrutiny pass and generate SRN challan for incorporation.",
+                    sequence_number: 1,
+                    start_day_offset: 2,
+                    duration_days: 3,
+                    priority: "Urgent",
+                    status: "Open",
+                    subtasks: [],
+                    default_comments: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "ms-incorp-3",
+        sequence_number: 3,
+        title: "COI Issuance & Post-Incorporation Compliances",
+        description: "Receive Certificate of Incorporation (CIN), PAN/TAN card, bank account opening, and INC-20A filing.",
+        stages: [
+          {
+            id: "st-incorp-3",
+            stage_name: "Post Incorporation Handover",
+            sequence_number: 1,
+            sub_stages: [
+              {
+                id: "subst-incorp-3",
+                sub_stage_name: "Bank Account & INC-20A Commencement",
+                sequence_number: 1,
+                tasks: [
+                  {
+                    id: "tt-inc-3",
+                    task_name: "File INC-20A Commencement of Business within 180 Days",
+                    description: "Obtain bank statement showing subscription money deposit from promoters.",
+                    sequence_number: 1,
+                    start_day_offset: 5,
+                    duration_days: 10,
+                    priority: "Medium",
+                    status: "Open",
+                    subtasks: [],
+                    default_comments: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "wf-stat-audit",
+    workflow_code: "WF-AUD-STAT",
+    workflow_name: "Statutory Financial Audit Execution Workflow",
+    service_id: "srv-stat-audit",
+    service_name: "Statutory Financial Audit",
+    description: "Standard auditing practices compliant with ICAI standards (SA 200–SA 700) and CARO 2020.",
+    is_active: true,
+    version: 1,
+    created_at: new Date().toISOString(),
+    milestones: [
+      {
+        id: "ms-audit-1",
+        sequence_number: 1,
+        title: "Audit Planning & Materiality Assessment",
+        description: "Engagement letter execution, independence declaration, and determining materiality thresholds.",
+        stages: [
+          {
+            id: "st-audit-1",
+            stage_name: "Preliminary Scrutiny",
+            sequence_number: 1,
+            sub_stages: [
+              {
+                id: "subst-audit-1",
+                sub_stage_name: "Risk Assessment & Trial Balance Scrutiny",
+                sequence_number: 1,
+                tasks: [
+                  {
+                    id: "tt-aud-1",
+                    task_name: "Review Opening Balances & Previous Year Audit Report",
+                    description: "Verify opening balances match audited financials and note emphasis of matter.",
+                    sequence_number: 1,
+                    start_day_offset: 0,
+                    duration_days: 5,
+                    priority: "High",
+                    status: "Open",
+                    subtasks: [],
+                    default_comments: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+];
+
+export const DEFAULT_PRACTICE_TASKS = [
+  // General
+  {
+    id: "tsk-gen-workflow",
+    title: "workflow",
+    category_id: "cat-general",
+    category_name: "General Practice",
+    sub_category_id: "subcat-general",
+    sub_category_name: "General",
+    status: "Open",
+    priority: "Medium" as ProjectPriority,
+    comments_count: 0,
+    subtasks: [] as { id: string; title: string; status: string }[],
+  },
+  {
+    id: "tsk-gen-commercierge",
+    title: "Commercierge IE Code",
+    category_id: "cat-general",
+    category_name: "General Practice",
+    sub_category_id: "subcat-general",
+    sub_category_name: "General",
+    status: "Hold",
+    priority: "Medium" as ProjectPriority,
+    comments_count: 1,
+    subtasks: [],
+  },
+  {
+    id: "tsk-gen-kreateworks",
+    title: "Kreateworks Trademark",
+    category_id: "cat-general",
+    category_name: "General Practice",
+    sub_category_id: "subcat-general",
+    sub_category_name: "General",
+    status: "In Progress",
+    priority: "High" as ProjectPriority,
+    comments_count: 0,
+    subtasks: [],
+  },
+  // GST Registrations
+  {
+    id: "tsk-gst-sunlight",
+    title: "Sunlight Residency",
+    category_id: "cat-general",
+    category_name: "General Practice",
+    sub_category_id: "subcat-gst-reg",
+    sub_category_name: "GST Registrations",
+    status: "Approval pending",
+    priority: "High" as ProjectPriority,
+    assigned_employee_name: "Kirubakar...",
+    comments_count: 3,
+    subtasks: [],
+  },
+  {
+    id: "tsk-gst-siddiq",
+    title: "Siddiq",
+    category_id: "cat-general",
+    category_name: "General Practice",
+    sub_category_id: "subcat-gst-reg",
+    sub_category_name: "GST Registrations",
+    status: "Approval pending",
+    priority: "Medium" as ProjectPriority,
+    comments_count: 2,
+    subtasks: [],
+  },
+  {
+    id: "tsk-gst-sounder",
+    title: "Sounder",
+    category_id: "cat-general",
+    category_name: "General Practice",
+    sub_category_id: "subcat-gst-reg",
+    sub_category_name: "GST Registrations",
+    status: "Kiruba Action",
+    priority: "Urgent" as ProjectPriority,
+    comments_count: 2,
+    subtasks: [],
+  },
+  {
+    id: "tsk-gst-greenwave",
+    title: "Green wave address change",
+    category_id: "cat-general",
+    category_name: "General Practice",
+    sub_category_id: "subcat-gst-reg",
+    sub_category_name: "GST Registrations",
+    status: "Open",
+    priority: "Medium" as ProjectPriority,
+    comments_count: 0,
+    subtasks: [],
+  },
+  // Company Incorporations
+  {
+    id: "tsk-inc-hydralilly",
+    title: "Hydralilly",
+    category_id: "cat-general",
+    category_name: "General Practice",
+    sub_category_id: "subcat-company-incorp",
+    sub_category_name: "Company Incorporations",
+    status: "Kiruba Action",
+    priority: "High" as ProjectPriority,
+    comments_count: 0,
+    subtasks: [],
+  },
+  {
+    id: "tsk-inc-marutham",
+    title: "Marutham",
+    category_id: "cat-general",
+    category_name: "General Practice",
+    sub_category_id: "subcat-company-incorp",
+    sub_category_name: "Company Incorporations",
+    status: "Kiruba Action",
+    priority: "High" as ProjectPriority,
+    comments_count: 0,
+    subtasks: [],
+  },
+  {
+    id: "tsk-inc-babjee",
+    title: "Babjee Partnership",
+    category_id: "cat-general",
+    category_name: "General Practice",
+    sub_category_id: "subcat-company-incorp",
+    sub_category_name: "Company Incorporations",
+    status: "Kiruba Action",
+    priority: "Medium" as ProjectPriority,
+    comments_count: 1,
+    subtasks: [
+      { id: "sub-1", title: "Partnership Deed Drafting", status: "Open" },
+      { id: "sub-2", title: "PAN Card Application", status: "Open" },
+    ],
+  },
+];
+
 const STORAGE_KEY = "acru_pms_store_v1";
 
 class PMSDataStore {
@@ -352,6 +856,7 @@ class PMSDataStore {
 
   constructor() {
     this.hydrate();
+    this.ensureDefaultData();
     this.backfillMissingProjectsAndTasks();
     void this.hydrateFromSupabase();
     void this.syncClientsFromSupabase();
@@ -529,43 +1034,165 @@ class PMSDataStore {
     });
   }
 
+  private mergeById<T extends { id: string }>(currentList: T[], incomingList: T[]): T[] {
+    if (!Array.isArray(incomingList) || incomingList.length === 0) return currentList;
+    if (!Array.isArray(currentList) || currentList.length === 0) return incomingList;
+
+    const map = new Map<string, T>();
+    currentList.forEach((item) => {
+      if (item && item.id) map.set(item.id, item);
+    });
+    incomingList.forEach((item) => {
+      if (item && item.id) map.set(item.id, item);
+    });
+    return Array.from(map.values());
+  }
+
+  private ensureDefaultData() {
+    let changed = false;
+
+    // 1. Ensure Services
+    if (this.services.length === 0) {
+      this.services = [...DEFAULT_SERVICES];
+      changed = true;
+    }
+
+    // 2. Ensure Workflows
+    if (this.workflows.length === 0) {
+      this.workflows = [...DEFAULT_WORKFLOWS];
+      changed = true;
+    }
+
+    // 3. Ensure Default Practice Tasks under Sub-groups (General, GST Registrations, Company Incorporations)
+    const existingTaskTitles = new Set(this.tasks.map((t) => (t.title || "").toLowerCase().trim()));
+    const refProject = this.projects[0] || {
+      id: "proj-general-practice",
+      project_name: "General Practice Deliverables",
+    };
+
+    const today = new Date().toISOString().slice(0, 10);
+    const in7Days = this.addDaysIso(today, 7);
+
+    DEFAULT_PRACTICE_TASKS.forEach((seed, idx) => {
+      if (!existingTaskTitles.has(seed.title.toLowerCase().trim())) {
+        const year = new Date().getFullYear();
+        const nextNum = this.tasks.length + 1;
+        const taskCode = `TSK-${year}-${String(nextNum + idx).padStart(3, "0")}`;
+
+        const createdTask: Task = {
+          id: seed.id,
+          task_code: taskCode,
+          project_id: refProject.id,
+          project_name: refProject.project_name,
+          title: seed.title,
+          description: `Deliverable task for ${seed.title} under ${seed.sub_category_name}.`,
+          priority: seed.priority as ProjectPriority,
+          status: seed.status,
+          category_id: seed.category_id,
+          category_name: seed.category_name,
+          sub_category_id: seed.sub_category_id,
+          sub_category_name: seed.sub_category_name,
+          assigned_employee_id: seed.assigned_employee_name ? "emp-admin-01" : undefined,
+          assigned_employee_name: seed.assigned_employee_name,
+          start_date: today,
+          due_date: in7Days,
+          comments_count: seed.comments_count,
+          attachments_count: 0,
+          created_at: new Date().toISOString(),
+          subtasks: seed.subtasks.map((s, sIdx) => ({
+            id: `${seed.id}-sub-${sIdx + 1}`,
+            task_code: `${taskCode}.${sIdx + 1}`,
+            parent_task_id: seed.id,
+            project_id: refProject.id,
+            project_name: refProject.project_name,
+            title: s.title,
+            description: `Subtask ${s.title}`,
+            priority: "Medium" as ProjectPriority,
+            status: s.status || "Open",
+            category_id: seed.category_id,
+            category_name: seed.category_name,
+            sub_category_id: seed.sub_category_id,
+            sub_category_name: seed.sub_category_name,
+            start_date: today,
+            due_date: in7Days,
+            created_at: new Date().toISOString(),
+          })),
+        };
+        this.tasks.push(createdTask);
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      this.writeLocalSnapshot();
+    }
+  }
+
   private applyWorkspaceDataSnapshot(parsed: any) {
     if (!parsed || typeof parsed !== "object") return;
-    if (Array.isArray(parsed.clients)) this.clients = parsed.clients;
-    if (Array.isArray(parsed.services)) this.services = parsed.services;
-    if (Array.isArray(parsed.engagements)) this.engagements = parsed.engagements;
-    if (Array.isArray(parsed.projects)) this.projects = parsed.projects;
-    if (Array.isArray(parsed.tasks)) this.tasks = parsed.tasks;
-    if (Array.isArray(parsed.taskComments)) this.taskComments = parsed.taskComments;
+    if (Array.isArray(parsed.clients) && parsed.clients.length > 0) {
+      this.clients = this.mergeById(this.clients, parsed.clients);
+    }
+    if (Array.isArray(parsed.services) && parsed.services.length > 0) {
+      this.services = this.mergeById(this.services, parsed.services);
+    }
+    if (Array.isArray(parsed.engagements) && parsed.engagements.length > 0) {
+      this.engagements = this.mergeById(this.engagements, parsed.engagements);
+    }
+    if (Array.isArray(parsed.projects) && parsed.projects.length > 0) {
+      this.projects = this.mergeById(this.projects, parsed.projects);
+    }
+    if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
+      this.tasks = this.mergeById(this.tasks, parsed.tasks);
+    }
+    if (Array.isArray(parsed.taskComments) && parsed.taskComments.length > 0) {
+      this.taskComments = this.mergeById(this.taskComments, parsed.taskComments);
+    }
     if (Array.isArray(parsed.deletedTaskProjectIds)) {
-      this.deletedTaskProjectIds = parsed.deletedTaskProjectIds;
+      this.deletedTaskProjectIds = Array.from(
+        new Set([...this.deletedTaskProjectIds, ...parsed.deletedTaskProjectIds])
+      );
     }
-    if (Array.isArray(parsed.workflows)) this.workflows = parsed.workflows;
+    if (Array.isArray(parsed.workflows) && parsed.workflows.length > 0) {
+      this.workflows = this.mergeById(this.workflows, parsed.workflows);
+    }
     if (Array.isArray(parsed.employees) && parsed.employees.length > 0) {
-      this.employees = parsed.employees;
+      this.employees = this.mergeById(this.employees, parsed.employees);
     }
-    if (Array.isArray(parsed.teams)) this.teams = parsed.teams;
-    if (Array.isArray(parsed.invoices)) this.invoices = parsed.invoices;
-    if (Array.isArray(parsed.payments)) this.payments = parsed.payments;
-    if (Array.isArray(parsed.documents)) this.documents = parsed.documents;
-    if (Array.isArray(parsed.notifications)) this.notifications = parsed.notifications;
-    if (Array.isArray(parsed.activityLogs)) this.activityLogs = parsed.activityLogs;
+    if (Array.isArray(parsed.teams) && parsed.teams.length > 0) {
+      this.teams = this.mergeById(this.teams, parsed.teams);
+    }
+    if (Array.isArray(parsed.invoices) && parsed.invoices.length > 0) {
+      this.invoices = this.mergeById(this.invoices, parsed.invoices);
+    }
+    if (Array.isArray(parsed.payments) && parsed.payments.length > 0) {
+      this.payments = this.mergeById(this.payments, parsed.payments);
+    }
+    if (Array.isArray(parsed.documents) && parsed.documents.length > 0) {
+      this.documents = this.mergeById(this.documents, parsed.documents);
+    }
+    if (Array.isArray(parsed.notifications) && parsed.notifications.length > 0) {
+      this.notifications = this.mergeById(this.notifications, parsed.notifications);
+    }
+    if (Array.isArray(parsed.activityLogs) && parsed.activityLogs.length > 0) {
+      this.activityLogs = this.mergeById(this.activityLogs, parsed.activityLogs);
+    }
     if (parsed.officeGeoConfig && typeof parsed.officeGeoConfig.latitude === "number") {
       this.officeGeoConfig = parsed.officeGeoConfig;
     }
-    if (Array.isArray(parsed.attendanceRecords)) {
-      this.attendanceRecords = parsed.attendanceRecords;
+    if (Array.isArray(parsed.attendanceRecords) && parsed.attendanceRecords.length > 0) {
+      this.attendanceRecords = this.mergeById(this.attendanceRecords, parsed.attendanceRecords);
     }
     if (Array.isArray(parsed.taskStatuses) && parsed.taskStatuses.length > 0) {
-      this.taskStatuses = parsed.taskStatuses;
+      this.taskStatuses = this.mergeById(this.taskStatuses, parsed.taskStatuses);
     }
     if (Array.isArray(parsed.taskCategories) && parsed.taskCategories.length > 0) {
-      this.taskCategories = parsed.taskCategories;
+      this.taskCategories = this.mergeById(this.taskCategories, parsed.taskCategories);
     } else if (this.taskCategories.length === 0) {
       this.taskCategories = [...DEFAULT_TASK_CATEGORIES];
     }
     if (typeof parsed.updatedAt === "number") {
-      this.localUpdatedAt = parsed.updatedAt;
+      this.localUpdatedAt = Math.max(this.localUpdatedAt, parsed.updatedAt);
     }
     // Keep default System Admin email synced with VITE_SUPERADMIN_EMAIL
     this.employees = this.employees.map((e) =>
@@ -605,6 +1232,11 @@ class PMSDataStore {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
+      try {
+        window.localStorage.setItem("acru_pms_store_backup", raw);
+      } catch {
+        // ignore backup quota error
+      }
       const parsed = JSON.parse(raw);
       this.applyWorkspaceDataSnapshot(parsed);
       if (parsed.currentUser && parsed.currentUser.id) {
@@ -702,29 +1334,24 @@ class PMSDataStore {
 
         const remote = data?.setting_value as Record<string, any> | undefined;
         if (remote && typeof remote === "object") {
-          const remoteUpdatedAt = typeof remote.updatedAt === "number" ? remote.updatedAt : 0;
-          const hasLocalSnapshot = Boolean(window.localStorage?.getItem(STORAGE_KEY));
-          // Apply cloud state on a fresh device or whenever cloud is newer than local
-          if (!hasLocalSnapshot || remoteUpdatedAt >= this.localUpdatedAt) {
-            this.isHydratingFromCloud = true;
-            try {
-              this.applyWorkspaceDataSnapshot(remote);
-              if (this.currentUser?.id) {
-                const matched = this.employees.find(
-                  (e) =>
-                    e.id === this.currentUser.id ||
-                    (e.email || "").toLowerCase() === (this.currentUser.email || "").toLowerCase()
-                );
-                if (matched) this.currentUser = matched;
-              }
-              this.writeLocalSnapshot();
-            } finally {
-              this.isHydratingFromCloud = false;
+          this.isHydratingFromCloud = true;
+          try {
+            this.applyWorkspaceDataSnapshot(remote);
+            this.ensureDefaultData();
+            if (this.currentUser?.id) {
+              const matched = this.employees.find(
+                (e) =>
+                  e.id === this.currentUser.id ||
+                  (e.email || "").toLowerCase() === (this.currentUser.email || "").toLowerCase()
+              );
+              if (matched) this.currentUser = matched;
             }
-            this.notify();
-          } else if (this.localUpdatedAt > remoteUpdatedAt) {
+            this.writeLocalSnapshot();
             void this.pushSnapshotToSupabase();
+          } finally {
+            this.isHydratingFromCloud = false;
           }
+          this.notify();
         } else {
           // First-time cloud seed from current device
           await this.pushSnapshotToSupabase();
@@ -2375,6 +3002,7 @@ class PMSDataStore {
     const newWf: WorkflowTemplate = { ...wfData, id, created_at: new Date().toISOString() };
     this.workflows.unshift(newWf);
     this.addActivityLog(`Published workflow template: ${newWf.workflow_name}`, "workflow", id);
+    this.persist();
     return newWf;
   }
 
@@ -2386,6 +3014,7 @@ class PMSDataStore {
       ...updates,
     };
     this.addActivityLog(`Updated workflow template: ${this.workflows[index].workflow_name}`, "workflow", id);
+    this.persist();
     return this.workflows[index];
   }
 

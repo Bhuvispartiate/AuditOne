@@ -9,15 +9,26 @@ import {
   WorkflowSubtaskTemplate,
   WorkflowTemplate,
 } from "@/types";
+import { isSuperAdminEmail } from "@/lib/supabase/client";
 
 const RESTRICTED_EMPLOYEE_DOC_CATEGORIES = new Set(["Invoice", "Payment Receipt", "Bank"]);
 
 export function isSuperAdmin(user?: Employee | null): boolean {
-  return user?.role_code === "SUPER_ADMIN";
+  if (!user) return false;
+  return user.role_code === "SUPER_ADMIN" || isSuperAdminEmail(user.email);
 }
 
 export function isAdminUser(user?: Employee | null): boolean {
-  return user?.role_code === "SUPER_ADMIN" || user?.role_code === "ADMIN";
+  if (!user) return false;
+  const role = user.role_code;
+  return (
+    role === "SUPER_ADMIN" ||
+    role === "ADMIN" ||
+    role === "DIRECTOR" ||
+    role === "HEAD" ||
+    user.id === "emp-admin-01" ||
+    isSuperAdminEmail(user.email)
+  );
 }
 
 export function isEmployeeRestricted(user?: Employee | null): boolean {
