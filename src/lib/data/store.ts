@@ -65,41 +65,6 @@ export const DEFAULT_TASK_STATUSES: TaskStatusConfig[] = [
 
 export const DEFAULT_TASK_CATEGORIES: TaskCategory[] = [
   {
-    id: "cat-general",
-    name: "General Practice",
-    code: "GEN",
-    description: "General compliance, workflow execution, registrations, and corporate setups.",
-    color: "sky",
-    icon: "Layers",
-    created_at: new Date().toISOString(),
-    sub_categories: [
-      {
-        id: "subcat-general",
-        category_id: "cat-general",
-        name: "General",
-        code: "GEN",
-        description: "General workflows, IE code, trademark, and recurring tasks.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-gst-reg",
-        category_id: "cat-general",
-        name: "GST Registrations",
-        code: "GST",
-        description: "New GST registrations, amendments, address changes, and cancellations.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-company-incorp",
-        category_id: "cat-general",
-        name: "Company Incorporations",
-        code: "INCORP",
-        description: "Company incorporation, LLP formation, partnership deeds, and COI.",
-        created_at: new Date().toISOString(),
-      },
-    ],
-  },
-  {
     id: "cat-tax",
     name: "Taxation & Compliance",
     code: "TAX",
@@ -733,136 +698,6 @@ export const DEFAULT_WORKFLOWS: WorkflowTemplate[] = [
   },
 ];
 
-export const DEFAULT_PRACTICE_TASKS = [
-  // General
-  {
-    id: "tsk-gen-workflow",
-    title: "workflow",
-    category_id: "cat-general",
-    category_name: "General Practice",
-    sub_category_id: "subcat-general",
-    sub_category_name: "General",
-    status: "Open",
-    priority: "Medium" as ProjectPriority,
-    comments_count: 0,
-    subtasks: [] as { id: string; title: string; status: string }[],
-  },
-  {
-    id: "tsk-gen-commercierge",
-    title: "Commercierge IE Code",
-    category_id: "cat-general",
-    category_name: "General Practice",
-    sub_category_id: "subcat-general",
-    sub_category_name: "General",
-    status: "Hold",
-    priority: "Medium" as ProjectPriority,
-    comments_count: 1,
-    subtasks: [],
-  },
-  {
-    id: "tsk-gen-kreateworks",
-    title: "Kreateworks Trademark",
-    category_id: "cat-general",
-    category_name: "General Practice",
-    sub_category_id: "subcat-general",
-    sub_category_name: "General",
-    status: "In Progress",
-    priority: "High" as ProjectPriority,
-    comments_count: 0,
-    subtasks: [],
-  },
-  // GST Registrations
-  {
-    id: "tsk-gst-sunlight",
-    title: "Sunlight Residency",
-    category_id: "cat-general",
-    category_name: "General Practice",
-    sub_category_id: "subcat-gst-reg",
-    sub_category_name: "GST Registrations",
-    status: "Approval pending",
-    priority: "High" as ProjectPriority,
-    assigned_employee_name: "Kirubakar...",
-    comments_count: 3,
-    subtasks: [],
-  },
-  {
-    id: "tsk-gst-siddiq",
-    title: "Siddiq",
-    category_id: "cat-general",
-    category_name: "General Practice",
-    sub_category_id: "subcat-gst-reg",
-    sub_category_name: "GST Registrations",
-    status: "Approval pending",
-    priority: "Medium" as ProjectPriority,
-    comments_count: 2,
-    subtasks: [],
-  },
-  {
-    id: "tsk-gst-sounder",
-    title: "Sounder",
-    category_id: "cat-general",
-    category_name: "General Practice",
-    sub_category_id: "subcat-gst-reg",
-    sub_category_name: "GST Registrations",
-    status: "Kiruba Action",
-    priority: "Urgent" as ProjectPriority,
-    comments_count: 2,
-    subtasks: [],
-  },
-  {
-    id: "tsk-gst-greenwave",
-    title: "Green wave address change",
-    category_id: "cat-general",
-    category_name: "General Practice",
-    sub_category_id: "subcat-gst-reg",
-    sub_category_name: "GST Registrations",
-    status: "Open",
-    priority: "Medium" as ProjectPriority,
-    comments_count: 0,
-    subtasks: [],
-  },
-  // Company Incorporations
-  {
-    id: "tsk-inc-hydralilly",
-    title: "Hydralilly",
-    category_id: "cat-general",
-    category_name: "General Practice",
-    sub_category_id: "subcat-company-incorp",
-    sub_category_name: "Company Incorporations",
-    status: "Kiruba Action",
-    priority: "High" as ProjectPriority,
-    comments_count: 0,
-    subtasks: [],
-  },
-  {
-    id: "tsk-inc-marutham",
-    title: "Marutham",
-    category_id: "cat-general",
-    category_name: "General Practice",
-    sub_category_id: "subcat-company-incorp",
-    sub_category_name: "Company Incorporations",
-    status: "Kiruba Action",
-    priority: "High" as ProjectPriority,
-    comments_count: 0,
-    subtasks: [],
-  },
-  {
-    id: "tsk-inc-babjee",
-    title: "Babjee Partnership",
-    category_id: "cat-general",
-    category_name: "General Practice",
-    sub_category_id: "subcat-company-incorp",
-    sub_category_name: "Company Incorporations",
-    status: "Kiruba Action",
-    priority: "Medium" as ProjectPriority,
-    comments_count: 1,
-    subtasks: [
-      { id: "sub-1", title: "Partnership Deed Drafting", status: "Open" },
-      { id: "sub-2", title: "PAN Card Application", status: "Open" },
-    ],
-  },
-];
-
 const STORAGE_KEY = "acru_pms_store_v1";
 
 class PMSDataStore {
@@ -887,6 +722,7 @@ class PMSDataStore {
   private attendanceRecords: AttendanceRecord[] = [];
   private taskStatuses: TaskStatusConfig[] = [...DEFAULT_TASK_STATUSES];
   private taskCategories: TaskCategory[] = [...DEFAULT_TASK_CATEGORIES];
+  private deletedTaskCategoryIds: string[] = [];
   private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
   private authenticated: boolean = false;
   private listeners: Set<() => void> = new Set();
@@ -1104,66 +940,6 @@ class PMSDataStore {
       changed = true;
     }
 
-    // 3. Ensure Default Practice Tasks under Sub-groups (General, GST Registrations, Company Incorporations)
-    const existingTaskTitles = new Set(this.tasks.map((t) => (t.title || "").toLowerCase().trim()));
-    const refProject = this.projects[0] || {
-      id: "proj-general-practice",
-      project_name: "General Practice Deliverables",
-    };
-
-    const today = new Date().toISOString().slice(0, 10);
-    const in7Days = this.addDaysIso(today, 7);
-
-    DEFAULT_PRACTICE_TASKS.forEach((seed, idx) => {
-      if (!existingTaskTitles.has(seed.title.toLowerCase().trim())) {
-        const year = new Date().getFullYear();
-        const nextNum = this.tasks.length + 1;
-        const taskCode = `TSK-${year}-${String(nextNum + idx).padStart(3, "0")}`;
-
-        const createdTask: Task = {
-          id: seed.id,
-          task_code: taskCode,
-          project_id: refProject.id,
-          project_name: refProject.project_name,
-          title: seed.title,
-          description: `Deliverable task for ${seed.title} under ${seed.sub_category_name}.`,
-          priority: seed.priority as ProjectPriority,
-          status: seed.status,
-          category_id: seed.category_id,
-          category_name: seed.category_name,
-          sub_category_id: seed.sub_category_id,
-          sub_category_name: seed.sub_category_name,
-          assigned_employee_id: seed.assigned_employee_name ? "emp-admin-01" : undefined,
-          assigned_employee_name: seed.assigned_employee_name,
-          start_date: today,
-          due_date: in7Days,
-          comments_count: seed.comments_count,
-          attachments_count: 0,
-          created_at: new Date().toISOString(),
-          subtasks: seed.subtasks.map((s, sIdx) => ({
-            id: `${seed.id}-sub-${sIdx + 1}`,
-            task_code: `${taskCode}.${sIdx + 1}`,
-            parent_task_id: seed.id,
-            project_id: refProject.id,
-            project_name: refProject.project_name,
-            title: s.title,
-            description: `Subtask ${s.title}`,
-            priority: "Medium" as ProjectPriority,
-            status: s.status || "Open",
-            category_id: seed.category_id,
-            category_name: seed.category_name,
-            sub_category_id: seed.sub_category_id,
-            sub_category_name: seed.sub_category_name,
-            start_date: today,
-            due_date: in7Days,
-            created_at: new Date().toISOString(),
-          })),
-        };
-        this.tasks.push(createdTask);
-        changed = true;
-      }
-    });
-
     if (changed) {
       this.writeLocalSnapshot();
     }
@@ -1234,8 +1010,13 @@ class PMSDataStore {
     }
     if (Array.isArray(parsed.taskCategories) && parsed.taskCategories.length > 0) {
       this.taskCategories = this.mergeById(this.taskCategories, parsed.taskCategories);
-    } else if (this.taskCategories.length === 0) {
+    } else if (this.taskCategories.length === 0 && (!parsed.deletedTaskCategoryIds || parsed.deletedTaskCategoryIds.length === 0)) {
       this.taskCategories = [...DEFAULT_TASK_CATEGORIES];
+    }
+    if (Array.isArray(parsed.deletedTaskCategoryIds)) {
+      this.deletedTaskCategoryIds = Array.from(
+        new Set([...this.deletedTaskCategoryIds, ...parsed.deletedTaskCategoryIds])
+      );
     }
     if (typeof parsed.updatedAt === "number") {
       this.localUpdatedAt = Math.max(this.localUpdatedAt, parsed.updatedAt);
@@ -1270,6 +1051,7 @@ class PMSDataStore {
       attendanceRecords: this.attendanceRecords,
       taskStatuses: this.taskStatuses,
       taskCategories: this.taskCategories,
+      deletedTaskCategoryIds: this.deletedTaskCategoryIds,
       updatedAt,
     };
   }
@@ -1294,6 +1076,23 @@ class PMSDataStore {
       }
       if (this.currentUser.id === "emp-admin-01" && this.currentUser.email === "admin@pmsfirm.com") {
         this.currentUser = { ...this.currentUser, email: SUPERADMIN_EMAIL };
+      }
+
+      // Purge all legacy mock practice tasks & mock categories permanently
+      const MOCK_TASK_PREFIXES = ["tsk-gen-", "tsk-gst-", "tsk-inc-"];
+      const initialTaskCount = this.tasks.length;
+      this.tasks = this.tasks.filter((t) => {
+        if (t.category_id === "cat-general") return false;
+        if (MOCK_TASK_PREFIXES.some((p) => t.id && t.id.startsWith(p))) return false;
+        return true;
+      });
+      const initialCatCount = this.taskCategories.length;
+      this.taskCategories = this.taskCategories.filter((c) => c.id !== "cat-general");
+      if (!this.deletedTaskCategoryIds.includes("cat-general")) {
+        this.deletedTaskCategoryIds.push("cat-general");
+      }
+      if (this.tasks.length !== initialTaskCount || this.taskCategories.length !== initialCatCount) {
+        this.writeLocalSnapshot();
       }
     } catch (error) {
       console.error("Failed to hydrate PMS store from localStorage:", error);
@@ -2369,31 +2168,17 @@ class PMSDataStore {
   // Task Categories & Sub-categories
   getTaskCategories(): TaskCategory[] {
     if (!this.taskCategories || this.taskCategories.length === 0) {
-      this.taskCategories = DEFAULT_TASK_CATEGORIES.map((c) => ({
-        ...c,
-        sub_categories: (c.sub_categories || []).map((s) => ({ ...s })),
-      }));
-      this.persist();
+      if (this.deletedTaskCategoryIds.length === 0) {
+        this.taskCategories = DEFAULT_TASK_CATEGORIES.map((c) => ({
+          ...c,
+          sub_categories: (c.sub_categories || []).map((s) => ({ ...s })),
+        }));
+        this.persist();
+      } else {
+        this.taskCategories = [];
+      }
     } else {
       let changed = false;
-
-      // Ensure any missing default categories are present
-      DEFAULT_TASK_CATEGORIES.forEach((dc) => {
-        if (
-          !this.taskCategories.some(
-            (c) =>
-              c.id === dc.id ||
-              c.code === dc.code ||
-              c.name.toLowerCase() === dc.name.toLowerCase()
-          )
-        ) {
-          this.taskCategories.push({
-            ...dc,
-            sub_categories: (dc.sub_categories || []).map((s) => ({ ...s })),
-          });
-          changed = true;
-        }
-      });
 
       // Ensure every category has its sub-groups populated
       this.taskCategories = this.taskCategories.map((c) => {
@@ -2493,6 +2278,11 @@ class PMSDataStore {
     const cat = this.taskCategories.find((c) => c.id === id);
     if (!cat) return false;
     this.taskCategories = this.taskCategories.filter((c) => c.id !== id);
+    if (!this.deletedTaskCategoryIds.includes(id)) {
+      this.deletedTaskCategoryIds.push(id);
+    }
+    // Also remove any tasks and subtasks associated with this deleted category
+    this.tasks = this.tasks.filter((t) => t.category_id !== id);
     this.addActivityLog(`Deleted task category: ${cat.name}`, "task", id);
     this.persist();
     return true;
@@ -2578,21 +2368,21 @@ class PMSDataStore {
   public ensureTaskCategorized(task: Task): Task {
     if (task.category_id && task.sub_category_id) return task;
     const text = `${task.title} ${task.project_name || ""} ${task.description || ""}`.toLowerCase();
-    let catId = "cat-general";
-    let subCatId = "subcat-general";
-    let catName = "General Practice";
-    let subCatName = "General";
+    let catId = "cat-tax";
+    let subCatId = "subcat-income-tax";
+    let catName = "Taxation & Compliance";
+    let subCatName = "Direct Tax / Income Tax";
 
-    if (text.includes("gst") || text.includes("registration")) {
-      catId = "cat-general";
-      subCatId = "subcat-gst-reg";
-      catName = "General Practice";
-      subCatName = "GST Registrations";
-    } else if (text.includes("incorp") || text.includes("partnership") || text.includes("company")) {
-      catId = "cat-general";
-      subCatId = "subcat-company-incorp";
-      catName = "General Practice";
-      subCatName = "Company Incorporations";
+    if (text.includes("gst") || text.includes("indirect tax")) {
+      catId = "cat-tax";
+      subCatId = "subcat-tax-gst";
+      catName = "Taxation & Compliance";
+      subCatName = "Indirect Tax (GST)";
+    } else if (text.includes("incorp") || text.includes("partnership") || text.includes("company") || text.includes("llp")) {
+      catId = "cat-roc";
+      subCatId = "subcat-roc-incorp";
+      catName = "Corporate & Secretarial";
+      subCatName = "Entity Formation & Restructuring";
     } else if (
       text.includes("audit") ||
       text.includes("caro") ||
