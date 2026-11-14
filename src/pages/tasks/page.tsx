@@ -24,6 +24,7 @@ import {
   Columns3,
   X,
   Check,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
 import {
@@ -180,6 +182,21 @@ function TasksContent() {
   // Inline Sub-group editing inside column header
   const [inlineEditingSubId, setInlineEditingSubId] = useState<string | null>(null);
   const [inlineSubName, setInlineSubName] = useState("");
+
+  // Double-verification Delete Confirmation Modal state
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: "category" | "sub-category" | "task";
+    id: string;
+    name: string;
+    parentCategoryId?: string;
+    description?: string;
+  } | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+
+  const isDeleteMatch = Boolean(
+    deleteTarget &&
+      deleteConfirmInput.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase()
+  );
 
   useEffect(() => {
     const unsub = pmsStore.subscribe(() => setTick((t) => t + 1));
@@ -367,13 +384,13 @@ function TasksContent() {
   };
 
   const handleDeleteCategory = (cat: TaskCategory) => {
-    if (confirm(`Are you sure you want to delete category "${cat.name}" and all its sub-groups?`)) {
-      pmsStore.deleteTaskCategory(cat.id);
-      if (selectedCategoryId === cat.id) {
-        updateSelectedCategory(null);
-      }
-      toast.success("Category deleted.");
-    }
+    setDeleteTarget({
+      type: "category",
+      id: cat.id,
+      name: cat.name,
+      description: `Are you sure you want to delete category "${cat.name}" and all its sub-groups? All deliverable tasks and workflows organized under this practice will be permanently deleted.`,
+    });
+    setDeleteConfirmInput("");
   };
 
   // Sub-category actions
@@ -420,10 +437,38 @@ function TasksContent() {
 
   const handleDeleteSubCategory = (sub: TaskSubCategory) => {
     if (!selectedCategoryId) return;
-    if (confirm(`Are you sure you want to delete sub-group "${sub.name}"?`)) {
-      pmsStore.deleteTaskSubCategory(selectedCategoryId, sub.id);
-      toast.success("Sub-group deleted.");
+    setDeleteTarget({
+      type: "sub-category",
+      id: sub.id,
+      name: sub.name,
+      parentCategoryId: selectedCategoryId,
+      description: `Are you sure you want to delete sub-group "${sub.name}"? Tasks currently under this column will be unlinked.`,
+    });
+    setDeleteConfirmInput("");
+  };
+
+  const handleExecuteDelete = () => {
+    if (!deleteTarget || !isDeleteMatch) return;
+
+    if (deleteTarget.type === "category") {
+      pmsStore.deleteTaskCategory(deleteTarget.id);
+      if (selectedCategoryId === deleteTarget.id) {
+        updateSelectedCategory(null);
+      }
+      toast.success(`Category "${deleteTarget.name}" deleted.`);
+    } else if (deleteTarget.type === "sub-category") {
+      const parentId = deleteTarget.parentCategoryId || selectedCategoryId;
+      if (parentId) {
+        pmsStore.deleteTaskSubCategory(parentId, deleteTarget.id);
+        toast.success(`Sub-group "${deleteTarget.name}" deleted.`);
+      }
+    } else if (deleteTarget.type === "task") {
+      pmsStore.deleteTask(deleteTarget.id);
+      toast.success(`Task "${deleteTarget.name}" deleted.`);
     }
+
+    setDeleteTarget(null);
+    setDeleteConfirmInput("");
   };
 
   // Metrics
@@ -1027,8 +1072,13 @@ function TasksContent() {
                                       size="icon"
                                       variant="ghost"
                                       onClick={() => {
-                                        pmsStore.deleteTask(task.id);
-                                        toast.success(`Deleted task ${task.task_code}`);
+                                        setDeleteTarget({
+                                          type: "task",
+                                          id: task.id,
+                                          name: task.title,
+                                          description: `Are you sure you want to delete deliverable task ${task.task_code} ("${task.title}")? This action cannot be undone.`,
+                                        });
+                                        setDeleteConfirmInput("");
                                       }}
                                       className="h-6 w-6 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50 shrink-0"
                                       title="Delete Task"
@@ -1522,6 +1572,107 @@ function TasksContent() {
         onUpdated={() => setTick((t) => t + 1)}
         readOnly={isEmployee}
       />
+
+      {/* ========================================================================= */}
+      {/* DOUBLE-VERIFICATION DELETE CONFIRMATION DIALOG                            */}
+      {/* ========================================================================= */}
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteConfirmInput("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md rounded-[24px] border-[1.5px] border-slate-300 p-6 sm:p-7">
+          <DialogHeader className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 border border-rose-200">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-extrabold text-[#111827]">
+                  {deleteTarget?.type === "category"
+                    ? "Delete Practice Category"
+                    : deleteTarget?.type === "sub-category"
+                    ? "Delete Sub-group"
+                    : "Delete Task"}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 font-medium">
+                  This action is permanent and cannot be undone.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {deleteTarget?.description || `Are you sure you want to delete "${deleteTarget?.name}"?`}
+            </p>
+
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-3.5 space-y-2">
+              <p className="text-xs font-semibold text-rose-900">
+                To confirm deletion, please type the title below:
+              </p>
+              <div className="px-3 py-1.5 rounded-xl bg-white border border-rose-200 text-xs font-mono font-extrabold text-rose-800 select-all break-all shadow-xs">
+                {deleteTarget?.name}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Type Title to Verify</label>
+              <Input
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                placeholder={`Type "${deleteTarget?.name}" to confirm`}
+                className="text-xs h-10 rounded-xl border-slate-300 font-medium focus-visible:ring-rose-500"
+                autoFocus
+              />
+              {deleteConfirmInput && !isDeleteMatch && (
+                <p className="text-[11px] font-semibold text-rose-600">
+                  Title does not match. Please type it exactly as shown above.
+                </p>
+              )}
+              {isDeleteMatch && (
+                <p className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                  <Check className="h-3.5 w-3.5" /> Title verified. Ready to delete.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:justify-end pt-4 border-t border-slate-200">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeleteConfirmInput("");
+              }}
+              className="rounded-xl border-slate-300 text-xs font-bold h-9"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!isDeleteMatch}
+              onClick={handleExecuteDelete}
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold h-9 gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>
+                Delete{" "}
+                {deleteTarget?.type === "category"
+                  ? "Category"
+                  : deleteTarget?.type === "sub-category"
+                  ? "Sub-group"
+                  : "Task"}
+              </span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
