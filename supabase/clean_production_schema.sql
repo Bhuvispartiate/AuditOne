@@ -505,6 +505,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Drop legacy hardcoded status constraint if present from earlier migrations to support dynamic statuses
+ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check;
+ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_priority_check;
+
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS category_id VARCHAR(100);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sub_category_id VARCHAR(100);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS milestone_id VARCHAR(100);

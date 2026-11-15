@@ -9,8 +9,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ============================================================================
--- 1. TASK MANAGEMENT - BILLING INTEGRATION COLUMNS
+-- 1. TASK MANAGEMENT - BILLING INTEGRATION COLUMNS & DYNAMIC STATUS
 -- ============================================================================
+-- Drop legacy hardcoded status constraint if present from older schemas
+ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check;
+ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_priority_check;
+
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_billable BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS billing_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS billed_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00;
