@@ -2419,7 +2419,28 @@ class PMSDataStore {
     const remaining_amount = task.remaining_amount !== undefined && task.remaining_amount !== null
       ? Number(task.remaining_amount)
       : Math.max(0, billing_amount - billed_amount);
-    const pending_approval_amount = Number(task.pending_approval_amount) || 0;
+
+    // Self-healing: accurately compute active pending approval amount from actual active pending invoice requests
+    let actualPendingApproval = 0;
+    if (this.invoiceRequests && this.invoiceRequests.length > 0) {
+      for (const req of this.invoiceRequests) {
+        if (req.status === "Pending Approval" && req.items) {
+          for (const it of req.items) {
+            if (it.task_id === task.id) {
+              actualPendingApproval += Number(it.amount) || 0;
+            }
+          }
+        }
+      }
+    }
+
+    const pending_approval_amount = actualPendingApproval;
+    // Auto-clean orphaned pending amount in the background if database had an orphaned reservation
+    if (task.pending_approval_amount !== undefined && task.pending_approval_amount !== actualPendingApproval) {
+      task.pending_approval_amount = actualPendingApproval;
+      updateTaskInDb(task.id, { pending_approval_amount: actualPendingApproval }).catch(() => {});
+    }
+
     const is_billable = Boolean(task.is_billable ?? false);
     const billing_status: TaskBillingStatus = task.billing_status || (
       billed_amount >= billing_amount && billing_amount > 0
@@ -4368,14 +4389,6 @@ class PMSDataStore {
           igst_amount: 0,
           total_amount: amount + taxAmount,
         });
-
-        // Reserve amount on task
-        const tIndex = this.tasks.findIndex((t) => t.id === task.id);
-        if (tIndex !== -1) {
-          const newPending = (task.pending_approval_amount || 0) + amount;
-          this.tasks[tIndex] = { ...this.tasks[tIndex], pending_approval_amount: newPending };
-          await updateTaskInDb(task.id, { pending_approval_amount: newPending });
-        }
       }
 
       if (requestItems.length === 0) continue;
@@ -4419,6 +4432,19 @@ class PMSDataStore {
       };
 
       await insertInvoiceRequestToDb(req);
+
+      // Reserve amounts on tasks only after DB insert succeeds
+      for (const it of finalizedItems) {
+        if (it.task_id) {
+          const tIndex = this.tasks.findIndex((t) => t.id === it.task_id);
+          if (tIndex !== -1) {
+            const currentT = this.tasks[tIndex];
+            const newPending = (currentT.pending_approval_amount || 0) + it.amount;
+            this.tasks[tIndex] = { ...currentT, pending_approval_amount: newPending };
+            await updateTaskInDb(currentT.id, { pending_approval_amount: newPending });
+          }
+        }
+      }
 
       const log: InvoiceApprovalLog = {
         id: ensureUuid(),
