@@ -248,6 +248,7 @@ class PMSDataStore {
   private tasks: Task[] = [];
   private taskComments: TaskComment[] = [];
   private deletedTaskProjectIds: string[] = [];
+  private deletedTaskIds: string[] = [];
   private workflows: WorkflowTemplate[] = [];
   private employees: Employee[] = [DEFAULT_SYSTEM_ADMIN];
   private teams: Team[] = [];
@@ -278,6 +279,17 @@ class PMSDataStore {
     this.hydrate();
     this.ensureDefaultData();
     void this.loadAllFromSupabase();
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", () => {
+        void this.loadAllFromSupabase();
+      });
+      window.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          void this.loadAllFromSupabase();
+        }
+      });
+    }
   }
 
   async loadAllFromSupabase(): Promise<void> {
@@ -316,10 +328,13 @@ class PMSDataStore {
         fetchVaultAuditLogsFromDb().catch((e) => { console.warn("Direct Supabase fetch vault_audit_logs failed:", e); return null; }),
       ]);
 
+      if (recycleBin !== null) {
+        this.universalRecycleBin = recycleBin;
+      }
       if (clients !== null) {
         this.clients = this.mergeRemoteEntities(this.clients, clients);
       }
-      if (services !== null && services.length > 0) {
+      if (services !== null) {
         this.services = this.mergeRemoteEntities(this.services, services);
       }
       if (engagements !== null) {
@@ -328,7 +343,7 @@ class PMSDataStore {
       if (projects !== null) {
         this.projects = this.mergeRemoteEntities(this.projects, projects);
       }
-      if (categories !== null && categories.length > 0) {
+      if (categories !== null) {
         this.taskCategories = this.mergeRemoteCategories(this.taskCategories, categories);
       }
       if (tasks !== null) {
@@ -346,7 +361,7 @@ class PMSDataStore {
           })
           .map((t) => this.ensureTaskCategorized(t));
       }
-      if (workflows !== null && workflows.length > 0) {
+      if (workflows !== null) {
         this.workflows = this.mergeRemoteEntities(this.workflows, workflows);
       }
       if (invoices !== null) {
@@ -358,19 +373,20 @@ class PMSDataStore {
       if (whatsappTemplates !== null && whatsappTemplates.length > 0) {
         this.whatsAppTemplates = this.mergeRemoteEntities(this.whatsAppTemplates, whatsappTemplates);
       }
-      if (recycleBin !== null) {
-        this.universalRecycleBin = this.mergeRemoteEntities(this.universalRecycleBin, recycleBin);
-      }
-      if (employees !== null && employees.length > 0) {
+      if (employees !== null) {
         this.employees = this.mergeRemoteEntities(this.employees, employees);
+        const adminEmp = this.employees.find((e) => isSuperAdminEmail(e.email));
+        if (adminEmp) {
+          this.currentUser = adminEmp;
+        }
       }
       if (documents !== null) {
         this.documents = this.mergeRemoteEntities(this.documents, documents);
       }
-      if (vaultCreds !== null && vaultCreds.length > 0) {
+      if (vaultCreds !== null) {
         this.vaultCredentials = this.mergeRemoteEntities(this.vaultCredentials, vaultCreds);
       }
-      if (vaultLogs !== null && vaultLogs.length > 0) {
+      if (vaultLogs !== null) {
         this.vaultAuditLogs = this.mergeRemoteEntities(this.vaultAuditLogs, vaultLogs);
       }
 
@@ -381,68 +397,91 @@ class PMSDataStore {
     }
   }
 
-  private mergeRemoteEntities<T extends { id: string; updated_at?: string; created_at?: string; client_name?: string; title?: string; task_code?: string; client_code?: string }>(
+  private mergeRemoteEntities<T extends { id: string; updated_at?: string; created_at?: string; client_name?: string; title?: string; task_code?: string; client_code?: string; email?: string }>(
     localList: T[],
     remoteList: T[] | null
   ): T[] {
-    if (!remoteList || remoteList.length === 0) {
+    if (remoteList === null) {
       return localList;
     }
 
-    const remoteMap = new Map<string, T>();
-    remoteList.forEach((r) => {
-      remoteMap.set(r.id, r);
+    const localMap = new Map<string, T>();
+    localList.forEach((loc) => {
+      if (loc?.id) localMap.set(loc.id, loc);
+      if (loc?.task_code) localMap.set(loc.task_code.toUpperCase(), loc);
+      if (loc?.client_code) localMap.set(loc.client_code.toUpperCase(), loc);
+      if ((loc as any)?.email) localMap.set(((loc as any).email as string).trim().toLowerCase(), loc);
     });
 
+    const recycleBinIdSet = new Set<string>();
+    this.universalRecycleBin.forEach((item) => {
+      if (item.item_id) recycleBinIdSet.add(item.item_id);
+      if (item.id) recycleBinIdSet.add(item.id);
+      if (item.code) recycleBinIdSet.add(item.code.toUpperCase());
+    });
+    const deletedTaskProjectSet = new Set(this.deletedTaskProjectIds);
+    const deletedTaskSet = new Set(this.deletedTaskIds);
+
     const merged: T[] = [];
-    const processedRemoteIds = new Set<string>();
+    for (const remote of remoteList) {
+      if (recycleBinIdSet.has(remote.id)) continue;
+      if (deletedTaskSet.has(remote.id)) continue;
+      if (deletedTaskProjectSet.has((remote as any).project_id)) continue;
 
-    for (const local of localList) {
-      // Find remote match by id, or by unique business code
-      const remote = remoteMap.get(local.id) ||
-        (local.task_code ? remoteList.find(r => r.task_code === local.task_code) : undefined) ||
-        (local.client_code ? remoteList.find(r => r.client_code === local.client_code) : undefined);
+      const local = localMap.get(remote.id) ||
+        (remote.task_code ? localMap.get(remote.task_code.toUpperCase()) : undefined) ||
+        (remote.client_code ? localMap.get(remote.client_code.toUpperCase()) : undefined) ||
+        (remote.email ? localMap.get(remote.email.trim().toLowerCase()) : undefined);
 
-      if (remote) {
-        processedRemoteIds.add(remote.id);
-        const localTime = new Date(local.updated_at || local.created_at || 0).getTime();
-        const remoteTime = new Date(remote.updated_at || remote.created_at || 0).getTime();
+      if (!local) {
+        merged.push(remote);
+        continue;
+      }
 
-        if (localTime > remoteTime) {
-          // Local edit is more recent than remote record: keep local state as primary, merge any missing remote fields
-          merged.push({
-            ...remote,
-            ...local,
-          });
-        } else {
-          // Remote record is newer or same age, but DO NOT drop local nested structures
-          // (e.g. bank_accounts, registration, contacts, addresses, subtasks, assigned_employees, category_name)
-          const mergedItem: any = { ...remote };
-          for (const key of Object.keys(local)) {
-            const lVal = (local as any)[key];
-            const rVal = (remote as any)[key];
-            if (lVal !== undefined && lVal !== null) {
-              if (rVal === undefined || rVal === null) {
-                mergedItem[key] = lVal;
-              } else if (Array.isArray(lVal) && lVal.length > 0 && Array.isArray(rVal) && rVal.length === 0) {
-                mergedItem[key] = lVal; // preserve local non-empty array
-              } else if (typeof lVal === "object" && !Array.isArray(lVal) && (!rVal || Object.keys(rVal).length === 0)) {
-                mergedItem[key] = lVal;
-              }
+      const localTime = new Date(local.updated_at || local.created_at || 0).getTime();
+      const remoteTime = new Date(remote.updated_at || remote.created_at || 0).getTime();
+
+      if (localTime > remoteTime) {
+        merged.push({
+          ...remote,
+          ...local,
+        });
+      } else {
+        const mergedItem: any = { ...remote };
+        for (const key of Object.keys(local)) {
+          const lVal = (local as any)[key];
+          const rVal = (remote as any)[key];
+          if (lVal !== undefined && lVal !== null) {
+            if (rVal === undefined || rVal === null) {
+              mergedItem[key] = lVal;
+            } else if (Array.isArray(lVal) && lVal.length > 0 && Array.isArray(rVal) && rVal.length === 0) {
+              mergedItem[key] = lVal;
+            } else if (typeof lVal === "object" && !Array.isArray(lVal) && (!rVal || Object.keys(rVal).length === 0)) {
+              mergedItem[key] = lVal;
             }
           }
-          merged.push(mergedItem);
         }
-      } else {
-        // Local entity not present in remote (newly created offline or unsynced) — keep it!
-        merged.push(local);
+        merged.push(mergedItem);
       }
     }
 
-    // Add any new remote entities that were not in local state
-    for (const remote of remoteList) {
-      if (!processedRemoteIds.has(remote.id)) {
-        merged.push(remote);
+    const remoteIdSet = new Set(remoteList.map((r) => r.id));
+    const now = Date.now();
+    for (const local of localList) {
+      if (remoteIdSet.has(local.id)) continue;
+      if (local.task_code && remoteList.some((r) => r.task_code?.toUpperCase() === local.task_code?.toUpperCase())) continue;
+      if (local.client_code && remoteList.some((r) => r.client_code?.toUpperCase() === local.client_code?.toUpperCase())) continue;
+      if (local.email && remoteList.some((r) => r.email?.trim().toLowerCase() === local.email?.trim().toLowerCase())) continue;
+
+      if (recycleBinIdSet.has(local.id)) continue;
+      if (deletedTaskSet.has(local.id)) continue;
+      if (deletedTaskProjectSet.has((local as any).project_id)) continue;
+
+      const ageMs = now - new Date(local.created_at || 0).getTime();
+      const isUnsavedRecentDraft = ageMs >= 0 && ageMs < 15000 && !isUuid(local.id);
+
+      if (isUnsavedRecentDraft) {
+        merged.push(local);
       }
     }
 
@@ -450,33 +489,30 @@ class PMSDataStore {
   }
 
   private mergeRemoteCategories(localCats: TaskCategory[], remoteCats: TaskCategory[] | null): TaskCategory[] {
-    if (!remoteCats || remoteCats.length === 0) return localCats;
+    if (remoteCats === null) return localCats;
 
-    const merged = [...localCats];
-    for (const rem of remoteCats) {
-      const existingIdx = merged.findIndex((c) => c.id === rem.id || c.name.trim().toLowerCase() === rem.name.trim().toLowerCase());
-      if (existingIdx >= 0) {
-        const local = merged[existingIdx];
-        // Preserve local custom sub-categories so columns are never wiped out!
-        const existingSubs = [...(local.sub_categories || [])];
-        for (const remSub of (rem.sub_categories || [])) {
-          const subIdx = existingSubs.findIndex((s) => s.id === remSub.id || s.name.trim().toLowerCase() === remSub.name.trim().toLowerCase());
-          if (subIdx >= 0) {
-            existingSubs[subIdx] = { ...existingSubs[subIdx], ...remSub };
-          } else {
-            existingSubs.push(remSub);
-          }
-        }
-        merged[existingIdx] = {
-          ...rem,
-          ...local,
-          sub_categories: existingSubs,
-        };
-      } else {
-        merged.push(rem);
-      }
-    }
-    return merged;
+    const recycleBinIdSet = new Set<string>();
+    this.universalRecycleBin.forEach((item) => {
+      if (item.item_id) recycleBinIdSet.add(item.item_id);
+      if (item.id) recycleBinIdSet.add(item.id);
+      if (item.code) recycleBinIdSet.add(item.code.toUpperCase());
+    });
+    const deletedCatSet = new Set(this.deletedTaskCategoryIds);
+
+    // Remote categories from Supabase are the authoritative single source of truth
+    const filteredRemote = remoteCats.filter((c) => !recycleBinIdSet.has(c.id) && !deletedCatSet.has(c.id));
+
+    // Only allow genuinely unsaved offline categories created in the last 15 seconds
+    const remoteIdSet = new Set(filteredRemote.map((r) => r.id));
+    const now = Date.now();
+    const unsavedDrafts = localCats.filter((loc) => {
+      if (remoteIdSet.has(loc.id)) return false;
+      if (recycleBinIdSet.has(loc.id) || deletedCatSet.has(loc.id)) return false;
+      const ageMs = now - new Date(loc.created_at || 0).getTime();
+      return ageMs >= 0 && ageMs < 15000 && !isUuid(loc.id);
+    });
+
+    return [...filteredRemote, ...unsavedDrafts];
   }
 
   private addDaysIso(baseIso: string, days: number): string {
@@ -617,6 +653,11 @@ class PMSDataStore {
         new Set([...this.deletedTaskCategoryIds, ...parsed.deletedTaskCategoryIds])
       );
     }
+    if (Array.isArray(parsed.deletedTaskIds)) {
+      this.deletedTaskIds = Array.from(
+        new Set([...this.deletedTaskIds, ...parsed.deletedTaskIds])
+      );
+    }
     if (Array.isArray(parsed.vaultCredentials) && parsed.vaultCredentials.length > 0) {
       this.vaultCredentials = this.mergeById(this.vaultCredentials, parsed.vaultCredentials);
     }
@@ -643,6 +684,7 @@ class PMSDataStore {
       tasks: this.tasks,
       taskComments: this.taskComments,
       deletedTaskProjectIds: this.deletedTaskProjectIds,
+      deletedTaskIds: this.deletedTaskIds,
       workflows: this.workflows,
       employees: this.employees,
       teams: this.teams,
@@ -685,13 +727,28 @@ class PMSDataStore {
         this.currentUser = { ...this.currentUser, email: SUPERADMIN_EMAIL };
       }
 
-      // Purge all legacy mock practice tasks & mock categories permanently
-      const MOCK_TASK_PREFIXES = ["tsk-gen-", "tsk-gst-", "tsk-inc-"];
+      // Purge all legacy mock practice tasks, mock categories, mock workflows, and mock services permanently
+      const MOCK_TASK_PREFIXES = ["tsk-gen-", "tsk-gst-", "tsk-inc-", "tsk-0"];
+      const MOCK_CAT_IDS = ["cat-general", "cat-tax", "cat-audit", "cat-roc", "cat-acc", "cat-adv"];
+      const MOCK_WF_IDS = ["wf-company-incorp", "wf-gst-reg", "wf-tax-audit", "wf-stat-audit"];
+      const MOCK_SRV_PREFIXES = ["srv-"];
+
+      this.workflows = this.workflows.filter((w) => isUuid(w.id) && !MOCK_WF_IDS.includes(w.id));
+      this.services = this.services.filter((s) => isUuid(s.id) && !MOCK_SRV_PREFIXES.some((p) => s.id.startsWith(p)));
+      const initialCatCount = this.taskCategories.length;
+      this.taskCategories = this.taskCategories.filter((c) => !MOCK_CAT_IDS.includes(c.id));
+      MOCK_CAT_IDS.forEach((cid) => {
+        if (!this.deletedTaskCategoryIds.includes(cid)) {
+          this.deletedTaskCategoryIds.push(cid);
+        }
+      });
+
       const initialTaskCount = this.tasks.length;
       const seenBackfillKeys = new Set<string>();
       this.tasks = this.tasks.filter((t) => {
-        if (t.category_id === "cat-general") return false;
-        if (MOCK_TASK_PREFIXES.some((p) => t.id && t.id.startsWith(p))) return false;
+        if (MOCK_CAT_IDS.includes(t.category_id || "")) return false;
+        if (this.deletedTaskIds.includes(t.id) || (t.task_code && this.deletedTaskIds.includes(t.task_code.toUpperCase()))) return false;
+        if (MOCK_TASK_PREFIXES.some((p) => (t.id && t.id.toLowerCase().startsWith(p)) || (t.task_code && t.task_code.toLowerCase().startsWith(p)))) return false;
         if (t.title && t.title.includes("Client Delivery Project — Initial Deliverable")) {
           const key = `${t.project_id || t.project_name}`;
           if (seenBackfillKeys.has(key)) return false;
@@ -699,11 +756,6 @@ class PMSDataStore {
         }
         return true;
       });
-      const initialCatCount = this.taskCategories.length;
-      this.taskCategories = this.taskCategories.filter((c) => c.id !== "cat-general");
-      if (!this.deletedTaskCategoryIds.includes("cat-general")) {
-        this.deletedTaskCategoryIds.push("cat-general");
-      }
       if (this.tasks.length !== initialTaskCount || this.taskCategories.length !== initialCatCount) {
         this.writeLocalSnapshot();
       }
@@ -2110,7 +2162,7 @@ class PMSDataStore {
 
     const taskCount = this.tasks.length + 1;
     const taskCode = `TSK-${String(taskCount).padStart(3, "0")}`;
-    const newTaskId = generateId("task");
+    const newTaskId = ensureUuid();
 
     const newTask: Task = {
       ...JSON.parse(JSON.stringify(original)),
@@ -2217,95 +2269,24 @@ class PMSDataStore {
       };
     }
 
-    const text = `${task.title} ${task.project_name || ""} ${task.description || ""}`.toLowerCase();
-    let catId = "cat-tax";
-    let subCatId = "subcat-income-tax";
-    let catName = "Taxation & Compliance";
-    let subCatName = "Direct Tax / Income Tax";
-
-    if (text.includes("gst") || text.includes("indirect tax")) {
-      catId = "cat-tax";
-      subCatId = "subcat-tax-gst";
-      catName = "Taxation & Compliance";
-      subCatName = "Indirect Tax (GST)";
-    } else if (text.includes("incorp") || text.includes("partnership") || text.includes("company") || text.includes("llp")) {
-      catId = "cat-roc";
-      subCatId = "subcat-roc-incorp";
-      catName = "Corporate & Secretarial";
-      subCatName = "Entity Formation & Restructuring";
-    } else if (
-      text.includes("audit") ||
-      text.includes("caro") ||
-      text.includes("ifc") ||
-      text.includes("stock") ||
-      text.includes("statutory")
-    ) {
-      catId = "cat-audit";
-      catName = "Audit & Assurance";
-      if (text.includes("tax audit") || text.includes("3cd")) {
-        subCatId = "subcat-tax-audit";
-        subCatName = "Tax Audit (Form 3CD)";
-      } else if (text.includes("internal")) {
-        subCatId = "subcat-internal-audit";
-        subCatName = "Internal & Operations Audit";
-      } else {
-        subCatId = "subcat-stat-audit";
-        subCatName = "Statutory Financial Audit";
-      }
-    } else if (
-      text.includes("roc") ||
-      text.includes("mca") ||
-      text.includes("director") ||
-      text.includes("aoc-4") ||
-      text.includes("mgt-7")
-    ) {
-      catId = "cat-roc";
-      catName = "Corporate & Secretarial";
-      subCatId = "subcat-roc-annual";
-      subCatName = "Annual ROC Filings";
-    } else if (
-      text.includes("bookkeep") ||
-      text.includes("account") ||
-      text.includes("ledger") ||
-      text.includes("payroll") ||
-      text.includes("mis")
-    ) {
-      catId = "cat-acc";
-      catName = "Accounting & Bookkeeping";
-      if (text.includes("payroll") || text.includes("salary") || text.includes("epf")) {
-        subCatId = "subcat-payroll";
-        subCatName = "Payroll, PF & ESI Processing";
-      } else {
-        subCatId = "subcat-bookkeeping";
-        subCatName = "Monthly Bookkeeping & Finalization";
-      }
-    } else if (
-      text.includes("tds") ||
-      text.includes("26as") ||
-      text.includes("26q") ||
-      text.includes("form 16")
-    ) {
-      catId = "cat-tax";
-      subCatId = "subcat-tds";
-      catName = "Taxation & Compliance";
-      subCatName = "TDS & TCS Returns";
-    } else if (
-      text.includes("itr") ||
-      text.includes("income tax") ||
-      text.includes("advance tax")
-    ) {
-      catId = "cat-tax";
-      subCatId = "subcat-income-tax";
-      catName = "Taxation & Compliance";
-      subCatName = "Direct Tax / Income Tax";
+    if (this.taskCategories.length > 0) {
+      const defaultCat = this.taskCategories[0];
+      const defaultSub = defaultCat.sub_categories?.[0];
+      return {
+        ...task,
+        category_id: defaultCat.id,
+        category_name: defaultCat.name,
+        sub_category_id: defaultSub?.id || `subcat-${defaultCat.id}-general`,
+        sub_category_name: defaultSub?.name || "General",
+      };
     }
 
     return {
       ...task,
-      category_id: task.category_id || catId,
-      category_name: task.category_name || catName,
-      sub_category_id: task.sub_category_id || subCatId,
-      sub_category_name: task.sub_category_name || subCatName,
+      category_id: "cat-uncategorized",
+      category_name: "Uncategorized",
+      sub_category_id: "subcat-uncategorized",
+      sub_category_name: "General",
     };
   }
 
@@ -3073,6 +3054,15 @@ class PMSDataStore {
 
     if (isParent && !this.deletedTaskProjectIds.includes(target.project_id)) {
       this.deletedTaskProjectIds.push(target.project_id);
+    }
+
+    removedIds.forEach((id) => {
+      if (!this.deletedTaskIds.includes(id)) {
+        this.deletedTaskIds.push(id);
+      }
+    });
+    if (target.task_code && !this.deletedTaskIds.includes(target.task_code.toUpperCase())) {
+      this.deletedTaskIds.push(target.task_code.toUpperCase());
     }
 
     this.tasks = this.tasks.filter((t) => !removedIds.has(t.id));

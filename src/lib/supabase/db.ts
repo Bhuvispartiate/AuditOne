@@ -752,12 +752,10 @@ export async function fetchTasksFromDb(): Promise<Task[]> {
     }
   });
 
-  return rawTasks
-    .filter((t) => !t.parent_task_id)
-    .map((t) => ({
-      ...t,
-      subtasks: subtasksByParent.get(t.id) || [],
-    })) as Task[];
+  return rawTasks.map((t) => ({
+    ...t,
+    subtasks: subtasksByParent.get(t.id) || [],
+  })) as Task[];
 }
 
 export async function insertTaskToDb(task: Task): Promise<Task> {
@@ -853,13 +851,21 @@ export async function deleteTaskFromDb(id: string): Promise<void> {
     if (found?.id) {
       targetId = found.id;
     } else {
-      console.warn("Task id is not a valid UUID and no task_code match found, skipping Supabase direct delete:", id);
-      return;
+      const { data: foundIlike } = await supabase.from("tasks").select("id").ilike("task_code", id).maybeSingle();
+      if (foundIlike?.id) {
+        targetId = foundIlike.id;
+      } else {
+        console.warn("Task id is not a valid UUID and no task_code match found, skipping Supabase direct delete:", id);
+        return;
+      }
     }
   }
 
   const { error } = await supabase.from("tasks").delete().eq("id", targetId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("Supabase delete task error:", error);
+    throw new Error(error.message);
+  }
 }
 
 // ----------------------------------------------------------------------------
