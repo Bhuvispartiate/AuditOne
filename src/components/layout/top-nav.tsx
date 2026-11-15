@@ -9,6 +9,9 @@ import {
   User,
   Calendar,
   Eye,
+  Menu,
+  X,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,9 +31,14 @@ import { createClient } from "@/lib/supabase/client";
 import { QuickCreateModal } from "@/components/layout/quick-create-modal";
 import { formatDateTime } from "@/lib/utils";
 
-export function TopNav() {
+export interface TopNavProps {
+  onOpenMobileMenu?: () => void;
+}
+
+export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const currentUser = pmsStore.getCurrentUser();
   const isEmployee = isEmployeeRestricted(currentUser);
@@ -40,6 +48,7 @@ export function TopNav() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
+    setMobileSearchOpen(false);
     navigate(`/clients?search=${encodeURIComponent(searchQuery)}`);
   };
 
@@ -53,9 +62,36 @@ export function TopNav() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-[68px] w-full items-center justify-between border-b border-slate-200 bg-white/95 px-5 lg:px-7 backdrop-blur-md">
-        {/* Global Search Bar */}
-        <form onSubmit={handleSearch} className="relative w-full max-w-sm hidden md:block">
+      <header className="sticky top-0 z-20 flex h-16 sm:h-[68px] w-full items-center justify-between border-b border-slate-200 bg-white/95 px-3.5 sm:px-5 lg:px-7 backdrop-blur-md">
+        {/* Left: Mobile Hamburger Button & Brand */}
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            className="lg:hidden flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-300 bg-white text-[#111827] hover:bg-[#f6f4ff] hover:border-[#6c5ce7] shadow-2xs transition-all"
+            aria-label="Open Navigation Menu"
+            title="Open Menu"
+          >
+            <Menu className="h-5 w-5 text-[#111827]" />
+          </button>
+
+          <Link to="/dashboard" className="flex items-center gap-2 lg:hidden">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#6366f1] text-white shadow-xs">
+              <Zap className="h-4 w-4 fill-white" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-extrabold text-[#111827] tracking-tight text-xs sm:text-sm leading-tight">
+                Linear Audit
+              </span>
+              <span className="text-[9px] font-bold text-[#6c5ce7] tracking-wider uppercase">
+                PMS
+              </span>
+            </div>
+          </Link>
+        </div>
+
+        {/* Global Search Bar (Desktop) */}
+        <form onSubmit={handleSearch} className="relative w-full max-w-sm hidden md:block ml-4 lg:ml-0">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9ca3af]" />
           <Input
             type="search"
@@ -67,7 +103,16 @@ export function TopNav() {
         </form>
 
         {/* Right Nav Utilities */}
-        <div className="flex items-center gap-2.5 ml-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 ml-auto">
+          {/* Mobile Search Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setMobileSearchOpen((prev) => !prev)}
+            className="md:hidden flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-2xl border border-slate-300 bg-white text-[#111827] hover:bg-[#f6f4ff] transition-all shadow-2xs"
+            title="Search"
+          >
+            {mobileSearchOpen ? <X className="h-4 w-4 text-slate-600" /> : <Search className="h-4 w-4 text-slate-600" />}
+          </button>
           {isEmployee && (
             <div className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-bold">
               <Eye className="h-3.5 w-3.5" />
@@ -172,7 +217,7 @@ export function TopNav() {
           {/* User Profile Capsule (Michael Johnson style) */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2.5 p-1.5 pr-3 rounded-2xl border border-[#e5e7eb] bg-white hover:bg-[#f9fafb] transition-all shadow-xs">
+              <button className="flex items-center gap-2 p-1 sm:p-1.5 sm:pr-3 rounded-2xl border border-[#e5e7eb] bg-white hover:bg-[#f9fafb] transition-all shadow-xs">
                 <Avatar className="h-8 w-8 rounded-xl border border-neutral-200">
                   <AvatarFallback className="bg-neutral-900 text-white text-xs font-bold rounded-xl">
                     {currentUser?.full_name?.split(" ").map(n => n[0]).join("") || "AD"}
@@ -233,7 +278,8 @@ export function TopNav() {
           {!isEmployee && (
             <button
               onClick={() => setQuickCreateOpen(true)}
-              className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[#6c5ce7] hover:bg-[#5a4ad8] text-white text-xs font-bold transition-all shadow-[0_4px_14px_rgba(108,92,231,0.3)]"
+              className="flex items-center justify-center gap-1.5 h-9 w-9 sm:h-10 sm:w-auto sm:px-4 rounded-2xl bg-[#6c5ce7] hover:bg-[#5a4ad8] text-white text-xs font-bold transition-all shadow-[0_4px_14px_rgba(108,92,231,0.3)] shrink-0"
+              title="Quick Action"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Quick Action</span>
@@ -241,6 +287,30 @@ export function TopNav() {
           )}
         </div>
       </header>
+
+      {/* Mobile Search Bar Expandable Drawer */}
+      {mobileSearchOpen && (
+        <div className="md:hidden border-b border-slate-200 bg-white px-3.5 py-2.5 animate-in slide-in-from-top-2 duration-150">
+          <form onSubmit={handleSearch} className="relative w-full">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9ca3af]" />
+            <Input
+              type="search"
+              autoFocus
+              placeholder="Search clients, PAN, GSTIN..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 pr-9 h-10 w-full bg-[#f8f9fd] border-slate-300 rounded-2xl focus:bg-white text-xs font-medium placeholder:text-[#9ca3af]"
+            />
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(""); setMobileSearchOpen(false); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Quick Create Modal (Admin Only) */}
       {!isEmployee && (

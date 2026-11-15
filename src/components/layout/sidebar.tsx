@@ -25,6 +25,7 @@ import {
   HelpCircle,
   Trash2,
   KeyRound,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { pmsStore } from "@/lib/data/store";
@@ -79,9 +80,15 @@ const footerNavItems: NavItem[] = [
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function AppSidebar() {
+export interface AppSidebarProps {
+  isMobile?: boolean;
+  onClose?: () => void;
+}
+
+export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) {
   const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const effectiveCollapsed = isMobile ? false : collapsed;
   const [workflowsOpen, setWorkflowsOpen] = useState(
     Boolean(pathname && pathname.startsWith("/workflows/"))
   );
@@ -145,17 +152,26 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        "relative flex flex-col bg-[#16172d] text-white rounded-[26px] border border-[#282a4c] shadow-[0_14px_34px_rgba(22,23,45,0.22)] transition-all duration-300 ease-in-out z-30 select-none overflow-hidden shrink-0",
-        collapsed ? "w-[78px]" : "w-[248px]"
+        "relative flex flex-col bg-[#16172d] text-white select-none overflow-hidden shrink-0",
+        isMobile
+          ? "w-full h-full rounded-r-[26px] shadow-2xl border-r border-[#282a4c]"
+          : cn(
+              "rounded-[26px] border border-[#282a4c] shadow-[0_14px_34px_rgba(22,23,45,0.22)] transition-all duration-300 ease-in-out z-30",
+              effectiveCollapsed ? "w-[78px]" : "w-[248px]"
+            )
       )}
     >
       {/* Brand Header matching reference dark indigo sidebar */}
       <div className="flex h-[74px] items-center justify-between px-4 pt-1">
-        <Link to="/dashboard" className="flex items-center gap-3 overflow-hidden">
+        <Link
+          to="/dashboard"
+          onClick={() => { if (isMobile) onClose?.(); }}
+          className="flex items-center gap-3 overflow-hidden"
+        >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#6366f1] text-white shadow-[0_4px_14px_rgba(108,92,231,0.45)]">
             <Zap className="h-4.5 w-4.5 fill-white" />
           </div>
-          {!collapsed && (
+          {!effectiveCollapsed && (
             <div className="flex flex-col truncate">
               <span className="font-extrabold text-white tracking-tight text-[15px] leading-tight">
                 Linear Audit
@@ -167,7 +183,16 @@ export function AppSidebar() {
           )}
         </Link>
 
-        {!collapsed && (
+        {isMobile ? (
+          <button
+            type="button"
+            onClick={onClose}
+            title="Close menu"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-[#c7d2fe] hover:bg-white/15 hover:text-white transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        ) : !effectiveCollapsed ? (
           <button
             type="button"
             onClick={() => setCollapsed(true)}
@@ -176,10 +201,10 @@ export function AppSidebar() {
           >
             <ChevronsLeft className="h-4 w-4" />
           </button>
-        )}
+        ) : null}
       </div>
 
-      {collapsed && (
+      {!isMobile && effectiveCollapsed && (
         <div className="flex justify-center pb-2">
           <button
             type="button"
@@ -217,12 +242,13 @@ export function AppSidebar() {
                 <Link
                   to={item.href}
                   onClick={() => {
-                    if (isWorkflowRoot && workflows.length > 0 && !collapsed) {
+                    if (isMobile) onClose?.();
+                    if (isWorkflowRoot && workflows.length > 0 && !effectiveCollapsed) {
                       setWorkflowsOpen(true);
                     }
                   }}
                   className="flex flex-1 min-w-0 items-center gap-3 px-3.5 py-2.5 text-[13px]"
-                  title={collapsed ? item.title : undefined}
+                  title={effectiveCollapsed ? item.title : undefined}
                 >
                   <Icon
                     className={cn(
@@ -230,10 +256,10 @@ export function AppSidebar() {
                       isActive ? "text-white" : "text-[#858bb0] group-hover:text-white"
                     )}
                   />
-                  {!collapsed && (
+                  {!effectiveCollapsed && (
                     <span className="truncate flex-1 tracking-tight">{item.title}</span>
                   )}
-                  {!collapsed && taskBadge !== undefined && (
+                  {!effectiveCollapsed && taskBadge !== undefined && (
                     <span
                       className={cn(
                         "ml-auto flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
@@ -248,7 +274,7 @@ export function AppSidebar() {
                 </Link>
 
                 {/* Collapsible Dropdown Toggle for Workflows */}
-                {isWorkflowRoot && !collapsed && (
+                {isWorkflowRoot && !effectiveCollapsed && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -284,12 +310,16 @@ export function AppSidebar() {
               </div>
 
               {/* Collapsible Dropdown List of Workflow Pages */}
-              {isWorkflowRoot && !collapsed && workflowsOpen && (
+              {isWorkflowRoot && !effectiveCollapsed && workflowsOpen && (
                 <div className="ml-4 pl-2.5 border-l border-white/12 space-y-0.5 py-1">
                   {workflows.length === 0 ? (
                     <div className="block rounded-lg px-3 py-1.5 text-[11px] text-[#8a8fb5]">
                       {isEmployee ? "No assigned workflows" : (
-                        <Link to="/workflows" className="hover:text-white">
+                        <Link
+                          to="/workflows"
+                          onClick={() => { if (isMobile) onClose?.(); }}
+                          className="hover:text-white"
+                        >
                           No workflows yet — Create
                         </Link>
                       )}
@@ -317,6 +347,7 @@ export function AppSidebar() {
                         <Link
                           key={wf.id}
                           to={wfHref}
+                          onClick={() => { if (isMobile) onClose?.(); }}
                           className={cn(
                             "group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[12px] font-medium transition-all duration-150",
                             wfActive
@@ -350,7 +381,7 @@ export function AppSidebar() {
         })}
       </div>
 
-      {/* Bottom Utility Navigation (Admin Only) */}
+      {/* Bottom Utility Navigation */}
       {!isEmployee && (
         <div className="px-3 pt-2 pb-2 border-t border-white/[0.07] space-y-1">
           {footerNavItems.map((item) => {
@@ -362,17 +393,18 @@ export function AppSidebar() {
               <Link
                 key={item.href}
                 to={item.href}
+                onClick={() => { if (isMobile) onClose?.(); }}
                 className={cn(
                   "group flex items-center gap-3 rounded-xl px-3.5 py-2 text-[13px] font-medium transition-all duration-150",
                   isActive
                     ? "bg-gradient-to-r from-[#6c5ce7] to-[#5b4cdb] text-white font-semibold shadow-[0_6px_18px_rgba(108,92,231,0.38)]"
                     : "text-[#a3a8c3] hover:bg-white/[0.06] hover:text-white"
                 )}
-                title={collapsed ? item.title : undefined}
+                title={effectiveCollapsed ? item.title : undefined}
               >
                 <Icon className="h-[17px] w-[17px] shrink-0" />
-                {!collapsed && <span className="truncate flex-1">{item.title}</span>}
-                {!collapsed && badgeValue !== undefined && (
+                {!effectiveCollapsed && <span className="truncate flex-1">{item.title}</span>}
+                {!effectiveCollapsed && badgeValue !== undefined && (
                   <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6c5ce7] px-1.5 text-[10px] font-bold text-white">
                     {badgeValue}
                   </span>
@@ -383,28 +415,30 @@ export function AppSidebar() {
 
           <Link
             to="/reports"
+            onClick={() => { if (isMobile) onClose?.(); }}
             className="group flex items-center gap-3 rounded-xl px-3.5 py-2 text-[13px] font-medium text-[#a3a8c3] hover:bg-white/[0.06] hover:text-white transition-all duration-150"
-            title={collapsed ? "Help & Support" : undefined}
+            title={effectiveCollapsed ? "Help & Support" : undefined}
           >
             <HelpCircle className="h-[17px] w-[17px] shrink-0" />
-            {!collapsed && <span className="truncate flex-1">Help & Support</span>}
+            {!effectiveCollapsed && <span className="truncate flex-1">Help & Support</span>}
           </Link>
         </div>
       )}
 
-      {/* Bottom User Profile Pill (Matching reference image) */}
+      {/* Bottom User Profile Pill */}
       <div className="p-3 border-t border-white/[0.07]">
         <Link
           to={isEmployee ? "/dashboard" : "/settings"}
+          onClick={() => { if (isMobile) onClose?.(); }}
           className={cn(
             "flex items-center gap-2.5 rounded-2xl p-2 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition-colors",
-            collapsed && "justify-center"
+            effectiveCollapsed && "justify-center"
           )}
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] text-xs font-extrabold text-white shadow-xs">
             {initials}
           </div>
-          {!collapsed && (
+          {!effectiveCollapsed && (
             <>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold text-white truncate">
