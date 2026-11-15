@@ -63,11 +63,11 @@ export function QuickCreateModal({ open, isOpen, onClose, onOpenChange }: QuickC
       href: "/invoices/new",
     },
     {
-      title: "Record Payment",
-      description: "Log incoming client remittance, mode and allocate to outstanding balance",
+      title: "Invoice Approvals",
+      description: "Review pending billing requests, release approved invoices to central register",
       icon: CreditCard,
-      color: "bg-lime-100 text-lime-900 border-lime-300",
-      href: "/finance?action=record",
+      color: "bg-[#EFE8DC] text-[#201815] border-[#E2DACD]",
+      href: "/finance?tab=approvals",
     },
     {
       title: "Upload Document to Cloud (R2)",
@@ -85,12 +85,12 @@ export function QuickCreateModal({ open, isOpen, onClose, onOpenChange }: QuickC
 
   return (
     <Dialog open={isModalOpen} onOpenChange={(val) => !val && handleClose()}>
-      <DialogContent className="max-w-xl p-6 rounded-[24px] border-[#e5e7eb] shadow-2xl">
+      <DialogContent className="max-w-xl p-6 rounded-[28px] border-[#E2DACD] bg-[#FAF8F5] shadow-2xl">
         <DialogHeader className="mb-2">
-          <DialogTitle className="text-xl font-bold text-[#111827]">
+          <DialogTitle className="text-xl font-bold text-[#201815]">
             Quick Actions
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#6b7280]">
+          <DialogDescription className="text-xs text-[#7C746A]">
             Select a business workflow to create or initiate across the organization.
           </DialogDescription>
         </DialogHeader>
@@ -102,18 +102,18 @@ export function QuickCreateModal({ open, isOpen, onClose, onOpenChange }: QuickC
               <button
                 key={act.title}
                 onClick={() => handleSelect(act.href)}
-                className="group flex flex-col p-4 rounded-2xl border border-[#e5e7eb] hover:border-neutral-900 bg-white hover:bg-[#f9fafb] text-left transition-all duration-150 shadow-xs"
+                className="group flex flex-col p-4 rounded-2xl border border-[#E2DACD] hover:border-[#201815] bg-[#FAF8F5] hover:bg-[#EFE8DC] text-left transition-all duration-150 shadow-xs"
               >
                 <div className="flex items-center justify-between w-full mb-3">
                   <div className={`p-2.5 rounded-xl border ${act.color}`}>
                     <Icon className="h-4 w-4" />
                   </div>
-                  <ChevronRight className="h-4 w-4 text-[#9ca3af] group-hover:text-[#111827] group-hover:translate-x-0.5 transition-all" />
+                  <ChevronRight className="h-4 w-4 text-[#A89E92] group-hover:text-[#201815] group-hover:translate-x-0.5 transition-all" />
                 </div>
-                <h4 className="font-bold text-xs text-[#111827] group-hover:text-black transition-colors">
+                <h4 className="font-bold text-xs text-[#201815] group-hover:text-[#201815] transition-colors">
                   {act.title}
                 </h4>
-                <p className="text-[11px] text-[#6b7280] mt-1 line-clamp-2 leading-relaxed">
+                <p className="text-[11px] text-[#7C746A] mt-1 line-clamp-2 leading-relaxed">
                   {act.description}
                 </p>
               </button>

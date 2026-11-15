@@ -4,35 +4,35 @@
 
 @layer base {
   :root {
-    --background: 235 55% 95%;
-    --foreground: 222 47% 11%;
+    --background: 38 35% 90%;
+    --foreground: 20 22% 10%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card: 40 33% 97%;
+    --card-foreground: 20 22% 10%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 40 33% 97%;
+    --popover-foreground: 20 22% 10%;
 
-    --primary: 249 78% 63%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 20 22% 10%;
+    --primary-foreground: 40 33% 97%;
 
-    --secondary: 236 45% 94%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 38 22% 87%;
+    --secondary-foreground: 20 22% 10%;
 
-    --muted: 236 45% 94%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 38 22% 87%;
+    --muted-foreground: 34 8% 45%;
 
-    --accent: 249 78% 63%;
+    --accent: 252 10% 63%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 13% 86%;
-    --input: 220 13% 86%;
-    --ring: 249 78% 63%;
+    --border: 38 22% 85%;
+    --input: 38 22% 85%;
+    --ring: 20 22% 10%;
 
-    --radius: 1.25rem;
+    --radius: 1.5rem;
   }
 }
 
@@ -41,12 +41,12 @@
     @apply border-border;
   }
   body {
-    @apply bg-[#eceefb] text-[#111827] antialiased selection:bg-violet-200 selection:text-violet-900;
+    @apply bg-[#EFE8DC] text-[#201815] antialiased selection:bg-[#9A97A8]/30 selection:text-[#201815];
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
 
-/* Custom Scrollbars */
+/* Custom Scrollbars matching warm almond palette */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -55,10 +55,31 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #D5CCC0;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #B8AE9F;
 }
+
+/* Global Brown Theme Overrides for Buttons & Action Controls */
+.bg-neutral-900 {
+  background-color: #201815 !important;
+}
+.hover\:bg-black:hover {
+  background-color: #342722 !important;
+}
+.hover\:bg-neutral-900:hover {
+  background-color: #201815 !important;
+}
+.bg-\[\#6c5ce7\] {
+  background-color: #201815 !important;
+}
+.hover\:bg-\[\#5b4cdb\]:hover {
+  background-color: #342722 !important;
+}
+.hover\:bg-\[\#5a4ad8\]:hover {
+  background-color: #342722 !important;
+}
+
 

@@ -118,15 +118,6 @@ export default function FinanceCentralPage() {
   // =========================================================================
   // MODALS STATE
   // =========================================================================
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(autoRecord);
-  const [paymentClientId, setPaymentClientId] = useState(prefillClientId || clients[0]?.id || "");
-  const [paymentInvoiceId, setPaymentInvoiceId] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState<number | "">(10000);
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>("NEFT");
-  const [transactionRef, setTransactionRef] = useState("");
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [paymentRemarks, setPaymentRemarks] = useState("");
-
   // Rejection modal
   const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
@@ -182,7 +173,6 @@ export default function FinanceCentralPage() {
   useEffect(() => {
     if (prefillClientId) {
       setSingleClientId(prefillClientId);
-      setPaymentClientId(prefillClientId);
     }
     if (prefillTaskId) {
       setSelectedSingleTaskIds([prefillTaskId]);
@@ -411,42 +401,6 @@ export default function FinanceCentralPage() {
     }
   };
 
-  // Payment Recording
-  const handleRecordPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!paymentAmount || Number(paymentAmount) <= 0) {
-      toast.error("Please enter a valid payment amount.");
-      return;
-    }
-
-    const client = clients.find((c) => c.id === paymentClientId);
-    const invoice = invoices.find((i) => i.id === paymentInvoiceId);
-
-    try {
-      const p = await pmsStore.recordPayment({
-        client_id: paymentClientId,
-        client_name: client?.client_name,
-        invoice_id: paymentInvoiceId || undefined,
-        invoice_number: invoice?.invoice_number,
-        payment_date: paymentDate,
-        amount: Number(paymentAmount),
-        payment_mode: paymentMode,
-        transaction_reference: transactionRef || undefined,
-        received_by: currentUser.id,
-        received_by_name: currentUser.full_name,
-        remarks: paymentRemarks,
-        status: "Completed",
-      });
-
-      toast.success(`Payment ${p.payment_number} of ₹${p.amount.toLocaleString("en-IN")} recorded.`);
-      setIsPaymentModalOpen(false);
-      setTransactionRef("");
-      setPaymentRemarks("");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to record payment.");
-    }
-  };
-
   // Export GST Register Excel
   const exportInvoicesExcel = async () => {
     const XLSX = await import("xlsx");
@@ -473,28 +427,6 @@ export default function FinanceCentralPage() {
     XLSX.utils.book_append_sheet(wb, ws, "GST Sales Register");
     XLSX.writeFile(wb, `PMS_GST_Sales_Register_${new Date().toISOString().slice(0, 10)}.xlsx`);
     toast.success("GST Sales Register exported to Excel.");
-  };
-
-  // Export Collections Ledger
-  const exportPaymentsExcel = async () => {
-    const XLSX = await import("xlsx");
-    const data = payments.map((p) => ({
-      "Payment #": p.payment_number,
-      Date: p.payment_date,
-      Client: p.client_name || "—",
-      "Invoice #": p.invoice_number || "Direct Advance",
-      "Amount (₹)": p.amount,
-      Mode: p.payment_mode,
-      "Transaction Reference": p.transaction_reference || "—",
-      "Received By": p.received_by_name || "—",
-      Status: p.status,
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Payment Collections");
-    XLSX.writeFile(wb, `PMS_Collections_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    toast.success("Collections ledger exported.");
   };
 
   return (
@@ -532,15 +464,6 @@ export default function FinanceCentralPage() {
           )}
 
           <Button
-            onClick={() => setIsPaymentModalOpen(true)}
-            size="sm"
-            className="bg-neutral-900 hover:bg-black text-white font-extrabold text-xs rounded-xl shadow-xs gap-1.5"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Record Payment</span>
-          </Button>
-
-          <Button
             onClick={exportInvoicesExcel}
             variant="outline"
             size="sm"
@@ -553,57 +476,58 @@ export default function FinanceCentralPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 9 INNER TABS NAVIGATION                                                   */}
+      {/* INNER TABS NAVIGATION (Luxury Almond & Espresso Pill Style)              */}
       {/* ========================================================================= */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none border-b border-slate-200 text-xs font-extrabold">
-        {[
-          { id: "overview", label: "Overview", icon: TrendingUp },
-          { id: "all-invoices", label: "All Invoices", icon: Receipt, count: invoices.length },
-          { id: "single-invoice", label: "Single Invoice", icon: Plus },
-          { id: "bulk-invoice", label: "Bulk Invoice", icon: Layers },
-          { id: "recurring-invoice", label: "Recurring Invoice", icon: Clock, count: activeRetainers.length },
-          {
-            id: "approvals",
-            label: "Approval Requests",
-            icon: ShieldCheck,
-            count: pendingRequests.length,
-            badgeVariant: pendingRequests.length > 0 ? "destructive" : "secondary",
-          },
-          { id: "payments", label: "Payments & Receipts", icon: CreditCard, count: payments.length },
-          { id: "outstanding", label: "Outstanding", icon: AlertCircle },
-          { id: "reports", label: "Reports", icon: FileSpreadsheet },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => switchTab(tab.id)}
-              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl transition-all whitespace-nowrap shrink-0 ${
-                isActive
-                  ? "bg-neutral-900 text-white shadow-xs font-black"
-                  : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200"
-              }`}
-            >
-              <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-500"}`} />
-              <span>{tab.label}</span>
-              {tab.count !== undefined && (
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                    isActive
-                      ? "bg-white/20 text-white"
-                      : tab.badgeVariant === "destructive"
-                      ? "bg-rose-100 text-rose-800"
-                      : "bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <div className="w-full overflow-x-auto pb-1 scrollbar-none">
+        <div className="inline-flex items-center gap-1.5 p-1.5 bg-[#E8E0D2] rounded-full border border-[#E2DACD] text-xs font-bold">
+          {[
+            { id: "overview", label: "Overview", icon: TrendingUp },
+            { id: "all-invoices", label: "All Invoices", icon: Receipt, count: invoices.length },
+            { id: "single-invoice", label: "Single Invoice", icon: Plus },
+            { id: "bulk-invoice", label: "Bulk Invoice", icon: Layers },
+            { id: "recurring-invoice", label: "Recurring Invoice", icon: Clock, count: activeRetainers.length },
+            {
+              id: "approvals",
+              label: "Approval Requests",
+              icon: ShieldCheck,
+              count: pendingRequests.length,
+              badgeVariant: pendingRequests.length > 0 ? "destructive" : "secondary",
+            },
+            { id: "outstanding", label: "Outstanding", icon: AlertCircle },
+            { id: "reports", label: "Reports", icon: FileSpreadsheet },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => switchTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all whitespace-nowrap shrink-0 text-xs ${
+                  isActive
+                    ? "bg-[#201815] text-[#FAF8F5] shadow-xs font-black"
+                    : "text-[#6A6258] hover:text-[#201815] hover:bg-[#DDD5C7]/70 font-semibold"
+                }`}
+              >
+                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-[#FAF8F5]" : "text-[#7C746A]"}`} />
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                      isActive
+                        ? "bg-[#FAF8F5]/20 text-[#FAF8F5]"
+                        : tab.badgeVariant === "destructive"
+                        ? "bg-rose-200 text-rose-900"
+                        : "bg-[#DDD5C7] text-[#201815]"
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ========================================================================= */}
@@ -612,119 +536,119 @@ export default function FinanceCentralPage() {
       {activeTab === "overview" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
-            <Card className="rounded-[20px] border border-slate-200/90 bg-white p-4 shadow-xs">
-              <span className="text-[11px] font-extrabold uppercase text-slate-500">Total Billed</span>
-              <div className="text-xl sm:text-2xl font-black text-[#111827] mt-1">
+            <Card className="rounded-[24px] border border-transparent bg-[#201815] text-[#FAF8F5] p-5 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#9A97A8]">Total Billed</span>
+              <div className="text-xl sm:text-2xl font-black text-[#FAF8F5] mt-1.5">
                 ₹{totalInvoiced.toLocaleString("en-IN")}
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">{approvedInvoices.length} Generated Invoices</p>
+              <p className="text-[10px] text-[#A8A095] mt-1">{approvedInvoices.length} Generated Invoices</p>
             </Card>
 
-            <Card className="rounded-[20px] border border-emerald-200/90 bg-emerald-50/40 p-4 shadow-xs">
-              <span className="text-[11px] font-extrabold uppercase text-emerald-800">Collections</span>
-              <div className="text-xl sm:text-2xl font-black text-emerald-950 mt-1">
-                ₹{totalCollected.toLocaleString("en-IN")}
+            <Card className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 shadow-xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7C746A]">Paid Invoices</span>
+              <div className="text-xl sm:text-2xl font-black text-[#201815] mt-1.5">
+                {approvedInvoices.filter((i) => i.status === "Paid").length} Paid
               </div>
-              <p className="text-[10px] text-emerald-700 mt-0.5">{payments.length} Payments Cleared</p>
+              <p className="text-[10px] text-[#7C746A] mt-1">₹{approvedInvoices.reduce((s, i) => s + (i.paid_amount || 0), 0).toLocaleString("en-IN")} Realized</p>
             </Card>
 
-            <Card className="rounded-[20px] border border-rose-200/90 bg-rose-50/40 p-4 shadow-xs">
-              <span className="text-[11px] font-extrabold uppercase text-rose-800">Outstanding Balance</span>
-              <div className="text-xl sm:text-2xl font-black text-rose-950 mt-1">
+            <Card className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 shadow-xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7C746A]">Outstanding Balance</span>
+              <div className="text-xl sm:text-2xl font-black text-rose-800 mt-1.5">
                 ₹{totalOutstanding.toLocaleString("en-IN")}
               </div>
-              <p className="text-[10px] text-rose-700 mt-0.5">Pending client receipts</p>
+              <p className="text-[10px] text-[#7C746A] mt-1">Pending client receipts</p>
             </Card>
 
             <Card
               onClick={() => switchTab("approvals")}
-              className="rounded-[20px] border border-amber-300 bg-amber-50/50 p-4 shadow-xs cursor-pointer hover:border-amber-400 transition-all"
+              className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 shadow-xs cursor-pointer hover:border-[#201815] transition-all"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase text-amber-900">Pending Approvals</span>
-                <span className="h-2 w-2 rounded-full bg-rose-500 animate-ping" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#7C746A]">Pending Approvals</span>
+                <span className="h-2 w-2 rounded-full bg-[#9A97A8] animate-ping" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-amber-950 mt-1">
+              <div className="text-xl sm:text-2xl font-black text-[#201815] mt-1.5">
                 {pendingRequests.length} Req
               </div>
-              <p className="text-[10px] text-amber-800 mt-0.5">₹{totalPendingApprovalAmount.toLocaleString("en-IN")} in queue</p>
+              <p className="text-[10px] text-[#7C746A] mt-1">₹{totalPendingApprovalAmount.toLocaleString("en-IN")} in queue</p>
             </Card>
 
             <Card
               onClick={() => switchTab("recurring-invoice")}
-              className="rounded-[20px] border border-blue-200/90 bg-blue-50/40 p-4 shadow-xs cursor-pointer hover:border-blue-400 transition-all"
+              className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 shadow-xs cursor-pointer hover:border-[#201815] transition-all"
             >
-              <span className="text-[11px] font-extrabold uppercase text-blue-900">Active Retainers</span>
-              <div className="text-xl sm:text-2xl font-black text-blue-950 mt-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7C746A]">Active Retainers</span>
+              <div className="text-xl sm:text-2xl font-black text-[#201815] mt-1.5">
                 {activeRetainers.length} Active
               </div>
-              <p className="text-[10px] text-blue-800 mt-0.5">₹{Math.round(activeRetainersMonthlyValue).toLocaleString("en-IN")}/mo run-rate</p>
+              <p className="text-[10px] text-[#7C746A] mt-1">₹{Math.round(activeRetainersMonthlyValue).toLocaleString("en-IN")}/mo run-rate</p>
             </Card>
           </div>
 
           {/* Quick Actions & Billing Channels Card */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-[24px] border border-slate-200 bg-white p-5 space-y-3 shadow-xs">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-xl bg-violet-100 text-violet-800 flex items-center justify-center">
+            <div className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 space-y-3 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-full bg-[#EFE8DC] text-[#201815] flex items-center justify-center">
                   <Receipt className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-[#111827]">Single Client Invoice</h3>
-                  <p className="text-[11px] text-slate-500">Bill one client for completed tasks</p>
+                  <h3 className="text-sm font-extrabold text-[#201815]">Single Client Invoice</h3>
+                  <p className="text-[11px] text-[#7C746A]">Bill one client for completed tasks</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-[#7C746A]">
                 Pulls all completed deliverables for a specific client. Adjust line items and submit for Admin Approval.
               </p>
               <Button
                 onClick={() => switchTab("single-invoice")}
-                className="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold gap-1 shadow-xs"
+                className="w-full bg-[#201815] hover:bg-[#342722] text-[#FAF8F5] rounded-full text-xs font-bold gap-1 shadow-xs"
               >
                 <span>Create Single Invoice</span>
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </Button>
             </div>
 
-            <div className="rounded-[24px] border border-slate-200 bg-white p-5 space-y-3 shadow-xs">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center">
+            <div className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 space-y-3 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-full bg-[#EFE8DC] text-[#201815] flex items-center justify-center">
                   <Layers className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-[#111827]">Bulk Invoice Batch</h3>
-                  <p className="text-[11px] text-slate-500">Multi-client / multi-task generation</p>
+                  <h3 className="text-sm font-extrabold text-[#201815]">Bulk Invoice Batch</h3>
+                  <p className="text-[11px] text-[#7C746A]">Multi-client / multi-task generation</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-[#7C746A]">
                 Select completed deliverables across all clients. The engine groups tasks by client to generate separate invoices.
               </p>
               <Button
                 onClick={() => switchTab("bulk-invoice")}
-                className="w-full bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold gap-1 shadow-xs"
+                className="w-full bg-[#9A97A8] hover:bg-[#8A8798] text-white rounded-full text-xs font-bold gap-1 shadow-xs"
               >
                 <span>Create Bulk Batch</span>
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </Button>
             </div>
 
-            <div className="rounded-[24px] border border-slate-200 bg-white p-5 space-y-3 shadow-xs">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+            <div className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 space-y-3 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-full bg-[#EFE8DC] text-[#201815] flex items-center justify-center">
                   <Clock className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-[#111827]">Recurring Retainer</h3>
-                  <p className="text-[11px] text-slate-500">Independent scheduled billing</p>
+                  <h3 className="text-sm font-extrabold text-[#201815]">Recurring Retainer</h3>
+                  <p className="text-[11px] text-[#7C746A]">Independent scheduled billing</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-[#7C746A]">
                 Automated monthly, quarterly, or yearly retainer cycles. Independent of tasks and triggered automatically.
               </p>
               <div className="flex items-center gap-2">
                 <Button
                   onClick={() => setIsRecurringModalOpen(true)}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold gap-1 shadow-xs"
+                  className="flex-1 bg-[#201815] hover:bg-[#342722] text-[#FAF8F5] rounded-full text-xs font-bold gap-1 shadow-xs"
                 >
                   <span>New Schedule</span>
                   <Plus className="h-3.5 w-3.5" />
@@ -732,10 +656,10 @@ export default function FinanceCentralPage() {
                 <Button
                   onClick={handleRunScheduler}
                   variant="outline"
-                  className="border-slate-300 rounded-xl text-xs font-bold px-2.5"
+                  className="border-[#E2DACD] bg-[#FAF8F5] text-[#201815] hover:bg-[#EFE8DC] rounded-full text-xs font-bold px-3"
                   title="Run scheduler check"
                 >
-                  <RefreshCw className="h-3.5 w-3.5 text-slate-600" />
+                  <RefreshCw className="h-3.5 w-3.5 text-[#201815]" />
                 </Button>
               </div>
             </div>
@@ -973,20 +897,6 @@ export default function FinanceCentralPage() {
                                 View
                               </Button>
                             </Link>
-                            {inv.outstanding_balance > 0 && inv.status !== "Cancelled" && (
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setPaymentClientId(inv.client_id);
-                                  setPaymentInvoiceId(inv.id);
-                                  setPaymentAmount(inv.outstanding_balance);
-                                  setIsPaymentModalOpen(true);
-                                }}
-                                className="h-7 px-2 text-[10px] font-bold bg-neutral-900 text-white rounded-lg hover:bg-black"
-                              >
-                                Pay
-                              </Button>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -1784,140 +1694,7 @@ export default function FinanceCentralPage() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 7: PAYMENTS & RECEIPTS                                                */}
-      {/* ========================================================================= */}
-      {activeTab === "payments" && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-extrabold text-[#111827]">Payments &amp; Collections Ledger</h2>
-              <p className="text-xs text-slate-500">Record and reconcile bank collections against invoices.</p>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={exportPaymentsExcel}
-                variant="outline"
-                size="sm"
-                className="border-slate-300 font-extrabold text-xs rounded-xl shadow-xs gap-1.5"
-              >
-                <Download className="h-3.5 w-3.5 text-slate-600" />
-                <span>Export Collections</span>
-              </Button>
-
-              <Button
-                onClick={() => setIsPaymentModalOpen(true)}
-                size="sm"
-                className="bg-neutral-900 hover:bg-black text-white font-extrabold text-xs rounded-xl shadow-xs gap-1.5"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Record Payment</span>
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-[24px] border border-slate-200 bg-white overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-extrabold text-[10px] uppercase">
-                  <tr>
-                    <th className="py-3 px-4">Receipt #</th>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Client</th>
-                    <th className="py-3 px-4">Allocated Invoice</th>
-                    <th className="py-3 px-4 text-right">Amount (₹)</th>
-                    <th className="py-3 px-4">Payment Mode</th>
-                    <th className="py-3 px-4">Reference #</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {payments.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-400">
-                        No payments recorded yet. Click &quot;Record Payment&quot; above.
-                      </td>
-                    </tr>
-                  ) : (
-                    payments.map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-slate-900">{p.payment_number}</td>
-                        <td className="py-3 px-4 text-slate-500 whitespace-nowrap">{formatDate(p.payment_date)}</td>
-                        <td className="py-3 px-4 font-bold text-slate-800">{p.client_name || "—"}</td>
-                        <td className="py-3 px-4 font-mono text-slate-700">
-                          {p.invoice_number ? (
-                            <span className="font-bold text-slate-900">{p.invoice_number}</span>
-                          ) : (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-slate-400 italic">Direct Advance</span>
-                              {invoices.filter((inv) => inv.client_id === p.client_id && inv.outstanding_balance > 0).length > 0 && (
-                                <select
-                                  defaultValue=""
-                                  onChange={async (e) => {
-                                    if (e.target.value) {
-                                      try {
-                                        await pmsStore.allocatePaymentToInvoice(p.id, e.target.value);
-                                        toast.success("Payment allocated to invoice successfully!");
-                                      } catch (err: any) {
-                                        toast.error(err.message || "Failed to allocate payment.");
-                                      }
-                                    }
-                                  }}
-                                  className="h-6.5 rounded-lg border border-amber-300 bg-amber-50 text-[10px] font-bold text-amber-900 px-1.5 cursor-pointer shadow-2xs hover:bg-amber-100 transition-colors"
-                                >
-                                  <option value="">+ Link to Invoice...</option>
-                                  {invoices
-                                    .filter((inv) => inv.client_id === p.client_id && inv.outstanding_balance > 0)
-                                    .map((inv) => (
-                                      <option key={inv.id} value={inv.id}>
-                                        {inv.invoice_number} (Bal: ₹{inv.outstanding_balance.toLocaleString("en-IN")})
-                                      </option>
-                                    ))}
-                                </select>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-extrabold text-emerald-800 text-sm">
-                          ₹{p.amount.toLocaleString("en-IN")}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge variant="outline" className="text-[10px] font-bold">
-                            {p.payment_mode}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 font-mono text-slate-500">{p.transaction_reference || "—"}</td>
-                        <td className="py-3 px-4 text-center">
-                          <Badge variant="success" className="text-[10px] font-bold">
-                            {p.status}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (window.confirm(`Delete payment receipt ${p.payment_number}?`)) {
-                                await pmsStore.deletePayment(p.id);
-                                toast.success(`Payment receipt ${p.payment_number} removed.`);
-                              }
-                            }}
-                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                            title="Delete this receipt"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* TAB 8: OUTSTANDING & AGING                                                */}
@@ -2013,18 +1790,6 @@ export default function FinanceCentralPage() {
                               <MessageSquare className="h-3 w-3" />
                               <span>WhatsApp Reminder</span>
                             </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setPaymentClientId(client.id);
-                                setPaymentInvoiceId("");
-                                setPaymentAmount(balance);
-                                setIsPaymentModalOpen(true);
-                              }}
-                              className="h-7 px-2.5 bg-neutral-900 hover:bg-black text-white rounded-lg text-[10px] font-bold"
-                            >
-                              Record Payment
-                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -2094,147 +1859,7 @@ export default function FinanceCentralPage() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* DIALOG: RECORD PAYMENT MODAL                                              */}
-      {/* ========================================================================= */}
-      <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-        <DialogContent className="max-w-md rounded-[24px] border border-slate-300 bg-white p-6">
-          <DialogHeader className="border-b border-slate-200 pb-3">
-            <DialogTitle className="text-lg font-extrabold text-[#111827]">
-              Record Payment Receipt
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Receipt will automatically update invoice outstanding balance and audit ledgers.
-            </DialogDescription>
-          </DialogHeader>
 
-          <form onSubmit={handleRecordPayment} className="space-y-4 pt-2">
-            <div>
-              <label className="text-xs font-bold text-slate-700">Client</label>
-              <select
-                value={paymentClientId}
-                onChange={(e) => {
-                  setPaymentClientId(e.target.value);
-                  setPaymentInvoiceId("");
-                }}
-                required
-                className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold mt-1"
-              >
-                <option value="">Select client...</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.client_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700">Allocate to Invoice (Optional)</label>
-              <select
-                value={paymentInvoiceId}
-                onChange={(e) => {
-                  setPaymentInvoiceId(e.target.value);
-                  const inv = invoices.find((i) => i.id === e.target.value);
-                  if (inv) setPaymentAmount(inv.outstanding_balance);
-                }}
-                className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold mt-1"
-              >
-                <option value="">Direct Advance / Unallocated</option>
-                {invoices
-                  .filter((i) => i.client_id === paymentClientId && i.outstanding_balance > 0)
-                  .map((inv) => (
-                    <option key={inv.id} value={inv.id}>
-                      {inv.invoice_number} (Outstanding: ₹{inv.outstanding_balance.toLocaleString("en-IN")})
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-700">Amount Received (₹)</label>
-                <Input
-                  type="number"
-                  min={1}
-                  required
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                  className="h-9 rounded-xl border-slate-300 text-xs font-bold mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700">Payment Date</label>
-                <Input
-                  type="date"
-                  required
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300 text-xs font-bold mt-1"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-700">Payment Mode</label>
-                <select
-                  value={paymentMode}
-                  onChange={(e) => setPaymentMode(e.target.value as PaymentMode)}
-                  className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold mt-1"
-                >
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="NEFT">NEFT</option>
-                  <option value="RTGS">RTGS</option>
-                  <option value="UPI">UPI</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Cash">Cash</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700">Reference / UTR #</label>
-                <Input
-                  type="text"
-                  placeholder="e.g. UTR1928301"
-                  value={transactionRef}
-                  onChange={(e) => setTransactionRef(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300 text-xs mt-1"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700">Remarks</label>
-              <Input
-                type="text"
-                placeholder="Optional payment notes..."
-                value={paymentRemarks}
-                onChange={(e) => setPaymentRemarks(e.target.value)}
-                className="h-9 rounded-xl border-slate-300 text-xs mt-1"
-              />
-            </div>
-
-            <DialogFooter className="pt-3 border-t border-slate-200">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsPaymentModalOpen(false)}
-                className="rounded-xl text-xs font-bold"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-neutral-900 hover:bg-black text-white rounded-xl text-xs font-bold px-5"
-              >
-                Save Receipt
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* ========================================================================= */}
       {/* DIALOG: RECURRING SCHEDULE CREATION MODAL                                  */}
