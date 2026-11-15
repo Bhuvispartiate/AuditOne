@@ -40,17 +40,27 @@ CREATE INDEX IF NOT EXISTS idx_tasks_billable_client ON tasks(client_id, is_bill
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS bulk_invoice_batches (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    batch_number VARCHAR(100) NOT NULL UNIQUE,
+    batch_code VARCHAR(100) NOT NULL UNIQUE,
     batch_name VARCHAR(255),
     total_clients INT NOT NULL DEFAULT 0,
     total_tasks INT NOT NULL DEFAULT 0,
     total_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
-    status VARCHAR(50) NOT NULL DEFAULT 'PENDING_APPROVAL',
-    created_by_id UUID,
+    status VARCHAR(50) NOT NULL DEFAULT 'Pending Approval',
+    created_by UUID,
     created_by_name VARCHAR(150),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Defensive upgrades for bulk_invoice_batches
+ALTER TABLE bulk_invoice_batches ADD COLUMN IF NOT EXISTS batch_code VARCHAR(100);
+ALTER TABLE bulk_invoice_batches ADD COLUMN IF NOT EXISTS batch_name VARCHAR(255);
+ALTER TABLE bulk_invoice_batches ADD COLUMN IF NOT EXISTS created_by UUID;
+ALTER TABLE bulk_invoice_batches ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(150);
+ALTER TABLE bulk_invoice_batches ADD COLUMN IF NOT EXISTS total_clients INT DEFAULT 0;
+ALTER TABLE bulk_invoice_batches ADD COLUMN IF NOT EXISTS total_tasks INT DEFAULT 0;
+ALTER TABLE bulk_invoice_batches ADD COLUMN IF NOT EXISTS total_amount NUMERIC(15,2) DEFAULT 0.00;
+ALTER TABLE bulk_invoice_batches ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending Approval';
 
 CREATE INDEX IF NOT EXISTS idx_bulk_batches_status ON bulk_invoice_batches(status);
 
@@ -59,38 +69,38 @@ CREATE INDEX IF NOT EXISTS idx_bulk_batches_status ON bulk_invoice_batches(statu
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS recurring_invoices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    schedule_code VARCHAR(50) NOT NULL UNIQUE,
     client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-    profile_name VARCHAR(255) NOT NULL,
-    frequency VARCHAR(50) NOT NULL DEFAULT 'MONTHLY',
-    billing_day INT NOT NULL DEFAULT 1,
-    start_date DATE NOT NULL,
-    end_date DATE,
-    next_billing_date DATE NOT NULL,
-    amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
-    tax_rate NUMERIC(5,2) NOT NULL DEFAULT 18.00,
+    client_name VARCHAR(200) NOT NULL DEFAULT '',
+    service_id UUID REFERENCES services(id) ON DELETE SET NULL,
+    service_name VARCHAR(200),
+    title VARCHAR(250) NOT NULL DEFAULT '',
+    description TEXT,
+    frequency VARCHAR(50) NOT NULL DEFAULT 'Monthly',
+    base_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+    gst_rate NUMERIC(5,2) NOT NULL DEFAULT 18.00,
+    tax_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
     total_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
-    auto_generate BOOLEAN NOT NULL DEFAULT false,
-    require_approval BOOLEAN NOT NULL DEFAULT true,
-    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
-    line_items JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_by_id UUID,
+    start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    end_date DATE,
+    next_billing_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    last_generated_date DATE,
+    invoices_generated_count INT NOT NULL DEFAULT 0,
+    status VARCHAR(50) NOT NULL DEFAULT 'Active',
+    auto_submit_for_approval BOOLEAN NOT NULL DEFAULT true,
+    notes TEXT,
+    created_by UUID,
     created_by_name VARCHAR(150),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Frequency & status constraints
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_recurring_frequency') THEN
-        ALTER TABLE recurring_invoices ADD CONSTRAINT chk_recurring_frequency 
-            CHECK (frequency IN ('WEEKLY', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY'));
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_recurring_status') THEN
-        ALTER TABLE recurring_invoices ADD CONSTRAINT chk_recurring_status 
-            CHECK (status IN ('ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELLED'));
-    END IF;
-END $$;
+-- Defensive upgrades for recurring_invoices
+ALTER TABLE recurring_invoices ADD COLUMN IF NOT EXISTS schedule_code VARCHAR(50);
+ALTER TABLE recurring_invoices ADD COLUMN IF NOT EXISTS client_name VARCHAR(200) DEFAULT '';
+ALTER TABLE recurring_invoices ADD COLUMN IF NOT EXISTS title VARCHAR(250) DEFAULT '';
+ALTER TABLE recurring_invoices ADD COLUMN IF NOT EXISTS base_amount NUMERIC(15,2) DEFAULT 0.00;
+ALTER TABLE recurring_invoices ADD COLUMN IF NOT EXISTS auto_submit_for_approval BOOLEAN DEFAULT true;
 
 CREATE INDEX IF NOT EXISTS idx_recurring_invoices_client ON recurring_invoices(client_id);
 CREATE INDEX IF NOT EXISTS idx_recurring_invoices_next_date ON recurring_invoices(next_billing_date, status);
@@ -103,8 +113,8 @@ CREATE TABLE IF NOT EXISTS invoice_requests (
     request_number VARCHAR(100) NOT NULL UNIQUE,
     request_type VARCHAR(50) NOT NULL DEFAULT 'SINGLE', -- 'SINGLE', 'BULK', 'RECURRING'
     client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-    bulk_batch_id UUID REFERENCES bulk_invoice_batches(id) ON DELETE SET NULL,
-    recurring_profile_id UUID REFERENCES recurring_invoices(id) ON DELETE SET NULL,
+    bulk_batch_id UUID,
+    recurring_profile_id UUID,
     status VARCHAR(50) NOT NULL DEFAULT 'Pending Approval',
     subtotal NUMERIC(15,2) NOT NULL DEFAULT 0.00,
     gst_rate NUMERIC(5,2) NOT NULL DEFAULT 18.00,
@@ -131,12 +141,43 @@ CREATE TABLE IF NOT EXISTS invoice_requests (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Ensure columns exist in case table was created earlier with fewer fields
+-- Ensure all columns exist on invoice_requests
 ALTER TABLE invoice_requests ADD COLUMN IF NOT EXISTS request_type VARCHAR(50) DEFAULT 'SINGLE';
-ALTER TABLE invoice_requests ADD COLUMN IF NOT EXISTS bulk_batch_id UUID REFERENCES bulk_invoice_batches(id) ON DELETE SET NULL;
-ALTER TABLE invoice_requests ADD COLUMN IF NOT EXISTS recurring_profile_id UUID REFERENCES recurring_invoices(id) ON DELETE SET NULL;
+ALTER TABLE invoice_requests ADD COLUMN IF NOT EXISTS bulk_batch_id UUID;
+ALTER TABLE invoice_requests ADD COLUMN IF NOT EXISTS recurring_profile_id UUID;
 ALTER TABLE invoice_requests ADD COLUMN IF NOT EXISTS total_amount NUMERIC(15,2) DEFAULT 0.00;
 ALTER TABLE invoice_requests ADD COLUMN IF NOT EXISTS grand_total NUMERIC(15,2) DEFAULT 0.00;
+
+-- Clean up any orphaned bulk_batch_id and recurring_profile_id before adding foreign key constraints
+UPDATE invoice_requests 
+SET bulk_batch_id = NULL 
+WHERE bulk_batch_id IS NOT NULL 
+  AND bulk_batch_id NOT IN (SELECT id FROM bulk_invoice_batches);
+
+UPDATE invoice_requests 
+SET recurring_profile_id = NULL 
+WHERE recurring_profile_id IS NOT NULL 
+  AND recurring_profile_id NOT IN (SELECT id FROM recurring_invoices);
+
+-- Add foreign key constraint safely
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'invoice_requests_bulk_batch_id_fkey'
+    ) THEN
+        ALTER TABLE invoice_requests 
+            ADD CONSTRAINT invoice_requests_bulk_batch_id_fkey 
+            FOREIGN KEY (bulk_batch_id) REFERENCES bulk_invoice_batches(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'invoice_requests_recurring_profile_id_fkey'
+    ) THEN
+        ALTER TABLE invoice_requests 
+            ADD CONSTRAINT invoice_requests_recurring_profile_id_fkey 
+            FOREIGN KEY (recurring_profile_id) REFERENCES recurring_invoices(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_invoice_requests_client ON invoice_requests(client_id);
 CREATE INDEX IF NOT EXISTS idx_invoice_requests_status ON invoice_requests(status);
@@ -166,7 +207,7 @@ CREATE TABLE IF NOT EXISTS invoice_request_items (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Defensive schema upgrade: if invoice_request_items already existed, ensure columns exist
+-- Defensive schema upgrade: ensure all columns exist
 ALTER TABLE invoice_request_items ADD COLUMN IF NOT EXISTS invoice_request_id UUID REFERENCES invoice_requests(id) ON DELETE CASCADE;
 ALTER TABLE invoice_request_items ADD COLUMN IF NOT EXISTS task_id UUID REFERENCES tasks(id) ON DELETE SET NULL;
 ALTER TABLE invoice_request_items ADD COLUMN IF NOT EXISTS task_code VARCHAR(50);
@@ -178,7 +219,6 @@ ALTER TABLE invoice_request_items ADD COLUMN IF NOT EXISTS amount NUMERIC(15,2) 
 ALTER TABLE invoice_request_items ADD COLUMN IF NOT EXISTS gst_rate NUMERIC(5,2) DEFAULT 18.00;
 ALTER TABLE invoice_request_items ADD COLUMN IF NOT EXISTS total_amount NUMERIC(15,2) DEFAULT 0.00;
 
--- Safe index creation using the canonical column invoice_request_id
 CREATE INDEX IF NOT EXISTS idx_req_items_invoice_req ON invoice_request_items(invoice_request_id);
 CREATE INDEX IF NOT EXISTS idx_req_items_task ON invoice_request_items(task_id);
 
@@ -188,7 +228,7 @@ CREATE INDEX IF NOT EXISTS idx_req_items_task ON invoice_request_items(task_id);
 CREATE TABLE IF NOT EXISTS invoice_approval_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     invoice_request_id UUID NOT NULL REFERENCES invoice_requests(id) ON DELETE CASCADE,
-    action VARCHAR(50) NOT NULL, -- 'SUBMITTED', 'APPROVED', 'REJECTED', 'INVOICE_GENERATED'
+    action VARCHAR(50) NOT NULL,
     actor_id UUID,
     actor_name VARCHAR(150) NOT NULL,
     actor_role VARCHAR(100) DEFAULT 'Admin',
@@ -198,7 +238,6 @@ CREATE TABLE IF NOT EXISTS invoice_approval_logs (
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Defensive schema upgrade: ensure invoice_request_id exists
 ALTER TABLE invoice_approval_logs ADD COLUMN IF NOT EXISTS invoice_request_id UUID REFERENCES invoice_requests(id) ON DELETE CASCADE;
 ALTER TABLE invoice_approval_logs ADD COLUMN IF NOT EXISTS actor_name VARCHAR(150);
 ALTER TABLE invoice_approval_logs ADD COLUMN IF NOT EXISTS action VARCHAR(50);
@@ -206,7 +245,7 @@ ALTER TABLE invoice_approval_logs ADD COLUMN IF NOT EXISTS action VARCHAR(50);
 CREATE INDEX IF NOT EXISTS idx_approval_logs_invoice_req ON invoice_approval_logs(invoice_request_id);
 
 -- ============================================================================
--- 7. ROW LEVEL SECURITY (RLS) & DIRECT WEB ACCESS POLICIES
+-- 7. ROW LEVEL SECURITY (RLS) & OPEN ACCESS POLICIES
 -- ============================================================================
 ALTER TABLE bulk_invoice_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recurring_invoices ENABLE ROW LEVEL SECURITY;

@@ -4285,6 +4285,20 @@ class PMSDataStore {
     let batchTotalAmount = 0;
     const generatedRequests: InvoiceRequest[] = [];
 
+    // Pre-insert bulk batch to satisfy foreign key constraint on invoice_requests.bulk_batch_id
+    const newBatch: BulkInvoiceBatch = {
+      id: batchId,
+      batch_code: batchCode,
+      created_by: this.currentUser?.id,
+      created_by_name: this.currentUser?.full_name || "Employee",
+      total_clients: clientGroups.size,
+      total_tasks: input.items.length,
+      total_amount: 0,
+      status: "Pending Approval",
+      created_at: new Date().toISOString(),
+    };
+    await insertBulkBatchToDb(newBatch);
+
     for (const [clientId, clientItems] of clientGroups.entries()) {
       const client = this.clients.find((c) => c.id === clientId);
       if (!client) continue;
@@ -4307,6 +4321,7 @@ class PMSDataStore {
         const taxAmount = (amount * gst_rate) / 100;
         requestItems.push({
           id: ensureUuid(),
+          invoice_request_id: undefined as any,
           task_id: task.id,
           task_code: task.task_code,
           task_title: task.title,
@@ -4341,6 +4356,9 @@ class PMSDataStore {
       const reqNumber = `REQ-BLK-${new Date().getFullYear()}-${String(reqSeq).padStart(4, "0")}`;
       const reqId = ensureUuid();
 
+      // Ensure items have invoice_request_id set
+      const finalizedItems = requestItems.map((item) => ({ ...item, invoice_request_id: reqId }));
+
       const req: InvoiceRequest = {
         id: reqId,
         request_number: reqNumber,
@@ -4366,7 +4384,7 @@ class PMSDataStore {
         status: "Pending Approval",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        items: requestItems,
+        items: finalizedItems,
       };
 
       await insertInvoiceRequestToDb(req);
@@ -4386,19 +4404,8 @@ class PMSDataStore {
       this.approvalLogs.unshift(log);
     }
 
-    const newBatch: BulkInvoiceBatch = {
-      id: batchId,
-      batch_code: batchCode,
-      created_by: this.currentUser?.id,
-      created_by_name: this.currentUser?.full_name || "Employee",
-      total_clients: clientGroups.size,
-      total_tasks: input.items.length,
-      total_amount: batchTotalAmount,
-      status: "Pending Approval",
-      created_at: new Date().toISOString(),
-    };
-
-    await insertBulkBatchToDb(newBatch);
+    newBatch.total_amount = batchTotalAmount;
+    newBatch.total_clients = generatedRequests.length;
 
     this.bulkBatches.unshift(newBatch);
     this.invoiceRequests.unshift(...generatedRequests);
