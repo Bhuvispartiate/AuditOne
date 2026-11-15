@@ -1830,12 +1830,13 @@ export default function FinanceCentralPage() {
                     <th className="py-3 px-4">Payment Mode</th>
                     <th className="py-3 px-4">Reference #</th>
                     <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {payments.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                      <td colSpan={9} className="py-8 text-center text-slate-400">
                         No payments recorded yet. Click &quot;Record Payment&quot; above.
                       </td>
                     </tr>
@@ -1892,6 +1893,21 @@ export default function FinanceCentralPage() {
                           <Badge variant="success" className="text-[10px] font-bold">
                             {p.status}
                           </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (window.confirm(`Delete payment receipt ${p.payment_number}?`)) {
+                                await pmsStore.deletePayment(p.id);
+                                toast.success(`Payment receipt ${p.payment_number} removed.`);
+                              }
+                            }}
+                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            title="Delete this receipt"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </td>
                       </tr>
                     ))

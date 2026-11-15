@@ -95,6 +95,7 @@ import {
   fetchPaymentsFromDb,
   insertPaymentToDb,
   updatePaymentInDb,
+  deletePaymentFromDb,
   fetchTaskCategoriesFromDb,
   insertTaskCategoryToDb,
   updateTaskCategoryInDb,
@@ -4112,6 +4113,34 @@ class PMSDataStore {
     return payment;
   }
 
+  async deletePayment(paymentId: string): Promise<boolean> {
+    const idx = this.payments.findIndex((p) => p.id === paymentId);
+    if (idx === -1) return false;
+    const payment = this.payments[idx];
+
+    // If payment was linked to an invoice, restore invoice outstanding balance
+    if (payment.invoice_id) {
+      const inv = this.invoices.find((i) => i.id === payment.invoice_id);
+      if (inv) {
+        inv.paid_amount = Math.max(0, (inv.paid_amount || 0) - payment.amount);
+        const payableTotal = inv.net_payable ?? inv.grand_total;
+        inv.outstanding_balance = Math.min(payableTotal, (inv.outstanding_balance || 0) + payment.amount);
+        inv.status = inv.paid_amount <= 0.01 ? "Finalized" : "Partially Paid";
+        await updateInvoiceInDb(inv.id, {
+          paid_amount: inv.paid_amount,
+          outstanding_balance: inv.outstanding_balance,
+          status: inv.status,
+        }).catch(() => {});
+      }
+    }
+
+    this.payments.splice(idx, 1);
+    await deletePaymentFromDb(paymentId).catch(() => {});
+    this.addActivityLog(`Deleted payment receipt ${payment.payment_number}`, "payment", paymentId);
+    this.persist();
+    return true;
+  }
+
   // ============================================================================
   // CENTRALIZED FINANCE & INVOICE MANAGEMENT BUSINESS ENGINE
   // ============================================================================
@@ -4841,8 +4870,20 @@ class PMSDataStore {
     this.approvalLogs.unshift(approvalLog);
 
     this.addActivityLog(`Admin approved invoice request ${request.request_number} -> Generated ${generatedInvoice.invoice_number}`, "invoice", generatedInvoice.id);
+
+    // 5. Automatically allocate any unallocated client advance payments to this newly generated invoice
+    const unallocatedAdvances = this.payments.filter(
+      (p) => p.client_id === request.client_id && (!p.invoice_id || p.invoice_id === "") && p.status === "Completed"
+    );
+    for (const adv of unallocatedAdvances) {
+      const liveInv = this.invoices.find((i) => i.id === generatedInvoice.id);
+      if (liveInv && liveInv.outstanding_balance > 0) {
+        await this.allocatePaymentToInvoice(adv.id, liveInv.id).catch(() => {});
+      }
+    }
+
     this.persist();
-    return generatedInvoice;
+    return this.invoices.find((i) => i.id === generatedInvoice.id) || generatedInvoice;
   }
 
   /**

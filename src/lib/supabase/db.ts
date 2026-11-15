@@ -1328,6 +1328,14 @@ export async function insertPaymentToDb(payment: Payment): Promise<Payment> {
   return { ...payment, id };
 }
 
+export async function deletePaymentFromDb(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("payments").delete().eq("id", id);
+  if (error) {
+    console.warn("Supabase delete payment error:", error);
+  }
+}
+
 // ----------------------------------------------------------------------------
 // CENTRALIZED FINANCE: INVOICE REQUESTS, RECURRING INVOICES, BULK BATCHES & LOGS
 // ----------------------------------------------------------------------------
