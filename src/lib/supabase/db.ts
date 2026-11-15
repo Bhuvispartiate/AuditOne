@@ -1242,6 +1242,37 @@ export async function deleteInvoiceFromDb(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function updateInvoiceInDb(id: string, updates: Partial<Invoice>): Promise<void> {
+  const supabase = createClient();
+  const dbUpdates: Record<string, any> = {};
+
+  if (updates.paid_amount !== undefined) dbUpdates.paid_amount = updates.paid_amount;
+  if (updates.outstanding_balance !== undefined) dbUpdates.outstanding_balance = updates.outstanding_balance;
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
+  if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+
+  const { error } = await supabase.from("invoices").update(dbUpdates).eq("id", id);
+  if (error) {
+    console.error("Supabase update invoice error:", error);
+    throw new Error(error.message);
+  }
+}
+
+export async function updatePaymentInDb(id: string, updates: Partial<Payment>): Promise<void> {
+  const supabase = createClient();
+  const dbUpdates: Record<string, any> = {};
+
+  if (updates.invoice_id !== undefined) dbUpdates.invoice_id = isUuid(updates.invoice_id) ? updates.invoice_id : null;
+  if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
+
+  const { error } = await supabase.from("payments").update(dbUpdates).eq("id", id);
+  if (error) {
+    console.error("Supabase update payment error:", error);
+    throw new Error(error.message);
+  }
+}
+
 export async function fetchPaymentsFromDb(): Promise<Payment[]> {
   const supabase = createClient();
   const { data, error } = await supabase

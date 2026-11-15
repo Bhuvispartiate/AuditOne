@@ -90,9 +90,11 @@ import {
   deleteWorkflowFromDb,
   fetchInvoicesFromDb,
   insertInvoiceToDb,
+  updateInvoiceInDb,
   deleteInvoiceFromDb,
   fetchPaymentsFromDb,
   insertPaymentToDb,
+  updatePaymentInDb,
   fetchTaskCategoriesFromDb,
   insertTaskCategoryToDb,
   updateTaskCategoryInDb,
@@ -4052,6 +4054,11 @@ class PMSDataStore {
         } else if (inv.paid_amount > 0) {
           inv.status = "Partially Paid";
         }
+        await updateInvoiceInDb(inv.id, {
+          paid_amount: inv.paid_amount,
+          outstanding_balance: inv.outstanding_balance,
+          status: inv.status,
+        });
       }
     }
 
@@ -4066,6 +4073,42 @@ class PMSDataStore {
     );
     this.persist();
     return newPayment;
+  }
+
+  /**
+   * Allocate an unallocated direct advance payment to an existing unpaid or partially paid invoice.
+   */
+  async allocatePaymentToInvoice(paymentId: string, invoiceId: string): Promise<Payment | null> {
+    const payment = this.payments.find((p) => p.id === paymentId);
+    if (!payment) throw new Error("Payment record not found.");
+    const invoice = this.invoices.find((i) => i.id === invoiceId);
+    if (!invoice) throw new Error("Target invoice not found.");
+
+    payment.invoice_id = invoice.id;
+    payment.invoice_number = invoice.invoice_number;
+
+    const payableTotal = invoice.net_payable ?? invoice.grand_total;
+    invoice.paid_amount = Math.min(payableTotal, (invoice.paid_amount || 0) + payment.amount);
+    invoice.outstanding_balance = Math.max(0, payableTotal - invoice.paid_amount);
+    if (invoice.outstanding_balance <= 0.01) {
+      invoice.outstanding_balance = 0;
+      invoice.status = "Paid";
+    } else if (invoice.paid_amount > 0) {
+      invoice.status = "Partially Paid";
+    }
+
+    await Promise.all([
+      updatePaymentInDb(payment.id, { invoice_id: invoice.id }),
+      updateInvoiceInDb(invoice.id, {
+        paid_amount: invoice.paid_amount,
+        outstanding_balance: invoice.outstanding_balance,
+        status: invoice.status,
+      }),
+    ]);
+
+    this.addActivityLog(`Allocated payment ${payment.payment_number} to invoice ${invoice.invoice_number}`, "payment", payment.id);
+    this.persist();
+    return payment;
   }
 
   // ============================================================================

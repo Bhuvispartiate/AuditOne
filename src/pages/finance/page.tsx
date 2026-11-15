@@ -1847,9 +1847,36 @@ export default function FinanceCentralPage() {
                         <td className="py-3 px-4 font-bold text-slate-800">{p.client_name || "—"}</td>
                         <td className="py-3 px-4 font-mono text-slate-700">
                           {p.invoice_number ? (
-                            <span className="font-bold">{p.invoice_number}</span>
+                            <span className="font-bold text-slate-900">{p.invoice_number}</span>
                           ) : (
-                            <span className="text-slate-400 italic">Direct Advance</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-slate-400 italic">Direct Advance</span>
+                              {invoices.filter((inv) => inv.client_id === p.client_id && inv.outstanding_balance > 0).length > 0 && (
+                                <select
+                                  defaultValue=""
+                                  onChange={async (e) => {
+                                    if (e.target.value) {
+                                      try {
+                                        await pmsStore.allocatePaymentToInvoice(p.id, e.target.value);
+                                        toast.success("Payment allocated to invoice successfully!");
+                                      } catch (err: any) {
+                                        toast.error(err.message || "Failed to allocate payment.");
+                                      }
+                                    }
+                                  }}
+                                  className="h-6.5 rounded-lg border border-amber-300 bg-amber-50 text-[10px] font-bold text-amber-900 px-1.5 cursor-pointer shadow-2xs hover:bg-amber-100 transition-colors"
+                                >
+                                  <option value="">+ Link to Invoice...</option>
+                                  {invoices
+                                    .filter((inv) => inv.client_id === p.client_id && inv.outstanding_balance > 0)
+                                    .map((inv) => (
+                                      <option key={inv.id} value={inv.id}>
+                                        {inv.invoice_number} (Bal: ₹{inv.outstanding_balance.toLocaleString("en-IN")})
+                                      </option>
+                                    ))}
+                                </select>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-extrabold text-emerald-800 text-sm">
