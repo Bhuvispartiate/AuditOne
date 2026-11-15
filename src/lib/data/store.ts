@@ -523,7 +523,8 @@ class PMSDataStore {
       if (deletedTaskProjectSet.has((local as any).project_id)) continue;
 
       const ageMs = now - new Date(local.created_at || 0).getTime();
-      const isUnsavedRecentDraft = ageMs >= 0 && ageMs < 15000 && !isUuid(local.id);
+      // Retain recently created local items (created within the last 3 minutes) so they never vanish on refresh
+      const isUnsavedRecentDraft = ageMs >= 0 && ageMs < 180000;
 
       if (isUnsavedRecentDraft) {
         merged.push(local);

@@ -711,35 +711,54 @@ export async function deleteProjectFromDb(id: string): Promise<void> {
 
 export async function fetchTasksFromDb(): Promise<Task[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("*, projects(project_name, client_id, clients(client_name)), employees(full_name)")
-    .order("created_at", { ascending: false });
+  let data: any[] | null = null;
 
-  if (error) {
-    console.error("Supabase fetch tasks error:", error);
-    throw new Error(error.message);
+  try {
+    const res = await supabase
+      .from("tasks")
+      .select("*, projects(project_name, client_id, clients(client_name)), employees(full_name)")
+      .order("created_at", { ascending: false });
+    if (!res.error && res.data) {
+      data = res.data;
+    }
+  } catch (err) {
+    console.warn("Joined fetchTasksFromDb failed, falling back to direct select('*'):", err);
+  }
+
+  // Resilient fallback: fetch direct from tasks if relationship join encounters any schema mismatch
+  if (!data) {
+    const plainRes = await supabase
+      .from("tasks")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (plainRes.error) {
+      console.error("Supabase fetch tasks error:", plainRes.error);
+      throw new Error(plainRes.error.message);
+    }
+    data = plainRes.data || [];
   }
 
   const rawTasks = (data || []).map((row: any) => ({
     id: row.id,
     task_code: row.task_code,
     project_id: row.project_id,
-    project_name: row.projects?.project_name || "Project",
+    project_name: row.projects?.project_name || row.project_name || "Project",
     client_id: row.client_id || (row.projects as any)?.client_id || undefined,
     client_name: row.client_name || (row.projects as any)?.clients?.client_name || undefined,
     parent_task_id: row.parent_task_id || undefined,
     title: row.title,
     description: row.description || "",
     assigned_employee_id: row.assigned_employee_id || undefined,
-    assigned_employee_name: row.employees?.full_name || undefined,
-    priority: row.priority,
+    assigned_employee_name: row.employees?.full_name || row.assigned_employee_name || undefined,
+    priority: row.priority || "Medium",
     start_date: row.start_date,
     due_date: row.due_date,
-    status: row.status,
+    status: row.status || "To Do",
     completed_at: row.completed_at || undefined,
     category_id: row.category_id || undefined,
+    category_name: row.category_name || undefined,
     sub_category_id: row.sub_category_id || undefined,
+    sub_category_name: row.sub_category_name || undefined,
     whatsapp_enabled: Boolean(row.whatsapp_enabled ?? true),
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -782,7 +801,7 @@ export async function fetchTasksFromDb(): Promise<Task[]> {
 export async function insertTaskToDb(task: Task): Promise<Task> {
   const supabase = createClient();
   const id = ensureUuid(task.id);
-  const { error } = await supabase.from("tasks").insert({
+  const payload: Record<string, any> = {
     id,
     task_code: task.task_code,
     project_id: ensureUuid(task.project_id),
@@ -809,7 +828,17 @@ export async function insertTaskToDb(task: Task): Promise<Task> {
     currency: task.currency || "INR",
     created_at: task.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  });
+  };
+
+  let { error } = await supabase.from("tasks").insert(payload);
+
+  // If database still has legacy tasks_status_check constraint, retry gracefully with "To Do"
+  if (error && error.message && error.message.includes("tasks_status_check")) {
+    console.warn("Legacy tasks_status_check constraint caught. Retrying insert with status 'To Do'...");
+    payload.status = "To Do";
+    const retry = await supabase.from("tasks").insert(payload);
+    error = retry.error;
+  }
 
   if (error) {
     console.error("Supabase insert task error:", error);
@@ -872,7 +901,16 @@ export async function updateTaskInDb(id: string, updates: Partial<Task>): Promis
   if (updates.billing_description !== undefined) dbUpdates.billing_description = updates.billing_description || null;
   if (updates.currency !== undefined) dbUpdates.currency = updates.currency;
 
-  const { error } = await supabase.from("tasks").update(dbUpdates).eq("id", targetId);
+  let { error } = await supabase.from("tasks").update(dbUpdates).eq("id", targetId);
+
+  // If status update trips legacy tasks_status_check, fallback gracefully
+  if (error && error.message && error.message.includes("tasks_status_check")) {
+    console.warn("Legacy tasks_status_check constraint caught on update. Retrying with 'To Do'...");
+    dbUpdates.status = "To Do";
+    const retry = await supabase.from("tasks").update(dbUpdates).eq("id", targetId);
+    error = retry.error;
+  }
+
   if (error) {
     console.error("Supabase update task error:", error);
     throw new Error(error.message);
