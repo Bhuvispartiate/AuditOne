@@ -307,7 +307,7 @@ export function WorkflowHierarchyBoard({
 
       {/* Add Milestone Form */}
       {!isEmployee && showAddMilestone && (
-        <Card className="rounded-[24px] border-[1.5px] border-violet-300 bg-violet-50/30">
+        <Card className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5]">
           <CardContent className="p-4">
             <form
               onSubmit={handleCreateMilestone}
@@ -374,7 +374,7 @@ export function WorkflowHierarchyBoard({
                 <div className="p-4 border-b border-slate-200 bg-slate-50/90 space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-violet-700 block">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#201815] block">
                         Milestone {mIdx + 1}
                       </span>
                       <div className="flex items-center gap-2">
@@ -611,8 +611,8 @@ export function WorkflowHierarchyBoard({
                                             className="text-left min-w-0 flex-1 group"
                                           >
                                             <div className="flex items-center gap-1.5">
-                                              <CheckSquare className="h-3 w-3 text-violet-600 shrink-0" />
-                                              <span className="text-xs font-bold text-[#111827] group-hover:text-violet-700 truncate">
+                                              <CheckSquare className="h-3 w-3 text-[#201815] shrink-0" />
+                                              <span className="text-xs font-bold text-[#111827] group-hover:text-[#201815] truncate">
                                                 {tplTask.task_name}
                                               </span>
                                             </div>
@@ -642,7 +642,7 @@ export function WorkflowHierarchyBoard({
                                                 variant="ghost"
                                                 size="sm"
                                                 onClick={() => onOpenTaskModal(tplTask)}
-                                                className="h-6 px-1.5 rounded-lg text-[10px] font-bold text-violet-700 hover:bg-violet-50"
+                                                className="h-6 px-1.5 rounded-lg text-[10px] font-bold text-[#201815] hover:bg-[#EFE8DC]"
                                                 title="Add / Manage Subtasks"
                                               >
                                                 + Subtask
@@ -749,7 +749,7 @@ export function WorkflowHierarchyBoard({
         <Card className="rounded-[24px] border-[1.5px] border-slate-300 bg-white">
           <CardContent className="p-5 font-sans text-xs space-y-2">
             <div className="flex items-center gap-2 font-extrabold text-sm text-[#111827]">
-              <GitBranch className="h-4 w-4 text-violet-600" />
+              <GitBranch className="h-4 w-4 text-[#201815]" />
               <span>Goal: {workflow.goal_title || workflow.workflow_name}</span>
             </div>
 
@@ -787,7 +787,7 @@ export function WorkflowHierarchyBoard({
                             setViewMode("board");
                             setAddingStageForMs(ms.id);
                           }}
-                          className="h-6 px-2 text-[10px] font-bold text-violet-700"
+                          className="h-6 px-2 text-[10px] font-bold text-[#201815]"
                         >
                           + Stage
                         </Button>
@@ -795,7 +795,7 @@ export function WorkflowHierarchyBoard({
                     </div>
 
                     {!msCollapsed && (
-                      <div className="pl-5 border-l-2 border-violet-200 space-y-2 ml-2">
+                      <div className="pl-5 border-l-2 border-[#E2DACD] space-y-2 ml-2">
                         {ms.stages.map((stg, sIdx) => (
                           <div key={stg.id} className="space-y-1.5">
                             <div className="flex items-center justify-between gap-2 rounded-lg bg-indigo-50/50 border border-indigo-200/70 px-2.5 py-1.5">
@@ -869,7 +869,7 @@ export function WorkflowHierarchyBoard({
                                           <button
                                             type="button"
                                             onClick={() => onOpenTaskModal(tplTask)}
-                                            className="font-bold text-[#111827] hover:text-violet-700 text-left"
+                                            className="font-bold text-[#111827] hover:text-[#201815] text-left"
                                           >
                                             Task: {tplTask.task_name}
                                           </button>

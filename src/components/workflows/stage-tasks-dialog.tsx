@@ -455,7 +455,7 @@ export function StageTasksDialog({
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <Badge
                     variant="outline"
-                    className="text-[10px] font-bold bg-violet-50 text-violet-800 border-violet-200"
+                    className="text-[10px] font-bold bg-[#EFE8DC] text-[#201815] border-[#E2DACD]"
                   >
                     M{milestoneIndex + 1}: {milestone.title}
                   </Badge>
@@ -521,7 +521,7 @@ export function StageTasksDialog({
                     onDrop={(e) => handleTaskDrop(e, st.label as TaskStatus)}
                     className={`rounded-2xl border-[1.5px] p-3 flex flex-col gap-2.5 min-h-[260px] transition-colors ${
                       isOver
-                        ? "border-violet-500 bg-violet-50/50"
+                        ? "border-[#201815] bg-[#EFE8DC]/50"
                         : "border-slate-300 bg-white/80"
                     }`}
                   >
@@ -556,14 +556,14 @@ export function StageTasksDialog({
                               e.dataTransfer.setData("text/plain", task.id);
                             }}
                             onClick={() => openDetailFor(task.id, task.description)}
-                            className="rounded-xl border-[1.5px] border-slate-300 bg-white p-3 space-y-2 cursor-pointer hover:border-violet-500 hover:shadow-xs transition-all group"
+                            className="rounded-xl border border-[#E2DACD] bg-white p-3 space-y-2 cursor-pointer hover:border-[#201815] hover:shadow-xs transition-all group"
                           >
                             <div className="flex items-start justify-between gap-1.5">
                               <div className="flex items-start gap-1.5 min-w-0">
                                 {!isEmployee && (
                                   <GripVertical className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 mt-0.5 shrink-0" />
                                 )}
-                                <h4 className="text-xs font-extrabold text-[#111827] group-hover:text-violet-700 leading-snug">
+                                <h4 className="text-xs font-extrabold text-[#111827] group-hover:text-[#201815] leading-snug">
                                   {task.task_name}
                                 </h4>
                               </div>
@@ -608,7 +608,7 @@ export function StageTasksDialog({
                                 {task.due_date || "No due date"}
                               </span>
                               <div className="flex items-center gap-2">
-                                <span className="inline-flex items-center gap-1 font-bold text-violet-700">
+                                <span className="inline-flex items-center gap-1 font-bold text-[#201815]">
                                   <ListChecks className="h-3 w-3" />
                                   {subCount}
                                 </span>
@@ -947,7 +947,7 @@ export function StageTasksDialog({
                 <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-4">
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5 text-violet-600" />
+                      <Calendar className="h-3.5 w-3.5 text-[#201815]" />
                       <span>Overview &amp; Schedule</span>
                     </h4>
                     {!isEmployee && (
@@ -1116,7 +1116,7 @@ export function StageTasksDialog({
                 <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                      <ListChecks className="h-4 w-4 text-violet-600" />
+                      <ListChecks className="h-4 w-4 text-[#201815]" />
                       <span>
                         Subtasks ({(activeEntry.item.subtasks || []).length})
                       </span>
@@ -1144,10 +1144,10 @@ export function StageTasksDialog({
                         <div
                           key={sub.id}
                           onClick={() => openDetailFor(sub.id, sub.description)}
-                          className="rounded-xl border border-slate-300 bg-slate-50/60 hover:bg-white p-3 flex flex-wrap items-center justify-between gap-2 cursor-pointer hover:border-violet-500 transition-all group"
+                          className="rounded-xl border border-slate-300 bg-slate-50/60 hover:bg-white p-3 flex flex-wrap items-center justify-between gap-2 cursor-pointer hover:border-[#201815] transition-all group"
                         >
                           <div className="min-w-0">
-                            <p className="text-xs font-extrabold text-[#111827] group-hover:text-violet-700">
+                            <p className="text-xs font-extrabold text-[#111827] group-hover:text-[#201815]">
                               {sub.title}
                             </p>
                             <div className="flex flex-wrap items-center gap-2 mt-1 text-[10px] text-slate-500">
@@ -1163,7 +1163,7 @@ export function StageTasksDialog({
                               {(sub.subtasks?.length || 0) > 0 && (
                                 <>
                                   <span>•</span>
-                                  <span className="font-bold text-violet-700">
+                                  <span className="font-bold text-[#201815]">
                                     {sub.subtasks?.length} nested
                                   </span>
                                 </>
@@ -1175,7 +1175,7 @@ export function StageTasksDialog({
                             <Badge variant="secondary" className="text-[10px] font-bold">
                               {sub.status || taskStatuses[0]?.label || "To Do"}
                             </Badge>
-                            <span className="text-[11px] font-bold text-violet-700 group-hover:underline">
+                            <span className="text-[11px] font-bold text-[#201815] group-hover:underline">
                               Overview →
                             </span>
                           </div>
@@ -1286,7 +1286,7 @@ export function StageTasksDialog({
                 {/* BOX 4: Comments */}
                 <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-3">
                   <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                    <MessageSquare className="h-4 w-4 text-violet-600" />
+                    <MessageSquare className="h-4 w-4 text-[#201815]" />
                     <span>
                       Comments ({(activeEntry.item.default_comments || []).length})
                     </span>

@@ -387,7 +387,7 @@ export function StageKanbanBoard({
 
       {/* Inline Add Milestone Form */}
       {!isEmployee && showAddMilestone && (
-        <div className="rounded-[24px] border-[1.5px] border-violet-300 bg-violet-50/40 p-4">
+        <div className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-4">
           <form
             onSubmit={handleCreateMilestone}
             className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
@@ -584,7 +584,7 @@ export function StageKanbanBoard({
                   {/* Milestone Column Header (1 Column = 1 Milestone) */}
                   <div className="p-4 border-b border-slate-200 bg-white rounded-t-[22px] space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2.5 py-0.5 text-[11px] font-extrabold text-violet-800 truncate">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#EFE8DC] border border-[#E2DACD] px-2.5 py-0.5 text-[11px] font-extrabold text-[#201815] truncate">
                         M{milestoneIndex + 1}: {ms.title}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
@@ -846,7 +846,7 @@ export function StageKanbanBoard({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pr-6">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <Badge className="rounded-full bg-violet-100 text-violet-800 text-[10px] font-bold">
+                      <Badge className="rounded-full bg-[#EFE8DC] text-[#201815] text-[10px] font-bold">
                         {activeTaskContext.milestone.title}
                       </Badge>
                       <Badge variant="outline" className="rounded-full text-[10px] font-bold">

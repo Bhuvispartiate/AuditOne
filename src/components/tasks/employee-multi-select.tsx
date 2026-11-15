@@ -223,7 +223,7 @@ export const EmployeeMultiSelect: React.FC<EmployeeMultiSelectProps> = ({
                     <div
                       className={`h-4 w-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
                         isSelected
-                          ? "bg-violet-600 border-violet-600 text-white"
+                          ? "bg-[#201815] border-[#201815] text-[#FAF8F5]"
                           : "border-slate-300 bg-white"
                       }`}
                     >

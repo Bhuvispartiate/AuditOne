@@ -555,7 +555,7 @@ export default function WorkflowKanbanPage() {
               <span className="font-mono text-[11px] font-bold text-[#111827] bg-slate-100 border border-slate-300 px-2.5 py-0.5 rounded-lg">
                 {workflow.workflow_code}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-violet-300 bg-violet-50 px-2.5 py-0.5 text-[11px] font-bold text-violet-800">
+              <span className="inline-flex items-center gap-1 rounded-full border border-[#E2DACD] bg-[#EFE8DC] px-2.5 py-0.5 text-[11px] font-bold text-[#201815]">
                 <Briefcase className="h-3 w-3" />
                 Service: {workflow.service_name || "Unassigned"}
               </span>
@@ -705,7 +705,7 @@ export default function WorkflowKanbanPage() {
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                   <div className="flex items-center gap-2">
-                    <Plus className="h-4 w-4 text-violet-700" />
+                    <Plus className="h-4 w-4 text-[#201815]" />
                     <h3 className="text-sm font-extrabold text-[#111827]">
                       Add Deliverable Task to &ldquo;{workflow.workflow_name}&rdquo;
                     </h3>
@@ -804,7 +804,7 @@ export default function WorkflowKanbanPage() {
           {/* Template Tasks Grid */}
           <div className="space-y-3">
             <h3 className="text-base font-extrabold text-[#111827] flex items-center gap-2">
-              <CheckSquare className="h-4 w-4 text-violet-600" />
+              <CheckSquare className="h-4 w-4 text-[#201815]" />
               <span>Workflow Tasks, Subtasks & Comments ({tplTasks.length})</span>
             </h3>
 
@@ -861,7 +861,7 @@ export default function WorkflowKanbanPage() {
                             }}
                             className="text-left group"
                           >
-                            <h4 className="font-extrabold text-sm text-[#111827] group-hover:text-violet-700">
+                            <h4 className="font-extrabold text-sm text-[#111827] group-hover:text-[#201815]">
                               {t.task_name}
                             </h4>
                           </button>
@@ -895,7 +895,7 @@ export default function WorkflowKanbanPage() {
                         <div className="rounded-2xl border border-slate-300 bg-slate-50/40 p-3 space-y-1.5">
                           <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
                             <span className="inline-flex items-center gap-1">
-                              <ListChecks className="h-3.5 w-3.5 text-violet-600" />
+                              <ListChecks className="h-3.5 w-3.5 text-[#201815]" />
                               Subtasks ({subs.length})
                             </span>
                             <span className="inline-flex items-center gap-1">
@@ -986,7 +986,7 @@ export default function WorkflowKanbanPage() {
                       </div>
                       <Link
                         to={`/clients/${entry.clientId}`}
-                        className="font-extrabold text-sm text-[#111827] hover:text-violet-700 block truncate"
+                        className="font-extrabold text-sm text-[#111827] hover:text-[#201815] block truncate"
                       >
                         {entry.clientName}
                       </Link>
@@ -1003,7 +1003,7 @@ export default function WorkflowKanbanPage() {
           {boardEntries.length === 0 && (
             <div className="rounded-[24px] border-[1.5px] border-dashed border-slate-300 bg-white p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <Users2 className="h-6 w-6 text-violet-600 shrink-0" />
+                <Users2 className="h-6 w-6 text-[#201815] shrink-0" />
                 <div>
                   <h3 className="text-sm font-extrabold text-[#111827]">
                     No Clients Have &ldquo;{workflow.service_name || workflow.workflow_name}&rdquo; Yet
@@ -1068,7 +1068,7 @@ export default function WorkflowKanbanPage() {
                   }}
                   className={`w-[330px] shrink-0 rounded-[24px] border-[1.5px] p-4 space-y-3 transition-colors ${
                     isOver
-                      ? "border-violet-600 bg-violet-50/60"
+                      ? "border-[#201815] bg-[#EFE8DC]/60"
                       : "border-slate-300 bg-slate-50/80"
                   }`}
                 >
@@ -1183,7 +1183,7 @@ export default function WorkflowKanbanPage() {
                             <div>
                               <Link
                                 to={`/clients/${entry.clientId}`}
-                                className="text-sm font-extrabold text-[#111827] hover:text-violet-700 flex items-center gap-1 truncate"
+                                className="text-sm font-extrabold text-[#111827] hover:text-[#201815] flex items-center gap-1 truncate"
                               >
                                 <span className="truncate">{entry.clientName}</span>
                                 <ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
@@ -1226,7 +1226,7 @@ export default function WorkflowKanbanPage() {
                               <div className="space-y-1.5 pt-1">
                                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
                                   <span className="inline-flex items-center gap-1">
-                                    <ListChecks className="h-3.5 w-3.5 text-violet-600" />
+                                    <ListChecks className="h-3.5 w-3.5 text-[#201815]" />
                                     Subtasks
                                   </span>
                                   <span>
@@ -1419,7 +1419,7 @@ export default function WorkflowKanbanPage() {
                           <div>
                             <Link
                               to={`/clients/${entry.clientId}`}
-                              className="text-sm font-extrabold text-[#111827] hover:text-violet-700 truncate block"
+                              className="text-sm font-extrabold text-[#111827] hover:text-[#201815] truncate block"
                             >
                               {entry.clientName}
                             </Link>
@@ -1501,7 +1501,7 @@ export default function WorkflowKanbanPage() {
                 }}
                 className={`w-[305px] shrink-0 rounded-[24px] border-[1.5px] p-4 space-y-3 transition-colors ${
                   isOver
-                    ? "border-violet-600 bg-violet-50/60"
+                    ? "border-[#201815] bg-[#EFE8DC]/60"
                     : "border-slate-300 bg-slate-50/80"
                 }`}
               >
@@ -1542,7 +1542,7 @@ export default function WorkflowKanbanPage() {
                           }`}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md truncate">
+                            <span className="text-[10px] font-bold text-[#201815] bg-[#EFE8DC] border border-[#E2DACD] px-2 py-0.5 rounded-md truncate">
                               {entry.clientName}
                             </span>
                             <span className="font-mono text-[10px] text-slate-500 shrink-0">
@@ -1668,7 +1668,7 @@ export default function WorkflowKanbanPage() {
                         {/* Subtasks Section (Nested Sub-subtasks + Document Uploads) */}
                         <div className="space-y-2.5">
                           <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                            <CheckSquare className="h-3.5 w-3.5 text-violet-600" />
+                            <CheckSquare className="h-3.5 w-3.5 text-[#201815]" />
                             <span>Subtasks</span>
                           </div>
 
@@ -1849,7 +1849,7 @@ export default function WorkflowKanbanPage() {
                 {/* Template Subtasks */}
                 <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-3">
                   <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                    <ListChecks className="h-4 w-4 text-violet-600" />
+                    <ListChecks className="h-4 w-4 text-[#201815]" />
                     <span>Template Subtasks ({(activeTplTask.subtasks || []).length})</span>
                   </h4>
 

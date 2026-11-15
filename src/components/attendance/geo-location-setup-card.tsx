@@ -121,7 +121,7 @@ export function GeoLocationSetupCard({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="h-8 w-8 rounded-xl bg-[#f3f0ff] text-[#6c5ce7] flex items-center justify-center">
+            <div className="h-8 w-8 rounded-xl bg-[#EFE8DC] text-[#201815] flex items-center justify-center">
               <Radar className="h-4 w-4" />
             </div>
             <h2 className="text-base font-extrabold text-[#16172d]">
@@ -154,9 +154,9 @@ export function GeoLocationSetupCard({
             className="h-9 rounded-xl border-slate-300 text-xs font-bold gap-1.5 bg-white hover:bg-slate-50"
           >
             {capturing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-[#6c5ce7]" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-[#201815]" />
             ) : (
-              <Crosshair className="h-3.5 w-3.5 text-[#6c5ce7]" />
+              <Crosshair className="h-3.5 w-3.5 text-[#201815]" />
             )}
             <span>{capturing ? "Detecting GPS..." : "Use My Current Location"}</span>
           </Button>
@@ -234,7 +234,7 @@ export function GeoLocationSetupCard({
         <div className="md:col-span-2">
           <Button
             type="submit"
-            className="w-full h-9 rounded-xl bg-[#6c5ce7] hover:bg-[#5b4cdb] text-white text-xs font-bold gap-1.5"
+            className="w-full h-9 rounded-full bg-[#201815] hover:bg-[#342722] text-[#FAF8F5] text-xs font-bold gap-1.5"
           >
             <Save className="h-3.5 w-3.5" />
             <span>Save Location</span>
@@ -269,7 +269,7 @@ export function GeoLocationSetupCard({
       {existing && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
           <span className="inline-flex items-center gap-1.5 font-medium">
-            <MapPin className="h-3.5 w-3.5 text-[#6c5ce7]" />
+            <MapPin className="h-3.5 w-3.5 text-[#201815]" />
             <span>
               <strong className="text-slate-900">{existing.location_name}</strong> &bull;{" "}
               <span className="font-mono">
