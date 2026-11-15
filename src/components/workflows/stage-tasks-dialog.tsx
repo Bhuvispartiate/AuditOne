@@ -519,11 +519,10 @@ export function StageTasksDialog({
                     }}
                     onDragLeave={() => setDragOverStatus(null)}
                     onDrop={(e) => handleTaskDrop(e, st.label as TaskStatus)}
-                    className={`rounded-2xl border-[1.5px] p-3 flex flex-col gap-2.5 min-h-[260px] transition-colors ${
-                      isOver
+                    className={`rounded-2xl border-[1.5px] p-3 flex flex-col gap-2.5 min-h-[260px] transition-colors ${isOver
                         ? "border-[#201815] bg-[#EFE8DC]/50"
                         : "border-slate-300 bg-white/80"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-200">
                       <div className="flex items-center gap-2">
@@ -863,8 +862,8 @@ export function StageTasksDialog({
                         {activeEntry.kind === "task"
                           ? "TASK"
                           : drillPath.length === 2
-                          ? "SUBTASK"
-                          : `SUBTASK L${drillPath.length - 1}`}
+                            ? "SUBTASK"
+                            : `SUBTASK L${drillPath.length - 1}`}
                       </span>
                       <DialogTitle className="text-xl font-extrabold text-[#111827]">
                         {activeEntry.kind === "task"
