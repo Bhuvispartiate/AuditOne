@@ -72,9 +72,6 @@ export default function ProjectsPage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
             Project Deliverables & Engagements
           </h1>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Track client compliance milestones, internal initiatives and delivery teams.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!isEmployee && (

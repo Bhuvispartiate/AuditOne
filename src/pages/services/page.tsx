@@ -78,42 +78,46 @@ export default function ServicesPage() {
     return matchesSearch && matchesType;
   });
 
-  const handleSaveService = (e: React.FormEvent) => {
+  const handleSaveService = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!serviceCode.trim() || !serviceName.trim()) {
       toast.error("Please provide both Service Code and Service Name.");
       return;
     }
 
-    if (editingService) {
-      pmsStore.updateService(editingService.id, {
-        service_code: serviceCode.toUpperCase(),
-        service_name: serviceName,
-        description,
-        default_fee: Number(defaultFee),
-        default_gst_rate: Number(defaultGstRate),
-        billing_type: billingType,
-        status,
-      });
-      toast.success(`Service "${serviceName}" updated.`);
-    } else {
-      pmsStore.addService({
-        service_code: serviceCode.toUpperCase(),
-        service_name: serviceName,
-        description,
-        default_fee: Number(defaultFee),
-        default_gst_rate: Number(defaultGstRate),
-        billing_type: billingType,
-        status,
-      });
-      toast.success(`Service "${serviceName}" added to catalog.`);
-    }
+    try {
+      if (editingService) {
+        await pmsStore.updateService(editingService.id, {
+          service_code: serviceCode.toUpperCase(),
+          service_name: serviceName,
+          description,
+          default_fee: Number(defaultFee),
+          default_gst_rate: Number(defaultGstRate),
+          billing_type: billingType,
+          status,
+        });
+        toast.success(`Service "${serviceName}" updated in database.`);
+      } else {
+        await pmsStore.addService({
+          service_code: serviceCode.toUpperCase(),
+          service_name: serviceName,
+          description,
+          default_fee: Number(defaultFee),
+          default_gst_rate: Number(defaultGstRate),
+          billing_type: billingType,
+          status,
+        });
+        toast.success(`Service "${serviceName}" added to Supabase catalog.`);
+      }
 
-    setIsModalOpen(false);
-    setEditingService(null);
-    setServiceCode("");
-    setServiceName("");
-    setDescription("");
+      setIsModalOpen(false);
+      setEditingService(null);
+      setServiceCode("");
+      setServiceName("");
+      setDescription("");
+    } catch (err: any) {
+      toast.error(`Database error: ${err.message || "Failed to save service."}`);
+    }
   };
 
   return (
@@ -124,9 +128,6 @@ export default function ServicesPage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
             Professional Service Catalog
           </h1>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Standard firm deliverables, statutory SAC compliance, default professional fees and GST tax rates.
-          </p>
         </div>
         <Button
           onClick={openCreateModal}
@@ -289,10 +290,14 @@ export default function ServicesPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!window.confirm(`Delete service "${srv.service_name}" from catalog?`)) return;
-                      pmsStore.deleteService(srv.id);
-                      toast.success(`Deleted service "${srv.service_name}".`);
+                      try {
+                        await pmsStore.deleteService(srv.id);
+                        toast.success(`Deleted service "${srv.service_name}".`);
+                      } catch (err: any) {
+                        toast.error(`Failed to delete service: ${err.message || err}`);
+                      }
                     }}
                     className="h-8 px-2.5 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold gap-1 transition-colors shadow-none"
                     title="Delete Service"

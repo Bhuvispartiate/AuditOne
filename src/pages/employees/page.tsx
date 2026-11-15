@@ -47,9 +47,6 @@ export default function EmployeesListPage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
             Employee Master Directory
           </h1>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Professional staff records, practice designations, reporting supervisors and team memberships.
-          </p>
         </div>
 
         <Link to="/employees/new">

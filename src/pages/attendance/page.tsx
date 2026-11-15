@@ -173,12 +173,6 @@ export default function AttendancePage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
             Employee Geo-Attendance
           </h1>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            {isEmployee
-              ? "Verify your own daily GPS attendance within "
-              : "All employees mark daily attendance from this page using live GPS verification within "}
-            <strong className="text-[#111827]">±{geoConfig?.radius_meters || 50} meters</strong> of the admin-configured office location.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">

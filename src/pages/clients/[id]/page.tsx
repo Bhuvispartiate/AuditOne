@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Building2,
+  Landmark,
   Phone,
   Mail,
   MapPin,
@@ -167,12 +168,12 @@ export default function Client360ProfilePage() {
     );
   }
 
-  const handleAddService = (e: React.FormEvent) => {
+  const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault();
     const service = allServices.find((s) => s.id === selectedServiceId);
     if (!service) return;
 
-    const { project, tasks: createdTasks } = pmsStore.addServiceEngagementCascade({
+    const { project, tasks: createdTasks } = await pmsStore.addServiceEngagementCascade({
       client_id: client.id,
       client_name: client.client_name,
       service_id: service.id,
@@ -611,6 +612,65 @@ export default function Client360ProfilePage() {
                             <span>Reg Date: {formatDate(r.date_of_registration)}</span>
                           )}
                           {r.remarks && <span>Remarks: {r.remarks}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {client.bank_accounts && client.bank_accounts.length > 0 && (
+                <div className="col-span-full pt-4 border-t border-slate-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Landmark className="h-4 w-4 text-blue-600" />
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase">
+                      Bank Account Details ({client.bank_accounts.length})
+                    </h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {client.bank_accounts.map((acc, i) => (
+                      <div
+                        key={acc.id || i}
+                        className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm">{acc.bank_name}</span>
+                            {acc.is_primary && (
+                              <Badge className="bg-blue-100 text-blue-800 text-[10px]">Primary</Badge>
+                            )}
+                          </div>
+                          <Badge variant="outline" className="text-[10px]">
+                            {acc.account_type || "Current"}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-slate-600">
+                          <div>
+                            <span className="text-[11px] text-slate-400 block">Account Number</span>
+                            <span className="font-mono font-semibold text-slate-900">{acc.account_number}</span>
+                          </div>
+                          <div>
+                            <span className="text-[11px] text-slate-400 block">IFSC Code</span>
+                            <span className="font-mono font-semibold text-blue-700">{acc.ifsc_code}</span>
+                          </div>
+                          {acc.account_holder_name && (
+                            <div className="col-span-2">
+                              <span className="text-[11px] text-slate-400 block">Account Holder</span>
+                              <span className="font-medium text-slate-800">{acc.account_holder_name}</span>
+                            </div>
+                          )}
+                          {acc.branch_name && (
+                            <div>
+                              <span className="text-[11px] text-slate-400 block">Branch</span>
+                              <span className="text-slate-800">{acc.branch_name}</span>
+                            </div>
+                          )}
+                          {acc.upi_id && (
+                            <div>
+                              <span className="text-[11px] text-slate-400 block">UPI / VPA</span>
+                              <span className="font-mono text-emerald-700">{acc.upi_id}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

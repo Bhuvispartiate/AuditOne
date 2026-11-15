@@ -192,8 +192,11 @@ export interface ClientBankAccount {
   client_id: string;
   bank_name: string;
   account_number: string;
+  account_holder_name?: string;
   ifsc_code: string;
+  branch_name?: string;
   account_type: string;
+  upi_id?: string;
   is_primary: boolean;
 }
 
@@ -288,6 +291,7 @@ export interface TaskSubCategory {
   name: string;
   code?: string;
   description?: string;
+  whatsapp_enabled?: boolean;
   created_at: string;
 }
 
@@ -298,6 +302,7 @@ export interface TaskCategory {
   description?: string;
   color?: string;
   icon?: string;
+  whatsapp_enabled?: boolean;
   sub_categories: TaskSubCategory[];
   created_at: string;
 }
@@ -307,6 +312,8 @@ export interface Task {
   task_code: string;
   project_id: string;
   project_name?: string;
+  client_id?: string;
+  client_name?: string;
   parent_task_id?: string;
   category_id?: string;
   category_name?: string;
@@ -323,6 +330,14 @@ export interface Task {
   description: string;
   assigned_employee_id?: string;
   assigned_employee_name?: string;
+  assigned_employee_ids?: string[];
+  assigned_employees?: Array<{
+    id: string;
+    full_name: string;
+    designation?: string;
+    email?: string;
+  }>;
+  whatsapp_enabled?: boolean;
   priority: ProjectPriority;
   start_date?: string;
   due_date: string;
@@ -436,6 +451,7 @@ export interface WorkflowTemplate {
   version: number;
   stages_count?: number;
   created_at: string;
+  whatsapp_enabled?: boolean;
   milestones?: WorkflowMilestoneTemplate[];
   template_tasks?: WorkflowProjectTaskTemplate[];
   versions?: WorkflowTemplateVersion[];
@@ -743,6 +759,109 @@ export interface AttendanceRecord {
   matched: boolean;
   location_name?: string;
   created_at: string;
+}
+
+export type UniversalRecycleBinType =
+  | 'client'
+  | 'task'
+  | 'category'
+  | 'sub-category'
+  | 'workflow'
+  | 'document'
+  | 'folder'
+  | 'project'
+  | 'vault-credential';
+
+export interface UniversalRecycleBinItem {
+  id: string;
+  item_id: string;
+  item_type: UniversalRecycleBinType;
+  title: string;
+  code?: string;
+  subtitle?: string;
+  category_name?: string;
+  client_name?: string;
+  raw_data: any;
+  deleted_at: string;
+  deleted_by?: string;
+  deleted_by_name?: string;
+  recovery_deadline: string;
+}
+
+// ============================================================================
+// CREDENTIAL VAULT (AES-256-GCM SECURE PASSWORDS & PORTAL LOGINS)
+// ============================================================================
+
+export type VaultCategory =
+  | 'Taxation'
+  | 'Corporate / MCA'
+  | 'Banking & Finance'
+  | 'Payroll & Labour'
+  | 'Government & DGFT'
+  | 'Cloud & Software'
+  | 'Other';
+
+export interface VaultPasswordHistoryEntry {
+  id: string;
+  password_encrypted: string;
+  changed_at: string;
+  changed_by_id?: string;
+  changed_by_name: string;
+}
+
+export interface VaultCredential {
+  id: string;
+  portal_name: string;
+  login_url: string;
+  username: string;
+  password_encrypted: string;
+  registered_email?: string;
+  registered_mobile?: string;
+  account_holder_name?: string;
+  category: VaultCategory;
+  client_id?: string;
+  client_name?: string;
+  assigned_employee_ids?: string[];
+  assigned_employee_names?: string;
+  notes?: string;
+  password_history?: VaultPasswordHistoryEntry[];
+  last_password_changed_at: string;
+  rotation_reminder_days: number;
+  created_at: string;
+  updated_at: string;
+  created_by_id?: string;
+  created_by_name?: string;
+}
+
+export type VaultAuditAction =
+  | 'VIEW'
+  | 'COPY_PASSWORD'
+  | 'COPY_USERNAME'
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'RESTORE'
+  | 'EXPORT';
+
+export interface VaultAuditLog {
+  id: string;
+  credential_id: string;
+  portal_name: string;
+  action: VaultAuditAction;
+  performed_by_id: string;
+  performed_by_name: string;
+  timestamp: string;
+  details?: string;
+  client_name?: string;
+}
+
+export interface WhatsAppTemplate {
+  id: string;
+  title: string;
+  category: 'Task' | 'Subtask' | 'Workflow' | 'General';
+  content: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 

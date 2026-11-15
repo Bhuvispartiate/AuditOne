@@ -6,6 +6,7 @@ import {
   Phone,
   FileCheck,
   ShieldCheck,
+  Landmark,
   Plus,
   Save,
   Briefcase,
@@ -76,8 +77,6 @@ export default function NewClientOnboardingPage() {
 
   // Section C
   const [pan, setPan] = useState("");
-  const [gstin, setGstin] = useState("");
-  const [cin, setCin] = useState("");
   const [dobOrDoi, setDobOrDoi] = useState("");
   const [extraRegistrations, setExtraRegistrations] = useState<
     Array<{
@@ -94,7 +93,30 @@ export default function NewClientOnboardingPage() {
   const [extraStatus, setExtraStatus] = useState<"Active" | "Inactive">("Active");
   const [extraRemarks, setExtraRemarks] = useState("");
 
-  // Section D
+  // Section D — Bank Account Details
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
+  const [accountHolderName, setAccountHolderName] = useState("");
+  const [accountType, setAccountType] = useState("Current");
+  const [ifscCode, setIfscCode] = useState("");
+  const [branchName, setBranchName] = useState("");
+  const [upiId, setUpiId] = useState("");
+  const [bankAccountsList, setBankAccountsList] = useState<
+    Array<{
+      id: string;
+      bank_name: string;
+      account_number: string;
+      account_holder_name?: string;
+      account_type: string;
+      ifsc_code: string;
+      branch_name?: string;
+      upi_id?: string;
+      is_primary: boolean;
+    }>
+  >([]);
+
+  // Section E — Relationship & Settings
   const [relationshipManagerId, setRelationshipManagerId] = useState(employees[0]?.id || "");
   const [clientStatus, setClientStatus] = useState<ClientStatus>("Active");
   const [remarks, setRemarks] = useState("");
@@ -213,11 +235,70 @@ export default function NewClientOnboardingPage() {
     setExtraRegistrations(extraRegistrations.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAddBankAccount = () => {
+    if (!bankName.trim() || !accountNumber.trim() || !ifscCode.trim()) {
+      toast.error("Please fill Bank Name, Account Number, and IFSC Code to add bank account.");
+      return;
+    }
+    if (confirmAccountNumber.trim() && accountNumber.trim() !== confirmAccountNumber.trim()) {
+      toast.error("Account Number and Confirm Account Number do not match.");
+      return;
+    }
+    const isFirst = bankAccountsList.length === 0;
+    setBankAccountsList((prev) => [
+      ...prev,
+      {
+        id: `bnk-${Date.now()}`,
+        bank_name: bankName.trim(),
+        account_number: accountNumber.trim(),
+        account_holder_name: accountHolderName.trim() || clientName.trim() || undefined,
+        account_type: accountType,
+        ifsc_code: ifscCode.trim().toUpperCase(),
+        branch_name: branchName.trim() || undefined,
+        upi_id: upiId.trim() || undefined,
+        is_primary: isFirst,
+      },
+    ]);
+    setBankName("");
+    setAccountNumber("");
+    setConfirmAccountNumber("");
+    setAccountHolderName("");
+    setAccountType("Current");
+    setIfscCode("");
+    setBranchName("");
+    setUpiId("");
+    toast.success("Bank account added to draft list.");
+  };
+
+  const handleRemoveBankAccount = (index: number) => {
+    setBankAccountsList((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length > 0 && !next.some((a) => a.is_primary)) {
+        next[0].is_primary = true;
+      }
+      return next;
+    });
+  };
+
+  const handleSetPrimaryBank = (index: number) => {
+    setBankAccountsList((prev) =>
+      prev.map((acc, i) => ({
+        ...acc,
+        is_primary: i === index,
+      }))
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!clientName.trim() || !legalName.trim()) {
       toast.error("Please fill all mandatory fields: Client Name and Legal Name.");
+      return;
+    }
+
+    if (!pan.trim()) {
+      toast.error("PAN Card is a mandatory required field.");
       return;
     }
 
@@ -275,95 +356,124 @@ export default function NewClientOnboardingPage() {
       });
     }
 
-    const newClient = pmsStore.addClient(
-      {
-        client_name: clientName,
-        legal_name: legalName,
-        nick_name: nickName.trim() || undefined,
-        folder_name:
-          folderName.trim() ||
-          (nickName.trim() ? `${nickName.trim()} ${previewClientCode}` : undefined),
-        reference_name: referenceName || undefined,
-        constitution,
-        category,
-        nature_of_income: natureOfIncome,
-        remarks,
-        relationship_manager_id: relationshipManagerId,
-        relationship_manager_name: rm?.full_name,
-        status: clientStatus,
-        contact: {
-          ...finalContacts[0],
-          client_id: "",
-        },
-        contacts: finalContacts.map((c) => ({ ...c, client_id: "" })),
-        addresses: [
-          {
-            id: `addr-1-${Date.now()}`,
-            client_id: "",
-            address_type: "Registered",
-            street_address: registeredAddress,
-            city,
-            state,
-            pin_code: pinCode,
-            country,
-            is_primary: true
-          },
-          ...(communicationAddress ? [{
-            id: `addr-2-${Date.now()}`,
-            client_id: "",
-            address_type: "Communication" as const,
-            street_address: communicationAddress,
-            city,
-            state,
-            pin_code: pinCode,
-            country,
-            is_primary: false
-          }] : [])
-        ],
-        registration: {
-          id: `reg-${Date.now()}`,
-          client_id: "",
-          pan: pan.trim() ? pan.toUpperCase() : undefined,
-          gstin: gstin ? gstin.toUpperCase() : undefined,
-          cin: cin ? cin.toUpperCase() : undefined,
-          dob_or_doi: dobOrDoi || undefined,
-          additional_registrations: finalExtraRegistrations
-        }
-      },
-      { skipDefaultProject: retainersToCreate.length > 0 }
-    );
-
-    let createdProjectsCount = retainersToCreate.length === 0 ? 1 : 0;
-    let createdTasksCount = retainersToCreate.length === 0 ? 1 : 0;
-
-    retainersToCreate.forEach((ret) => {
-      const result = pmsStore.addServiceEngagementCascade({
-        client_id: newClient.id,
-        client_name: newClient.client_name,
-        service_id: ret.service_id,
-        service_name: ret.service_name,
-        service_code: ret.service_code,
-        agreed_fee: ret.agreed_fee,
-        gst_rate: ret.default_gst_rate,
-        billing_frequency: ret.billing_frequency,
-        payment_terms: ret.payment_terms,
-        relationship_manager_id: relationshipManagerId,
-        relationship_manager_name: rm?.full_name,
-        start_date: ret.start_date,
-        end_date: ret.end_date || undefined,
-        status: "Active",
-        remarks: "Subscribed during client onboarding",
+    const finalBankAccounts = [...bankAccountsList];
+    if (bankName.trim() || accountNumber.trim() || ifscCode.trim()) {
+      if (!bankName.trim() || !accountNumber.trim() || !ifscCode.trim()) {
+        toast.error("Please fill Bank Name, Account Number, and IFSC Code to save bank details.");
+        return;
+      }
+      if (confirmAccountNumber.trim() && accountNumber.trim() !== confirmAccountNumber.trim()) {
+        toast.error("Account Number and Confirm Account Number do not match.");
+        return;
+      }
+      finalBankAccounts.push({
+        id: `bnk-${Date.now()}`,
+        bank_name: bankName.trim(),
+        account_number: accountNumber.trim(),
+        account_holder_name: accountHolderName.trim() || clientName.trim() || undefined,
+        account_type: accountType,
+        ifsc_code: ifscCode.trim().toUpperCase(),
+        branch_name: branchName.trim() || undefined,
+        upi_id: upiId.trim() || undefined,
+        is_primary: finalBankAccounts.length === 0,
       });
-      createdProjectsCount += 1;
-      createdTasksCount += result.tasks.length;
-    });
+    }
 
-    toast.success(
-      retainersToCreate.length > 0
-        ? `Client ${newClient.client_name} (${newClient.client_code}) created with ${retainersToCreate.length} service(s), ${createdProjectsCount} project(s) & ${createdTasksCount} task(s).`
-        : `Client ${newClient.client_name} (${newClient.client_code}) created with 1 Project & 1 Task.`
-    );
-    navigate(`/clients/${newClient.id}`);
+    try {
+      const newClient = await pmsStore.addClient(
+        {
+          client_name: clientName,
+          legal_name: legalName,
+          nick_name: nickName.trim() || undefined,
+          folder_name:
+            folderName.trim() ||
+            (nickName.trim() ? `${nickName.trim()} ${previewClientCode}` : undefined),
+          reference_name: referenceName || undefined,
+          constitution,
+          category,
+          nature_of_income: natureOfIncome,
+          remarks,
+          relationship_manager_id: relationshipManagerId,
+          relationship_manager_name: rm?.full_name,
+          status: clientStatus,
+          contact: {
+            ...finalContacts[0],
+            client_id: "",
+          },
+          contacts: finalContacts.map((c) => ({ ...c, client_id: "" })),
+          addresses: [
+            {
+              id: `addr-1-${Date.now()}`,
+              client_id: "",
+              address_type: "Registered",
+              street_address: registeredAddress,
+              city,
+              state,
+              pin_code: pinCode,
+              country,
+              is_primary: true
+            },
+            ...(communicationAddress ? [{
+              id: `addr-2-${Date.now()}`,
+              client_id: "",
+              address_type: "Communication" as const,
+              street_address: communicationAddress,
+              city,
+              state,
+              pin_code: pinCode,
+              country,
+              is_primary: false
+            }] : [])
+          ],
+          registration: {
+            id: `reg-${Date.now()}`,
+            client_id: "",
+            pan: pan.trim().toUpperCase(),
+            dob_or_doi: dobOrDoi || undefined,
+            additional_registrations: finalExtraRegistrations
+          },
+          bank_accounts: finalBankAccounts.map((b) => ({
+            ...b,
+            client_id: "",
+          }))
+        },
+        { skipDefaultProject: retainersToCreate.length > 0 }
+      );
+
+      let createdProjectsCount = retainersToCreate.length === 0 ? 1 : 0;
+      let createdTasksCount = retainersToCreate.length === 0 ? 1 : 0;
+
+      for (const ret of retainersToCreate) {
+        const result = await pmsStore.addServiceEngagementCascade({
+          client_id: newClient.id,
+          client_name: newClient.client_name,
+          service_id: ret.service_id,
+          service_name: ret.service_name,
+          service_code: ret.service_code,
+          agreed_fee: ret.agreed_fee,
+          gst_rate: ret.default_gst_rate,
+          billing_frequency: ret.billing_frequency,
+          payment_terms: ret.payment_terms,
+          relationship_manager_id: relationshipManagerId,
+          relationship_manager_name: rm?.full_name,
+          start_date: ret.start_date,
+          end_date: ret.end_date || undefined,
+          status: "Active",
+          remarks: "Subscribed during client onboarding",
+        });
+        createdProjectsCount += 1;
+        createdTasksCount += result.tasks.length;
+      }
+
+      toast.success(
+        retainersToCreate.length > 0
+          ? `Client ${newClient.client_name} (${newClient.client_code}) created with ${retainersToCreate.length} service(s), ${createdProjectsCount} project(s) & ${createdTasksCount} task(s).`
+          : `Client ${newClient.client_name} (${newClient.client_code}) created with 1 Project & 1 Task.`
+      );
+      navigate(`/clients/${newClient.id}`);
+    } catch (err: any) {
+      toast.error(`Database error: ${err.message || "Failed to save client to Supabase."}`);
+    }
   };
 
   return (
@@ -686,39 +796,21 @@ export default function NewClientOnboardingPage() {
               </CardTitle>
             </div>
             <CardDescription className="text-xs">
-              PAN, GSTIN, CIN and additional statutory registrations
+              PAN and additional statutory registrations
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">PAN (Optional)</Label>
+                <Label className="text-xs font-semibold">
+                  PAN <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   placeholder="e.g. ABCDE1234F"
                   value={pan}
                   onChange={(e) => setPan(e.target.value.toUpperCase())}
                   maxLength={10}
-                  className="uppercase font-mono"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">GSTIN (Optional)</Label>
-                <Input
-                  placeholder="e.g. 07ABCDE1234F1Z5"
-                  value={gstin}
-                  onChange={(e) => setGstin(e.target.value.toUpperCase())}
-                  maxLength={15}
-                  className="uppercase font-mono"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">CIN / LLPIN (Optional)</Label>
-                <Input
-                  placeholder="e.g. U72200DL2020PTC123456"
-                  value={cin}
-                  onChange={(e) => setCin(e.target.value.toUpperCase())}
+                  required
                   className="uppercase font-mono"
                 />
               </div>
@@ -875,13 +967,202 @@ export default function NewClientOnboardingPage() {
           </CardContent>
         </Card>
 
-        {/* SECTION D — Additional Information */}
+        {/* SECTION D — Client Bank Account Details */}
+        <Card className="shadow-xs border-slate-200">
+          <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center gap-2">
+              <Landmark className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-base font-semibold text-slate-900">
+                Section D — Client Bank Account Details
+              </CardTitle>
+            </div>
+            <CardDescription className="text-xs">
+              Primary operating bank account, IFSC code, branch, account type and online payment identifiers
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Bank Name</Label>
+                <Input
+                  list="bank-name-presets"
+                  placeholder="e.g. HDFC Bank, SBI, ICICI"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                />
+                <datalist id="bank-name-presets">
+                  <option value="State Bank of India (SBI)" />
+                  <option value="HDFC Bank" />
+                  <option value="ICICI Bank" />
+                  <option value="Axis Bank" />
+                  <option value="Kotak Mahindra Bank" />
+                  <option value="Punjab National Bank" />
+                  <option value="Bank of Baroda" />
+                  <option value="Canara Bank" />
+                  <option value="Union Bank of India" />
+                  <option value="IndusInd Bank" />
+                  <option value="Yes Bank" />
+                  <option value="Federal Bank" />
+                  <option value="IDFC FIRST Bank" />
+                  <option value="Standard Chartered Bank" />
+                  <option value="Citibank" />
+                  <option value="HSBC Bank" />
+                </datalist>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Account Holder Name</Label>
+                <Input
+                  placeholder="e.g. As per bank records"
+                  value={accountHolderName}
+                  onChange={(e) => setAccountHolderName(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Account Type</Label>
+                <select
+                  value={accountType}
+                  onChange={(e) => setAccountType(e.target.value)}
+                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                >
+                  <option value="Current">Current Account</option>
+                  <option value="Savings">Savings Account</option>
+                  <option value="Cash Credit / Overdraft">Cash Credit (CC) / OD</option>
+                  <option value="Escrow">Escrow Account</option>
+                  <option value="NRE / NRO">NRE / NRO Account</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Account Number</Label>
+                <Input
+                  placeholder="e.g. 50200012345678"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Confirm Account Number</Label>
+                <Input
+                  placeholder="Re-enter account number"
+                  value={confirmAccountNumber}
+                  onChange={(e) => setConfirmAccountNumber(e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">IFSC Code</Label>
+                <Input
+                  placeholder="e.g. HDFC0000123"
+                  value={ifscCode}
+                  onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
+                  maxLength={11}
+                  className="uppercase font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Branch Name / City (Optional)</Label>
+                <Input
+                  placeholder="e.g. Nariman Point Branch, Mumbai"
+                  value={branchName}
+                  onChange={(e) => setBranchName(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">UPI ID / VPA (Optional)</Label>
+                <Input
+                  placeholder="e.g. company@okhdfcbank"
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddBankAccount}
+                  className="w-full h-9 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50 font-semibold text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Another Bank Account</span>
+                </Button>
+              </div>
+            </div>
+
+            {bankAccountsList.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2 mt-4">
+                <span className="text-xs font-bold text-slate-700 block">
+                  Added Bank Accounts ({bankAccountsList.length})
+                </span>
+                <div className="space-y-2">
+                  {bankAccountsList.map((acc, idx) => (
+                    <div
+                      key={acc.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-white border border-slate-200 px-3.5 py-2.5 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-slate-900">{acc.bank_name}</span>
+                        <span className="font-mono bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-semibold">
+                          A/C: {acc.account_number}
+                        </span>
+                        <span className="font-mono text-blue-700 font-semibold">
+                          IFSC: {acc.ifsc_code}
+                        </span>
+                        <Badge variant="outline" className="text-[10px]">
+                          {acc.account_type}
+                        </Badge>
+                        {acc.branch_name && (
+                          <span className="text-slate-500">Branch: {acc.branch_name}</span>
+                        )}
+                        {acc.upi_id && (
+                          <span className="text-emerald-600 font-mono">UPI: {acc.upi_id}</span>
+                        )}
+                        {acc.is_primary ? (
+                          <Badge className="bg-blue-100 text-blue-800 text-[10px]">Primary</Badge>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSetPrimaryBank(idx)}
+                            className="h-6 text-[10px] text-slate-600 hover:text-blue-600 px-1.5"
+                          >
+                            Set as Primary
+                          </Button>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveBankAccount(idx)}
+                        className="h-7 w-7 text-rose-500 hover:text-red-600 hover:bg-rose-50 shrink-0"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* SECTION E — Additional Information */}
         <Card className="shadow-xs border-slate-200">
           <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-amber-600" />
               <CardTitle className="text-base font-semibold text-slate-900">
-                Section D — Relationship & Organization Settings
+                Section E — Relationship & Organization Settings
               </CardTitle>
             </div>
             <CardDescription className="text-xs">
@@ -930,13 +1211,13 @@ export default function NewClientOnboardingPage() {
           </CardContent>
         </Card>
 
-        {/* SECTION E — Service Selection & Retainer Plan */}
+        {/* SECTION F — Service Selection & Retainer Plan */}
         <Card className="shadow-xs border-slate-200">
           <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
             <div className="flex items-center gap-2">
               <Briefcase className="h-4 w-4 text-lime-600" />
               <CardTitle className="text-base font-semibold text-slate-900">
-                Section E — Retainer Services &amp; Service Selection
+                Section F — Retainer Services &amp; Service Selection
               </CardTitle>
             </div>
             <CardDescription className="text-xs font-medium text-slate-600">

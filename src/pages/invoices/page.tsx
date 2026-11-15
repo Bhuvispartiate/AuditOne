@@ -81,9 +81,6 @@ export default function InvoicesListPage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
             GST Invoice Generator & Sales Register
           </h1>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Compliant tax invoices, intra-state CGST/SGST & inter-state IGST computations, PDF generation and ledger tracking.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">

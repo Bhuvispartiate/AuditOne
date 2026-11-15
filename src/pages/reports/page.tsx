@@ -117,9 +117,6 @@ export default function ReportsPage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
             Reports & Business Intelligence
           </h1>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Automated statutory sales registers, collections breakdown, employee workloads and client profitability.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">

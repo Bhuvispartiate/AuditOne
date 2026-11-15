@@ -24,6 +24,7 @@ import {
   ChevronDown,
   HelpCircle,
   Trash2,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { pmsStore } from "@/lib/data/store";
@@ -51,6 +52,7 @@ const EMPLOYEE_ALLOWED_HREFS = new Set([
   "/attendance",
   "/documents",
   "/recycle-bin",
+  "/vault",
 ]);
 
 const mainNavItems: NavItem[] = [
@@ -58,6 +60,7 @@ const mainNavItems: NavItem[] = [
   { title: "Client 360°", href: "/clients", icon: Users2 },
   { title: "Projects", href: "/projects", icon: FolderGit2 },
   { title: "Tasks", href: "/tasks", icon: CheckSquare },
+  { title: "Vault", href: "/vault", icon: KeyRound },
   { title: "Services", href: "/services", icon: Briefcase },
   { title: "Workflows", href: "/workflows", icon: GitBranch },
   { title: "Finance", href: "/finance", icon: CreditCard },

@@ -38,6 +38,8 @@ export function isEmployeeRestricted(user?: Employee | null): boolean {
 export function isTaskAssignedToEmployee(task: Task, employeeId: string): boolean {
   if (!employeeId) return false;
   if (task.assigned_employee_id === employeeId) return true;
+  if (task.assigned_employee_ids && task.assigned_employee_ids.includes(employeeId)) return true;
+  if (task.assigned_employees && task.assigned_employees.some((e) => e.id === employeeId)) return true;
   if (task.subtasks && task.subtasks.length > 0) {
     return task.subtasks.some((sub) => isTaskAssignedToEmployee(sub, employeeId));
   }

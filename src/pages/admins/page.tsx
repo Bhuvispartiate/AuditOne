@@ -167,9 +167,7 @@ export default function AdminsManagementPage() {
               Super Admin Exclusive
             </Badge>
           </div>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Create, promote, suspend, or revoke Admin accounts. Admins get full access to all operational pages except Admin Management.
-          </p>
+
         </div>
 
         <Button

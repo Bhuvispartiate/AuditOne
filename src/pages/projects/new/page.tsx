@@ -53,7 +53,7 @@ function NewProjectContent() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!projectName.trim()) {
@@ -73,23 +73,27 @@ function NewProjectContent() {
       };
     });
 
-    const newProject = pmsStore.addProject({
-      project_name: projectName,
-      project_type: projectType,
-      client_id: selectedClient?.id,
-      client_name: selectedClient?.client_name,
-      project_manager_id: selectedPM?.id,
-      project_manager_name: selectedPM?.full_name,
-      description,
-      priority,
-      start_date: startDate,
-      due_date: dueDate,
-      status,
-      assigned_employees: assigned,
-    });
+    try {
+      const newProject = await pmsStore.addProject({
+        project_name: projectName,
+        project_type: projectType,
+        client_id: selectedClient?.id,
+        client_name: selectedClient?.client_name,
+        project_manager_id: selectedPM?.id,
+        project_manager_name: selectedPM?.full_name,
+        description,
+        priority,
+        start_date: startDate,
+        due_date: dueDate,
+        status,
+        assigned_employees: assigned,
+      });
 
-    toast.success(`Project ${newProject.project_code} created successfully.`);
-    navigate("/projects");
+      toast.success(`Project ${newProject.project_code} created directly in Supabase.`);
+      navigate("/projects");
+    } catch (err: any) {
+      toast.error(`Database error: ${err.message || "Failed to create project."}`);
+    }
   };
 
   return (

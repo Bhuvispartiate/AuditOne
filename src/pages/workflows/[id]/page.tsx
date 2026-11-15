@@ -15,12 +15,15 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
+  Send,
+  Trash2,
   Search,
   User,
   Users2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -41,10 +44,12 @@ import { formatDate } from "@/lib/utils";
 import {
   Client,
   Project,
+  ProjectPriority,
   ServiceEngagement,
   Task,
   TaskStatus,
   WorkflowProjectTaskTemplate,
+  WorkflowSubtaskTemplate,
 } from "@/types";
 import { SubtaskTree } from "@/components/tasks/subtask-tree";
 import { TaskCommentsBox } from "@/components/tasks/task-comments-box";
@@ -52,7 +57,7 @@ import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 import { StageKanbanBoard } from "@/components/workflows/stage-kanban-board";
 import { toast } from "sonner";
 
-type BoardViewMode = "milestone_board" | "workflow_stages" | "status_columns";
+type BoardViewMode = "milestone_board" | "workflow_stages" | "status_columns" | "template_builder";
 
 interface BoardClientEntry {
   entryKey: string;
@@ -99,6 +104,26 @@ export default function WorkflowKanbanPage() {
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
 
+  // Selected template task for Subtasks/Comments modal
+  const [activeTplTaskId, setActiveTplTaskId] = useState<string | null>(null);
+  const [isTplTaskModalOpen, setIsTplTaskModalOpen] = useState(false);
+
+  // Add template task inline form
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDesc, setTaskDesc] = useState("");
+  const [taskStartDay, setTaskStartDay] = useState(1);
+  const [taskDurationDays, setTaskDurationDays] = useState(5);
+  const [taskPriority, setTaskPriority] = useState<ProjectPriority>("Medium");
+  const [taskStatus, setTaskStatus] = useState<TaskStatus>("To Do");
+  const [taskAssigneeId, setTaskAssigneeId] = useState("");
+
+  // Subtask & Comment inline inputs in modal
+  const [subTitle, setSubTitle] = useState("");
+  const [subStartDay, setSubStartDay] = useState(1);
+  const [subDurationDays, setSubDurationDays] = useState(2);
+  const [commentInput, setCommentInput] = useState("");
+
+
   // Client Task Drawer/Modal
   const [selectedEntryKey, setSelectedEntryKey] = useState<string | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -123,6 +148,110 @@ export default function WorkflowKanbanPage() {
   const allTasks = pmsStore.getTasks();
 
   const tplTasks: WorkflowProjectTaskTemplate[] = workflow?.template_tasks || [];
+
+  const employees = pmsStore.getEmployees();
+
+  const saveWorkflowTasks = (nextTasks: WorkflowProjectTaskTemplate[]) => {
+    if (!workflow) return;
+    pmsStore.updateWorkflow(workflow.id, {
+      template_tasks: nextTasks,
+      stages_count: nextTasks.length,
+    });
+    setTick((t) => t + 1);
+  };
+
+  const handleAddTemplateTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!workflow) return;
+    if (!taskTitle.trim()) {
+      toast.error("Please enter a task title.");
+      return;
+    }
+
+    const emp = employees.find((item) => item.id === taskAssigneeId);
+    const nextTask: WorkflowProjectTaskTemplate = {
+      id: `wt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      task_name: taskTitle.trim(),
+      description: taskDesc.trim(),
+      sequence_number: tplTasks.length + 1,
+      start_day_offset: Math.max(0, Number(taskStartDay) - 1),
+      duration_days: Math.max(1, Number(taskDurationDays) || 1),
+      priority: taskPriority,
+      status: taskStatus,
+      assigned_employee_id: emp?.id,
+      assigned_employee_name: emp?.full_name,
+      subtasks: [],
+      default_comments: [],
+    };
+
+    saveWorkflowTasks([...tplTasks, nextTask]);
+    setTaskTitle("");
+    setTaskDesc("");
+    toast.success(`Added task "${nextTask.task_name}" to workflow template.`);
+  };
+
+  const updateTemplateTask = (
+    taskId: string,
+    updater: (prev: WorkflowProjectTaskTemplate) => WorkflowProjectTaskTemplate
+  ) => {
+    if (!workflow) return;
+    const nextTasks = tplTasks.map((t) => (t.id === taskId ? updater(t) : t));
+    const nextMilestones = workflow.milestones?.map((m) => ({
+      ...m,
+      stages: (m.stages || []).map((s) => ({
+        ...s,
+        sub_stages: (s.sub_stages || []).map((ss) => ({
+          ...ss,
+          tasks: (ss.tasks || []).map((t) => (t.id === taskId ? updater(t) : t)),
+        })),
+      })),
+    }));
+    pmsStore.updateWorkflow(workflow.id, {
+      template_tasks: nextTasks,
+      ...(nextMilestones ? { milestones: nextMilestones } : {}),
+    });
+    setTick((t) => t + 1);
+  };
+
+  const handleDeleteTemplateTask = (taskId: string) => {
+    if (!workflow) return;
+    const nextTasks = tplTasks.filter((t) => t.id !== taskId);
+    saveWorkflowTasks(nextTasks);
+    toast.success("Task removed from workflow template.");
+  };
+
+  const handleAddTemplateSubtask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeTplTask || !subTitle.trim()) return;
+    const newSub: WorkflowSubtaskTemplate = {
+      id: `wst-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      title: subTitle.trim(),
+      start_day_offset: Math.max(0, Number(subStartDay) - 1),
+      duration_days: Math.max(1, Number(subDurationDays)),
+      status: "To Do",
+      priority: activeTplTask.priority,
+    };
+    updateTemplateTask(activeTplTask.id, (prev) => ({
+      ...prev,
+      subtasks: [...(prev.subtasks || []), newSub],
+    }));
+    setSubTitle("");
+    toast.success("Subtask added to workflow template.");
+  };
+
+  const handleAddTemplateComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeTplTask || !commentInput.trim()) return;
+    updateTemplateTask(activeTplTask.id, (prev) => ({
+      ...prev,
+      default_comments: [...(prev.default_comments || []), commentInput.trim()],
+    }));
+    setCommentInput("");
+    toast.success("Template comment saved.");
+  };
+
+  const activeTplTask = tplTasks.find((t) => t.id === activeTplTaskId) || null;
+
 
   const boardEntries: BoardClientEntry[] = useMemo(() => {
     if (!workflow) return [];
@@ -282,9 +411,9 @@ export default function WorkflowKanbanPage() {
   const selectedEntry =
     boardEntries.find((e) => e.entryKey === selectedEntryKey) || null;
 
-  const handleSyncTasks = () => {
+  const handleSyncTasks = async () => {
     if (!workflow) return;
-    const res = pmsStore.syncWorkflowTasksToSubscribedClients(workflow.id);
+    const res = await pmsStore.syncWorkflowTasksToSubscribedClients(workflow.id);
     if (res.createdTasks > 0) {
       toast.success(
         `Synced ${res.createdTasks} workflow task(s) across ${res.updatedProjects} client project(s).`
@@ -294,7 +423,7 @@ export default function WorkflowKanbanPage() {
     }
   };
 
-  const setClientWorkflowTaskStatus = (
+  const setClientWorkflowTaskStatus = async (
     entry: BoardClientEntry,
     tplTask: WorkflowProjectTaskTemplate,
     nextStatus: TaskStatus
@@ -303,7 +432,7 @@ export default function WorkflowKanbanPage() {
 
     let targetTask = entry.stageTaskMap.get(tplTask.id);
     if (!entry.project || !targetTask) {
-      pmsStore.syncWorkflowTasksToSubscribedClients(workflow.id);
+      await pmsStore.syncWorkflowTasksToSubscribedClients(workflow.id);
       const freshProjects = pmsStore.getProjects();
       const targetProject =
         entry.project ||
@@ -435,13 +564,6 @@ export default function WorkflowKanbanPage() {
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
               {workflow.workflow_name}
             </h1>
-            <p className="text-xs text-[#6b7280] font-medium">
-              Kanban board of clients subscribed to{" "}
-              <strong className="text-slate-900">
-                {workflow.service_name || workflow.workflow_name}
-              </strong>{" "}
-              and their progress across this workflow&apos;s tasks.
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -491,6 +613,17 @@ export default function WorkflowKanbanPage() {
               <button
                 type="button"
                 onClick={() => setViewMode("status_columns")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  viewMode === "status_columns"
+                    ? "bg-neutral-900 text-white"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Status Kanban
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("template_builder")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                   viewMode === "status_columns"
                     ? "bg-neutral-900 text-white"
@@ -563,6 +696,259 @@ export default function WorkflowKanbanPage() {
           taskStatuses={pmsStore.getTaskStatuses()}
           isEmployee={isEmployee}
         />
+      ) : viewMode === "template_builder" ? (
+        /* KANBAN VIEW: TEMPLATE TASKS & SOP BUILDER */
+        <div className="space-y-6">
+          {/* Add Template Task Form (Admin only) */}
+          {!isEmployee && (
+            <Card className="rounded-[24px] border-[1.5px] border-slate-300 bg-white">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <Plus className="h-4 w-4 text-violet-700" />
+                    <h3 className="text-sm font-extrabold text-[#111827]">
+                      Add Deliverable Task to &ldquo;{workflow.workflow_name}&rdquo;
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    Tasks auto-spawn when clients subscribe to {workflow.service_name || "this service"}
+                  </span>
+                </div>
+
+                <form onSubmit={handleAddTemplateTask} className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <div className="md:col-span-6 space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700">Task Title *</label>
+                      <Input
+                        value={taskTitle}
+                        onChange={(e) => setTaskTitle(e.target.value)}
+                        placeholder="e.g. Collect GSTR-2B JSON & Reconcile Input Tax Credit"
+                        className="h-10 rounded-xl border-[1.5px] border-slate-300 text-xs font-semibold"
+                        required
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700">Start Day Offset</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={taskStartDay}
+                        onChange={(e) => setTaskStartDay(Math.max(1, Number(e.target.value)))}
+                        className="h-10 rounded-xl border-[1.5px] border-slate-300 text-xs font-semibold"
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700">Duration (Days)</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={taskDurationDays}
+                        onChange={(e) => setTaskDurationDays(Math.max(1, Number(e.target.value)))}
+                        className="h-10 rounded-xl border-[1.5px] border-slate-300 text-xs font-semibold"
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700">Priority</label>
+                      <select
+                        value={taskPriority}
+                        onChange={(e) => setTaskPriority(e.target.value as ProjectPriority)}
+                        className="w-full h-10 rounded-xl border-[1.5px] border-slate-300 bg-white px-2 text-xs font-semibold"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                    <div className="md:col-span-6 space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700">Default Assignee</label>
+                      <select
+                        value={taskAssigneeId}
+                        onChange={(e) => setTaskAssigneeId(e.target.value)}
+                        className="w-full h-10 rounded-xl border-[1.5px] border-slate-300 bg-white px-3 text-xs font-semibold"
+                      >
+                        <option value="">Auto-Assign to Client Relationship Manager</option>
+                        {employees.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.full_name} ({emp.designation_name || "Staff"})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="md:col-span-4 space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700">Description / Checklist</label>
+                      <Input
+                        value={taskDesc}
+                        onChange={(e) => setTaskDesc(e.target.value)}
+                        placeholder="Brief summary of SOP deliverable..."
+                        className="h-10 rounded-xl border-[1.5px] border-slate-300 text-xs"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Button
+                        type="submit"
+                        className="w-full h-10 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1.5"
+                      >
+                        <Plus className="h-4 w-4" /> Add Task
+                      </Button>
+                    </div>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Template Tasks Grid */}
+          <div className="space-y-3">
+            <h3 className="text-base font-extrabold text-[#111827] flex items-center gap-2">
+              <CheckSquare className="h-4 w-4 text-violet-600" />
+              <span>Workflow Tasks, Subtasks & Comments ({tplTasks.length})</span>
+            </h3>
+
+            {tplTasks.length === 0 ? (
+              <Card className="rounded-[24px] border-[1.5px] border-dashed border-slate-300 bg-white">
+                <CardContent className="py-12 text-center text-xs text-slate-500 space-y-2">
+                  <Columns3 className="h-8 w-8 text-slate-300 mx-auto" />
+                  <p className="font-bold text-slate-700">No template tasks added to this workflow yet.</p>
+                  <p>Add deliverable tasks above to define this fixed project SOP.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {tplTasks.map((t, idx) => {
+                  const subs = t.subtasks || [];
+                  const cmts = t.default_comments || [];
+
+                  return (
+                    <Card
+                      key={t.id}
+                      className="rounded-[24px] border-[1.5px] border-slate-300 bg-white hover:border-neutral-900 transition-all"
+                    >
+                      <CardContent className="p-5 space-y-3.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-mono text-[11px] font-bold text-[#111827] bg-slate-100 border border-slate-300 px-2.5 py-0.5 rounded-xl">
+                              T{idx + 1}
+                            </span>
+                            <Badge variant={t.priority === "Urgent" ? "destructive" : "outline"} className="text-[10px]">
+                              {t.priority}
+                            </Badge>
+                            <Badge variant="secondary" className="text-[10px]">
+                              {t.status || "To Do"}
+                            </Badge>
+                          </div>
+                          {!isEmployee && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTemplateTask(t.id)}
+                              className="p-1.5 rounded-xl border border-rose-300 text-rose-600 hover:bg-rose-50"
+                              title="Delete Task"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTplTaskId(t.id);
+                              setIsTplTaskModalOpen(true);
+                            }}
+                            className="text-left group"
+                          >
+                            <h4 className="font-extrabold text-sm text-[#111827] group-hover:text-violet-700">
+                              {t.task_name}
+                            </h4>
+                          </button>
+                          {t.description && (
+                            <p className="text-xs text-[#6b7280] mt-1 line-clamp-2">{t.description}</p>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-300 bg-slate-50/70 p-2.5 text-xs">
+                          <div>
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                              Timeline Window
+                            </span>
+                            <span className="font-bold text-[#111827]">
+                              Day {(t.start_day_offset || 0) + 1} &rarr; Day{" "}
+                              {(t.start_day_offset || 0) + (t.duration_days || 1)} ({t.duration_days}d)
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                              Default Assignee
+                            </span>
+                            <span className="font-bold text-[#111827] truncate flex items-center gap-1 mt-0.5">
+                              <User className="h-3 w-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{t.assigned_employee_name || "Service RM"}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Subtasks Preview */}
+                        <div className="rounded-2xl border border-slate-300 bg-slate-50/40 p-3 space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                            <span className="inline-flex items-center gap-1">
+                              <ListChecks className="h-3.5 w-3.5 text-violet-600" />
+                              Subtasks ({subs.length})
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <MessageSquare className="h-3 w-3 text-sky-600" />
+                              {cmts.length} Comment(s)
+                            </span>
+                          </div>
+                          {subs.length === 0 ? (
+                            <p className="text-[11px] text-slate-400">No subtasks yet.</p>
+                          ) : (
+                            <div className="space-y-1 max-h-28 overflow-y-auto">
+                              {subs.map((st, sIdx) => (
+                                <div
+                                  key={st.id}
+                                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] flex items-center justify-between gap-2"
+                                >
+                                  <span className="font-semibold text-slate-800 truncate">
+                                    T{idx + 1}.{sIdx + 1} {st.title}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 shrink-0">
+                                    {st.duration_days}d
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            setActiveTplTaskId(t.id);
+                            setIsTplTaskModalOpen(true);
+                          }}
+                          className="w-full h-8 rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1.5"
+                        >
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span>
+                            {isEmployee
+                              ? "View Subtasks, Timeline & Comments"
+                              : "Edit Subtasks, Timeline & Comments"}
+                          </span>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
       ) : tplTasks.length === 0 ? (
         <Card className="rounded-[24px] border-[1.5px] border-slate-300 bg-white">
           <CardContent className="p-8 text-center space-y-3">
@@ -1337,6 +1723,305 @@ export default function WorkflowKanbanPage() {
                   })}
                 </div>
               )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Task Subtasks & SOP Comments Modal */}
+      <Dialog open={isTplTaskModalOpen} onOpenChange={setIsTplTaskModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-[24px] border-[1.5px] border-slate-300">
+          {activeTplTask && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="font-mono text-[11px] font-bold">
+                    TPL TASK
+                  </Badge>
+                  <DialogTitle className="text-base font-extrabold text-slate-900">
+                    {activeTplTask.task_name}
+                  </DialogTitle>
+                </div>
+                <DialogDescription className="text-xs text-slate-500">
+                  Configure default subtasks, start offset, duration, and SOP comments for this task.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                {/* Task Parameters Form */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 rounded-2xl border border-slate-300 bg-slate-50/70 p-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600">Start Day Offset</label>
+                    {isEmployee ? (
+                      <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold">
+                        Day {(activeTplTask.start_day_offset || 0) + 1}
+                      </div>
+                    ) : (
+                      <Input
+                        type="number"
+                        min={1}
+                        value={(activeTplTask.start_day_offset || 0) + 1}
+                        onChange={(e) =>
+                          updateTemplateTask(activeTplTask.id, (prev) => ({
+                            ...prev,
+                            start_day_offset: Math.max(0, Number(e.target.value) - 1),
+                          }))
+                        }
+                        className="h-9 rounded-xl border-slate-300 text-xs font-semibold"
+                      />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600">Duration (Days)</label>
+                    {isEmployee ? (
+                      <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold">
+                        {activeTplTask.duration_days || 1} day(s)
+                      </div>
+                    ) : (
+                      <Input
+                        type="number"
+                        min={1}
+                        value={activeTplTask.duration_days || 1}
+                        onChange={(e) =>
+                          updateTemplateTask(activeTplTask.id, (prev) => ({
+                            ...prev,
+                            duration_days: Math.max(1, Number(e.target.value) || 1),
+                          }))
+                        }
+                        className="h-9 rounded-xl border-slate-300 text-xs font-semibold"
+                      />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600">Priority</label>
+                    {isEmployee ? (
+                      <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold">
+                        {activeTplTask.priority}
+                      </div>
+                    ) : (
+                      <select
+                        value={activeTplTask.priority}
+                        onChange={(e) =>
+                          updateTemplateTask(activeTplTask.id, (prev) => ({
+                            ...prev,
+                            priority: e.target.value as ProjectPriority,
+                          }))
+                        }
+                        className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-semibold"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                      </select>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600">Default Assignee</label>
+                    {isEmployee ? (
+                      <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold truncate">
+                        {activeTplTask.assigned_employee_name || "Service RM"}
+                      </div>
+                    ) : (
+                      <select
+                        value={activeTplTask.assigned_employee_id || ""}
+                        onChange={(e) => {
+                          const emp = employees.find((item) => item.id === e.target.value);
+                          updateTemplateTask(activeTplTask.id, (prev) => ({
+                            ...prev,
+                            assigned_employee_id: emp?.id,
+                            assigned_employee_name: emp?.full_name,
+                          }));
+                        }}
+                        className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-semibold"
+                      >
+                        <option value="">Auto Service RM</option>
+                        {employees.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.full_name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+
+                {/* Template Subtasks */}
+                <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-3">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                    <ListChecks className="h-4 w-4 text-violet-600" />
+                    <span>Template Subtasks ({(activeTplTask.subtasks || []).length})</span>
+                  </h4>
+
+                  {(activeTplTask.subtasks || []).length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500">
+                      No subtasks configured.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {(activeTplTask.subtasks || []).map((st) => (
+                        <div
+                          key={st.id}
+                          className="rounded-2xl border border-slate-300 bg-slate-50/70 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-[#111827] truncate">{st.title}</p>
+                            <p className="text-[10px] text-slate-500">
+                              Start Day {(st.start_day_offset || 0) + 1} • Duration {st.duration_days}d •{" "}
+                              {st.assigned_employee_name || "Task Assignee"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isEmployee ? (
+                              <Badge variant="outline" className="text-[11px] font-bold bg-white border-slate-300">
+                                {st.status || "To Do"}
+                              </Badge>
+                            ) : (
+                              <>
+                                <select
+                                  value={st.status || "To Do"}
+                                  onChange={(e) =>
+                                    updateTemplateTask(activeTplTask.id, (prev) => ({
+                                      ...prev,
+                                      subtasks: (prev.subtasks || []).map((item) =>
+                                        item.id === st.id ? { ...item, status: e.target.value as TaskStatus } : item
+                                      ),
+                                    }))
+                                  }
+                                  className="h-8 rounded-xl border border-slate-300 bg-white px-2 text-[11px] font-bold"
+                                >
+                                  {statusNames.map((opt) => (
+                                    <option key={opt} value={opt}>
+                                      {opt}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateTemplateTask(activeTplTask.id, (prev) => ({
+                                      ...prev,
+                                      subtasks: (prev.subtasks || []).filter((item) => item.id !== st.id),
+                                    }))
+                                  }
+                                  className="p-1.5 rounded-xl border border-rose-300 text-rose-600 hover:bg-rose-50"
+                                  title="Delete Subtask"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {!isEmployee && (
+                    <form
+                      onSubmit={handleAddTemplateSubtask}
+                      className="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-3 border-t border-slate-200 items-end"
+                    >
+                      <div className="sm:col-span-5 space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500">Subtask Title</label>
+                        <Input
+                          placeholder="e.g. Verify director DSC validity"
+                          value={subTitle}
+                          onChange={(e) => setSubTitle(e.target.value)}
+                          className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500">Start Day</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={subStartDay}
+                          onChange={(e) => setSubStartDay(Math.max(1, Number(e.target.value)))}
+                          className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500">Days</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={subDurationDays}
+                          onChange={(e) => setSubDurationDays(Math.max(1, Number(e.target.value)))}
+                          className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <Button
+                          type="submit"
+                          size="sm"
+                          className="w-full h-9 rounded-xl bg-neutral-900 hover:bg-black text-white font-bold gap-1"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Add Subtask
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+
+                {/* Default Template Comments */}
+                <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-3">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                    <MessageSquare className="h-4 w-4 text-sky-600" />
+                    <span>Default Task Comments ({(activeTplTask.default_comments || []).length})</span>
+                  </h4>
+
+                  {(activeTplTask.default_comments || []).length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500">
+                      No template comments configured.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {(activeTplTask.default_comments || []).map((cmt, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs flex items-center justify-between gap-2"
+                        >
+                          <span className="text-slate-800">{cmt}</span>
+                          {!isEmployee && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateTemplateTask(activeTplTask.id, (prev) => ({
+                                  ...prev,
+                                  default_comments: (prev.default_comments || []).filter((_, i) => i !== idx),
+                                }))
+                              }
+                              className="p-1 rounded-lg text-rose-600 hover:bg-rose-50 shrink-0"
+                              title="Delete Comment"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {!isEmployee && (
+                    <form onSubmit={handleAddTemplateComment} className="flex gap-2 pt-2 border-t border-slate-200">
+                      <Input
+                        placeholder="Add standard SOP comment or checklist reminder..."
+                        value={commentInput}
+                        onChange={(e) => setCommentInput(e.target.value)}
+                        className="h-9 rounded-xl border-[1.5px] border-slate-300 text-xs flex-1"
+                      />
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="h-9 px-4 rounded-xl bg-neutral-900 hover:bg-black text-white font-bold gap-1 shrink-0"
+                      >
+                        <Send className="h-3.5 w-3.5" /> Add Comment
+                      </Button>
+                    </form>
+                  )}
+                </div>
+              </div>
             </>
           )}
         </DialogContent>

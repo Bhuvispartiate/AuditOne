@@ -37,9 +37,78 @@ import {
   RoleCode,
   OfficeGeoConfig,
   AttendanceRecord
+,
+  UniversalRecycleBinItem,
+  WhatsAppTemplate,
+  ClientContact,
+  ClientBankAccount,
+  VaultCredential,
+  VaultCategory,
+  VaultPasswordHistoryEntry,
+  VaultAuditLog,
+  VaultAuditAction
 } from "@/types";
 import { createClient, SUPERADMIN_EMAIL, isSuperAdminEmail } from "@/lib/supabase/client";
 import { calculateDistanceMeters } from "@/lib/geo";
+import {
+  fetchClientsFromDb,
+  insertClientToDb,
+  updateClientInDb,
+  deleteClientFromDb,
+  upsertClientContactInDb,
+  deleteClientContactFromDb,
+  upsertClientBankAccountInDb,
+  deleteClientBankAccountFromDb,
+  fetchServicesFromDb,
+  insertServiceToDb,
+  updateServiceInDb,
+  deleteServiceFromDb,
+  fetchEngagementsFromDb,
+  insertEngagementToDb,
+  deleteEngagementFromDb,
+  fetchProjectsFromDb,
+  insertProjectToDb,
+  updateProjectInDb,
+  deleteProjectFromDb,
+  fetchTasksFromDb,
+  insertTaskToDb,
+  updateTaskInDb,
+  deleteTaskFromDb,
+  fetchWorkflowsFromDb,
+  insertWorkflowToDb,
+  updateWorkflowInDb,
+  deleteWorkflowFromDb,
+  fetchInvoicesFromDb,
+  insertInvoiceToDb,
+  deleteInvoiceFromDb,
+  fetchPaymentsFromDb,
+  insertPaymentToDb,
+  fetchTaskCategoriesFromDb,
+  insertTaskCategoryToDb,
+  updateTaskCategoryInDb,
+  deleteTaskCategoryFromDb,
+  insertTaskSubCategoryToDb,
+  updateTaskSubCategoryInDb,
+  deleteTaskSubCategoryFromDb,
+  fetchWhatsAppTemplatesFromDb,
+  upsertWhatsAppTemplateInDb,
+  deleteWhatsAppTemplateFromDb,
+  fetchRecycleBinFromDb,
+  insertRecycleBinItemToDb,
+  deleteRecycleBinItemFromDb,
+  fetchEmployeesFromDb,
+  fetchDocumentsFromDb,
+  insertDocumentToDb,
+  deleteDocumentFromDb,
+  fetchVaultCredentialsFromDb,
+  insertVaultCredentialToDb,
+  updateVaultCredentialInDb,
+  deleteVaultCredentialFromDb,
+  fetchVaultAuditLogsFromDb,
+  insertVaultAuditLogToDb,
+  ensureUuid,
+  isUuid,
+} from "@/lib/supabase/db";
 
 // Standard System Designations (Reference Master)
 export const SYSTEM_DESIGNATIONS: Designation[] = [
@@ -63,199 +132,7 @@ export const DEFAULT_TASK_STATUSES: TaskStatusConfig[] = [
   { id: "st-completed", label: "Completed", color: "emerald", isCompleted: true },
 ];
 
-export const DEFAULT_TASK_CATEGORIES: TaskCategory[] = [
-  {
-    id: "cat-tax",
-    name: "Taxation & Compliance",
-    code: "TAX",
-    description: "Direct tax, GST returns, TDS compliance, and international taxation workflows.",
-    color: "violet",
-    icon: "Receipt",
-    created_at: new Date().toISOString(),
-    sub_categories: [
-      {
-        id: "subcat-gst",
-        category_id: "cat-tax",
-        name: "Indirect Tax (GST)",
-        code: "GST",
-        description: "GSTR-1, GSTR-3B, GSTR-9, ITC reconciliations and e-invoicing.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-income-tax",
-        category_id: "cat-tax",
-        name: "Direct Tax / Income Tax",
-        code: "IT",
-        description: "ITR filings, advance tax computations, AIS/TIS review, and tax audits.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-tds",
-        category_id: "cat-tax",
-        name: "TDS & TCS Returns",
-        code: "TDS",
-        description: "Quarterly 24Q, 26Q, 27Q filings, Form 16/16A generation and challan matching.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-intl-tax",
-        category_id: "cat-tax",
-        name: "Transfer Pricing & Cross-Border",
-        code: "TP",
-        description: "Form 3CEB, master file, local file, and DTAA treaty advisory.",
-        created_at: new Date().toISOString(),
-      },
-    ],
-  },
-  {
-    id: "cat-audit",
-    name: "Audit & Assurance",
-    code: "AUDIT",
-    description: "Statutory audits, internal risk control assessments, and special review engagements.",
-    color: "sky",
-    icon: "ShieldCheck",
-    created_at: new Date().toISOString(),
-    sub_categories: [
-      {
-        id: "subcat-stat-audit",
-        category_id: "cat-audit",
-        name: "Statutory Financial Audit",
-        code: "STAT",
-        description: "Balance sheet, P&L audit, CARO 2020 verification, and independent auditor reports.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-internal-audit",
-        category_id: "cat-audit",
-        name: "Internal & Operations Audit",
-        code: "INT",
-        description: "Internal financial controls (IFC), SOP compliance, and risk registers.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-tax-audit",
-        category_id: "cat-audit",
-        name: "Tax Audit (Form 3CD)",
-        code: "3CD",
-        description: "Clause-by-clause scrutiny under Section 44AB of the Income Tax Act.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-stock-audit",
-        category_id: "cat-audit",
-        name: "Bank Concurrent & Stock Audit",
-        code: "STOCK",
-        description: "Physical inventory counting, drawing power audits, and NPA reviews.",
-        created_at: new Date().toISOString(),
-      },
-    ],
-  },
-  {
-    id: "cat-roc",
-    name: "Corporate & Secretarial",
-    code: "ROC",
-    description: "MCA / ROC annual filings, secretarial compliance, and entity incorporations.",
-    color: "amber",
-    icon: "Building2",
-    created_at: new Date().toISOString(),
-    sub_categories: [
-      {
-        id: "subcat-roc-annual",
-        category_id: "cat-roc",
-        name: "Annual ROC Filings",
-        code: "ANNUAL",
-        description: "AOC-4, MGT-7, DPT-3, MSME-1, and board meeting minutes compliance.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-incorporation",
-        category_id: "cat-roc",
-        name: "Entity Incorporation & Setup",
-        code: "INCORP",
-        description: "Private Limited, LLP, OPC, Section 8 company registrations and SPICe+ filing.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-director-changes",
-        category_id: "cat-roc",
-        name: "Director & Capital Changes",
-        code: "DIR",
-        description: "DIR-3 KYC, appointment/resignation (DIR-12), and share allotment (PAS-3).",
-        created_at: new Date().toISOString(),
-      },
-    ],
-  },
-  {
-    id: "cat-acc",
-    name: "Accounting & Bookkeeping",
-    code: "ACC",
-    description: "Day-to-day transaction processing, ledger balancing, payroll, and financial statements.",
-    color: "emerald",
-    icon: "BookOpen",
-    created_at: new Date().toISOString(),
-    sub_categories: [
-      {
-        id: "subcat-bookkeeping",
-        category_id: "cat-acc",
-        name: "Monthly Bookkeeping & Finalization",
-        code: "BOOK",
-        description: "Purchase/Sales ledger entry, bank statement reconciliation, and trial balance.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-payroll",
-        category_id: "cat-acc",
-        name: "Payroll, PF & ESI Processing",
-        code: "PAY",
-        description: "Monthly salary registers, payslip dispatch, EPF, and ESIC challan filing.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-mis",
-        category_id: "cat-acc",
-        name: "MIS & Financial Reporting",
-        code: "MIS",
-        description: "Monthly executive summaries, cash flow forecasting, and KPI dashboards.",
-        created_at: new Date().toISOString(),
-      },
-    ],
-  },
-  {
-    id: "cat-adv",
-    name: "Business Advisory & Legal",
-    code: "ADV",
-    description: "Due diligence, valuation reports, trademark registrations, and notice replies.",
-    color: "slate",
-    icon: "Briefcase",
-    created_at: new Date().toISOString(),
-    sub_categories: [
-      {
-        id: "subcat-due-diligence",
-        category_id: "cat-adv",
-        name: "Due Diligence & Valuation",
-        code: "DD",
-        description: "Financial, tax & legal due diligence for M&A, investment, and valuations.",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-notices",
-        category_id: "cat-adv",
-        name: "Notice Representation & Appeals",
-        code: "NOTICE",
-        description: "Drafting responses to scrutiny notices (Sec 148, 143(1), GST ASMT-10).",
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "subcat-ip-cert",
-        category_id: "cat-adv",
-        name: "IP & Startup Registrations",
-        code: "IP",
-        description: "Trademark applications, DPIIT startup recognition, and ISO certifications.",
-        created_at: new Date().toISOString(),
-      },
-    ],
-  },
-];
+export const DEFAULT_TASK_CATEGORIES: TaskCategory[] = [];
 
 export const DEFAULT_DOCUMENT_FOLDERS: DocumentFolder[] = [
   {
@@ -324,377 +201,39 @@ function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export const DEFAULT_SERVICES: Service[] = [
-  {
-    id: "srv-monthly-3b",
-    service_code: "SRV-GST-3B",
-    service_name: "GST Monthly 3B Filing",
-    description: "Monthly summary return filing for outward and inward supplies along with tax payment.",
-    default_fee: 3500,
-    default_gst_rate: 18,
-    billing_type: "Recurring",
-    status: "Active",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "srv-gstr-1",
-    service_code: "SRV-GST-GSTR1",
-    service_name: "GSTR-1 Monthly Return",
-    description: "Detailed statement of outward supplies and invoice-level upload on the GST portal.",
-    default_fee: 4000,
-    default_gst_rate: 18,
-    billing_type: "Recurring",
-    status: "Active",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "srv-gst-reg",
-    service_code: "SRV-GST-REG",
-    service_name: "GST Registration & Amendment",
-    description: "New GST number procurement, core and non-core amendments, and address updates.",
-    default_fee: 5000,
-    default_gst_rate: 18,
-    billing_type: "One-time",
-    status: "Active",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "srv-company-incorp",
-    service_code: "SRV-ROC-INCORP",
-    service_name: "Company Incorporation (Pvt Ltd / LLP)",
-    description: "SPICe+ Part A & B filing, name approval, DSC, DIN, MOA/AOA drafting, and certificate of incorporation.",
-    default_fee: 15000,
-    default_gst_rate: 18,
-    billing_type: "One-time",
-    status: "Active",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "srv-stat-audit",
-    service_code: "SRV-AUD-STAT",
-    service_name: "Statutory Financial Audit",
-    description: "Independent annual financial statement examination, CARO compliance, and audit report issuance.",
-    default_fee: 45000,
-    default_gst_rate: 18,
-    billing_type: "Recurring",
-    status: "Active",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "srv-itr-corporate",
-    service_code: "SRV-IT-CORP",
-    service_name: "Corporate Income Tax Return (ITR-6)",
-    description: "Tax audit finalization, balance sheet computation, MAT calculations, and ITR-6 e-filing.",
-    default_fee: 25000,
-    default_gst_rate: 18,
-    billing_type: "Recurring",
-    status: "Active",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "srv-tds-returns",
-    service_code: "SRV-TAX-TDS",
-    service_name: "TDS Quarterly Filing (24Q / 26Q)",
-    description: "Challan reconciliation, TDS return preparation, FVU validation, and Form 16 generation.",
-    default_fee: 3000,
-    default_gst_rate: 18,
-    billing_type: "Recurring",
-    status: "Active",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "srv-trademark-reg",
-    service_code: "SRV-IP-TM",
-    service_name: "Trademark Application & Prosecution",
-    description: "Brand name search, TM-A filing, classification search, examination report reply, and hearing attendance.",
-    default_fee: 7500,
-    default_gst_rate: 18,
-    billing_type: "One-time",
-    status: "Active",
-    created_at: new Date().toISOString(),
-  },
-];
+export const DEFAULT_SERVICES: Service[] = [];
 
-export const DEFAULT_WORKFLOWS: WorkflowTemplate[] = [
+export const DEFAULT_WORKFLOWS: WorkflowTemplate[] = [];
+
+
+export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplate[] = [
   {
-    id: "wf-gst-reg",
-    workflow_code: "WF-GST-REG",
-    workflow_name: "GST Registration Execution Workflow",
-    service_id: "srv-gst-reg",
-    service_name: "GST Registration & Amendment",
-    description: "End-to-end standard operating procedure for new GST registrations, verification, and ARN approval.",
-    is_active: true,
-    version: 1,
+    id: "tpl-task-alloc",
+    title: "Task Allocation & Assignment",
+    category: "Task",
+    content: "Hello *{client_name}*,\n\nTask: *{task_title}*\nProject: *{project_name}*\n📅 Due Date: *{due_date}*\nStatus: *{status}*\n\nPlease review and let us know if any inputs are required.",
     created_at: new Date().toISOString(),
-    milestones: [
-      {
-        id: "ms-gst-1",
-        sequence_number: 1,
-        title: "Client Document Collection & KYC Verification",
-        description: "Gather PAN, Aadhaar, electricity bill, rent agreement, and NOC from applicant.",
-        stages: [
-          {
-            id: "st-gst-1",
-            stage_name: "Document Scrutiny",
-            sequence_number: 1,
-            description: "Verify document clarity, address correctness, and authorized signatory DSC.",
-            sub_stages: [
-              {
-                id: "subst-gst-1",
-                sub_stage_name: "PAN & Electricity Bill Validation",
-                sequence_number: 1,
-                tasks: [
-                  {
-                    id: "tt-gst-1",
-                    task_name: "Verify Owner KYC & Commercial Address Proof",
-                    description: "Check consumer number on EB bill matches municipality tax receipt and NOC.",
-                    sequence_number: 1,
-                    start_day_offset: 0,
-                    duration_days: 2,
-                    priority: "High",
-                    status: "Open",
-                    subtasks: [],
-                    default_comments: [],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "ms-gst-2",
-        sequence_number: 2,
-        title: "Portal Application & Aadhaar Authentication",
-        description: "Generate TRN, fill Part B, execute Aadhaar OTP e-sign, and obtain ARN.",
-        stages: [
-          {
-            id: "st-gst-2",
-            stage_name: "TRN & Form Submission",
-            sequence_number: 1,
-            description: "Submit online application on GST portal.",
-            sub_stages: [
-              {
-                id: "subst-gst-2",
-                sub_stage_name: "Aadhaar e-KYC Verification",
-                sequence_number: 1,
-                tasks: [
-                  {
-                    id: "tt-gst-2",
-                    task_name: "Complete Aadhaar OTP Authentication with Client",
-                    description: "Coordinate with client to click authentication link and input OTP.",
-                    sequence_number: 1,
-                    start_day_offset: 2,
-                    duration_days: 2,
-                    priority: "Urgent",
-                    status: "Open",
-                    subtasks: [],
-                    default_comments: [],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "ms-gst-3",
-        sequence_number: 3,
-        title: "Officer Clarification / Approval & Certificate Dispatch",
-        description: "Track ARN status, reply to any clarification notice (REG-03), and download GSTIN REG-06 certificate.",
-        stages: [
-          {
-            id: "st-gst-3",
-            stage_name: "ARN Tracking & Certificate Handover",
-            sequence_number: 1,
-            description: "Download certificate and dispatch login credentials to client.",
-            sub_stages: [
-              {
-                id: "subst-gst-3",
-                sub_stage_name: "Welcome Kit & Final Dispatch",
-                sequence_number: 1,
-                tasks: [
-                  {
-                    id: "tt-gst-3",
-                    task_name: "Generate Client Welcome Kit with GSTIN and Credentials",
-                    description: "Send official intimation letter and GST registration certificate PDF to client email.",
-                    sequence_number: 1,
-                    start_day_offset: 4,
-                    duration_days: 3,
-                    priority: "Medium",
-                    status: "Open",
-                    subtasks: [],
-                    default_comments: [],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
   },
   {
-    id: "wf-company-incorp",
-    workflow_code: "WF-ROC-INCORP",
-    workflow_name: "Company Incorporation & Compliance Workflow",
-    service_id: "srv-company-incorp",
-    service_name: "Company Incorporation (Pvt Ltd / LLP)",
-    description: "SPICe+ Part A name reservation, Part B drafting, AGILE-PRO-S, and Certificate of Incorporation issuance.",
-    is_active: true,
-    version: 1,
+    id: "tpl-task-reminder",
+    title: "Deliverable Due Reminder",
+    category: "Task",
+    content: "⏰ *REMINDER: TASK DUE SOON*\n\nDear *{client_name}*,\nThis is a gentle reminder that deliverable *{task_title}* is scheduled for completion on *{due_date}*.\n\nThank you,\nFinance & Compliance Team",
     created_at: new Date().toISOString(),
-    milestones: [
-      {
-        id: "ms-incorp-1",
-        sequence_number: 1,
-        title: "Name Reservation (SPICe+ Part A)",
-        description: "Run name availability search on MCA portal and file RUN / SPICe+ Part A.",
-        stages: [
-          {
-            id: "st-incorp-1",
-            stage_name: "Name Scrutiny & Submission",
-            sequence_number: 1,
-            sub_stages: [
-              {
-                id: "subst-incorp-1",
-                sub_stage_name: "MCA Name Check",
-                sequence_number: 1,
-                tasks: [
-                  {
-                    id: "tt-inc-1",
-                    task_name: "Draft 2 Proposed Names with Main Object Alignment",
-                    description: "Verify trademark conflicts under Class 35/42 before submission.",
-                    sequence_number: 1,
-                    start_day_offset: 0,
-                    duration_days: 2,
-                    priority: "High",
-                    status: "Open",
-                    subtasks: [],
-                    default_comments: [],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "ms-incorp-2",
-        sequence_number: 2,
-        title: "SPICe+ Part B, MOA, AOA & DSC Affixing",
-        description: "Draft e-MOA (INC-33), e-AOA (INC-34), INC-9 declaration, and affix director DSCs.",
-        stages: [
-          {
-            id: "st-incorp-2",
-            stage_name: "Statutory Form Finalization",
-            sequence_number: 1,
-            sub_stages: [
-              {
-                id: "subst-incorp-2",
-                sub_stage_name: "DSC Signing & MCA Upload",
-                sequence_number: 1,
-                tasks: [
-                  {
-                    id: "tt-inc-2",
-                    task_name: "Affix Class 3 DSC on SPICe+ Part B & Pay MCA Fee",
-                    description: "Pre-scrutiny pass and generate SRN challan for incorporation.",
-                    sequence_number: 1,
-                    start_day_offset: 2,
-                    duration_days: 3,
-                    priority: "Urgent",
-                    status: "Open",
-                    subtasks: [],
-                    default_comments: [],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "ms-incorp-3",
-        sequence_number: 3,
-        title: "COI Issuance & Post-Incorporation Compliances",
-        description: "Receive Certificate of Incorporation (CIN), PAN/TAN card, bank account opening, and INC-20A filing.",
-        stages: [
-          {
-            id: "st-incorp-3",
-            stage_name: "Post Incorporation Handover",
-            sequence_number: 1,
-            sub_stages: [
-              {
-                id: "subst-incorp-3",
-                sub_stage_name: "Bank Account & INC-20A Commencement",
-                sequence_number: 1,
-                tasks: [
-                  {
-                    id: "tt-inc-3",
-                    task_name: "File INC-20A Commencement of Business within 180 Days",
-                    description: "Obtain bank statement showing subscription money deposit from promoters.",
-                    sequence_number: 1,
-                    start_day_offset: 5,
-                    duration_days: 10,
-                    priority: "Medium",
-                    status: "Open",
-                    subtasks: [],
-                    default_comments: [],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
   },
   {
-    id: "wf-stat-audit",
-    workflow_code: "WF-AUD-STAT",
-    workflow_name: "Statutory Financial Audit Execution Workflow",
-    service_id: "srv-stat-audit",
-    service_name: "Statutory Financial Audit",
-    description: "Standard auditing practices compliant with ICAI standards (SA 200–SA 700) and CARO 2020.",
-    is_active: true,
-    version: 1,
+    id: "tpl-wf-update",
+    title: "Workflow Progress Update",
+    category: "Workflow",
+    content: "🚀 *WORKFLOW PROGRESS UPDATE*\n\nDear *{client_name}*,\nYour service workflow *{service_name}* has advanced to stage: *{stage_name}*.\n\nWe will keep you informed as milestones complete.",
     created_at: new Date().toISOString(),
-    milestones: [
-      {
-        id: "ms-audit-1",
-        sequence_number: 1,
-        title: "Audit Planning & Materiality Assessment",
-        description: "Engagement letter execution, independence declaration, and determining materiality thresholds.",
-        stages: [
-          {
-            id: "st-audit-1",
-            stage_name: "Preliminary Scrutiny",
-            sequence_number: 1,
-            sub_stages: [
-              {
-                id: "subst-audit-1",
-                sub_stage_name: "Risk Assessment & Trial Balance Scrutiny",
-                sequence_number: 1,
-                tasks: [
-                  {
-                    id: "tt-aud-1",
-                    task_name: "Review Opening Balances & Previous Year Audit Report",
-                    description: "Verify opening balances match audited financials and note emphasis of matter.",
-                    sequence_number: 1,
-                    start_day_offset: 0,
-                    duration_days: 5,
-                    priority: "High",
-                    status: "Open",
-                    subtasks: [],
-                    default_comments: [],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
+  },
+  {
+    id: "tpl-general",
+    title: "General Client Notification",
+    category: "General",
+    content: "Hello *{client_name}*,\n\nWe have an update regarding your account with us.\nPlease connect with your relationship manager for further information.",
+    created_at: new Date().toISOString(),
   },
 ];
 
@@ -719,10 +258,14 @@ class PMSDataStore {
   private notifications: Notification[] = [];
   private activityLogs: ActivityLog[] = [];
   private officeGeoConfig: OfficeGeoConfig | null = null;
+  private whatsAppTemplates: WhatsAppTemplate[] = [...DEFAULT_WHATSAPP_TEMPLATES];
+  private universalRecycleBin: UniversalRecycleBinItem[] = [];
   private attendanceRecords: AttendanceRecord[] = [];
   private taskStatuses: TaskStatusConfig[] = [...DEFAULT_TASK_STATUSES];
   private taskCategories: TaskCategory[] = [...DEFAULT_TASK_CATEGORIES];
   private deletedTaskCategoryIds: string[] = [];
+  private vaultCredentials: VaultCredential[] = [];
+  private vaultAuditLogs: VaultAuditLog[] = [];
   private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
   private authenticated: boolean = false;
   private listeners: Set<() => void> = new Set();
@@ -734,9 +277,206 @@ class PMSDataStore {
   constructor() {
     this.hydrate();
     this.ensureDefaultData();
-    this.backfillMissingProjectsAndTasks();
-    void this.hydrateFromSupabase();
-    void this.syncClientsFromSupabase();
+    void this.loadAllFromSupabase();
+  }
+
+  async loadAllFromSupabase(): Promise<void> {
+    try {
+      const [
+        clients,
+        services,
+        engagements,
+        projects,
+        tasks,
+        workflows,
+        invoices,
+        payments,
+        categories,
+        whatsappTemplates,
+        recycleBin,
+        employees,
+        documents,
+        vaultCreds,
+        vaultLogs,
+      ] = await Promise.all([
+        fetchClientsFromDb().catch((e) => { console.warn("Direct Supabase fetch clients failed:", e); return null; }),
+        fetchServicesFromDb().catch((e) => { console.warn("Direct Supabase fetch services failed:", e); return null; }),
+        fetchEngagementsFromDb().catch((e) => { console.warn("Direct Supabase fetch engagements failed:", e); return null; }),
+        fetchProjectsFromDb().catch((e) => { console.warn("Direct Supabase fetch projects failed:", e); return null; }),
+        fetchTasksFromDb().catch((e) => { console.warn("Direct Supabase fetch tasks failed:", e); return null; }),
+        fetchWorkflowsFromDb().catch((e) => { console.warn("Direct Supabase fetch workflows failed:", e); return null; }),
+        fetchInvoicesFromDb().catch((e) => { console.warn("Direct Supabase fetch invoices failed:", e); return null; }),
+        fetchPaymentsFromDb().catch((e) => { console.warn("Direct Supabase fetch payments failed:", e); return null; }),
+        fetchTaskCategoriesFromDb().catch((e) => { console.warn("Direct Supabase fetch categories failed:", e); return null; }),
+        fetchWhatsAppTemplatesFromDb().catch((e) => { console.warn("Direct Supabase fetch whatsapp templates failed:", e); return null; }),
+        fetchRecycleBinFromDb().catch((e) => { console.warn("Direct Supabase fetch recycle bin failed:", e); return null; }),
+        fetchEmployeesFromDb().catch((e) => { console.warn("Direct Supabase fetch employees failed:", e); return null; }),
+        fetchDocumentsFromDb().catch((e) => { console.warn("Direct Supabase fetch documents failed:", e); return null; }),
+        fetchVaultCredentialsFromDb().catch((e) => { console.warn("Direct Supabase fetch vault_credentials failed:", e); return null; }),
+        fetchVaultAuditLogsFromDb().catch((e) => { console.warn("Direct Supabase fetch vault_audit_logs failed:", e); return null; }),
+      ]);
+
+      if (clients !== null) {
+        this.clients = this.mergeRemoteEntities(this.clients, clients);
+      }
+      if (services !== null && services.length > 0) {
+        this.services = this.mergeRemoteEntities(this.services, services);
+      }
+      if (engagements !== null) {
+        this.engagements = this.mergeRemoteEntities(this.engagements, engagements);
+      }
+      if (projects !== null) {
+        this.projects = this.mergeRemoteEntities(this.projects, projects);
+      }
+      if (categories !== null && categories.length > 0) {
+        this.taskCategories = this.mergeRemoteCategories(this.taskCategories, categories);
+      }
+      if (tasks !== null) {
+        const mergedTasks = this.mergeRemoteEntities(this.tasks, tasks);
+        // Deduplicate any exact duplicate tasks spawned by legacy auto-backfill loops
+        const seen = new Set<string>();
+        this.tasks = mergedTasks
+          .filter((t) => {
+            if (t.title && t.title.includes("Client Delivery Project — Initial Deliverable")) {
+              const key = `${t.project_id || t.project_name}_${t.title}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+            }
+            return true;
+          })
+          .map((t) => this.ensureTaskCategorized(t));
+      }
+      if (workflows !== null && workflows.length > 0) {
+        this.workflows = this.mergeRemoteEntities(this.workflows, workflows);
+      }
+      if (invoices !== null) {
+        this.invoices = this.mergeRemoteEntities(this.invoices, invoices);
+      }
+      if (payments !== null) {
+        this.payments = this.mergeRemoteEntities(this.payments, payments);
+      }
+      if (whatsappTemplates !== null && whatsappTemplates.length > 0) {
+        this.whatsAppTemplates = this.mergeRemoteEntities(this.whatsAppTemplates, whatsappTemplates);
+      }
+      if (recycleBin !== null) {
+        this.universalRecycleBin = this.mergeRemoteEntities(this.universalRecycleBin, recycleBin);
+      }
+      if (employees !== null && employees.length > 0) {
+        this.employees = this.mergeRemoteEntities(this.employees, employees);
+      }
+      if (documents !== null) {
+        this.documents = this.mergeRemoteEntities(this.documents, documents);
+      }
+      if (vaultCreds !== null && vaultCreds.length > 0) {
+        this.vaultCredentials = this.mergeRemoteEntities(this.vaultCredentials, vaultCreds);
+      }
+      if (vaultLogs !== null && vaultLogs.length > 0) {
+        this.vaultAuditLogs = this.mergeRemoteEntities(this.vaultAuditLogs, vaultLogs);
+      }
+
+      this.persist();
+      this.notify();
+    } catch (err) {
+      console.error("Direct Supabase load error:", err);
+    }
+  }
+
+  private mergeRemoteEntities<T extends { id: string; updated_at?: string; created_at?: string; client_name?: string; title?: string; task_code?: string; client_code?: string }>(
+    localList: T[],
+    remoteList: T[] | null
+  ): T[] {
+    if (!remoteList || remoteList.length === 0) {
+      return localList;
+    }
+
+    const remoteMap = new Map<string, T>();
+    remoteList.forEach((r) => {
+      remoteMap.set(r.id, r);
+    });
+
+    const merged: T[] = [];
+    const processedRemoteIds = new Set<string>();
+
+    for (const local of localList) {
+      // Find remote match by id, or by unique business code
+      const remote = remoteMap.get(local.id) ||
+        (local.task_code ? remoteList.find(r => r.task_code === local.task_code) : undefined) ||
+        (local.client_code ? remoteList.find(r => r.client_code === local.client_code) : undefined);
+
+      if (remote) {
+        processedRemoteIds.add(remote.id);
+        const localTime = new Date(local.updated_at || local.created_at || 0).getTime();
+        const remoteTime = new Date(remote.updated_at || remote.created_at || 0).getTime();
+
+        if (localTime > remoteTime) {
+          // Local edit is more recent than remote record: keep local state as primary, merge any missing remote fields
+          merged.push({
+            ...remote,
+            ...local,
+          });
+        } else {
+          // Remote record is newer or same age, but DO NOT drop local nested structures
+          // (e.g. bank_accounts, registration, contacts, addresses, subtasks, assigned_employees, category_name)
+          const mergedItem: any = { ...remote };
+          for (const key of Object.keys(local)) {
+            const lVal = (local as any)[key];
+            const rVal = (remote as any)[key];
+            if (lVal !== undefined && lVal !== null) {
+              if (rVal === undefined || rVal === null) {
+                mergedItem[key] = lVal;
+              } else if (Array.isArray(lVal) && lVal.length > 0 && Array.isArray(rVal) && rVal.length === 0) {
+                mergedItem[key] = lVal; // preserve local non-empty array
+              } else if (typeof lVal === "object" && !Array.isArray(lVal) && (!rVal || Object.keys(rVal).length === 0)) {
+                mergedItem[key] = lVal;
+              }
+            }
+          }
+          merged.push(mergedItem);
+        }
+      } else {
+        // Local entity not present in remote (newly created offline or unsynced) — keep it!
+        merged.push(local);
+      }
+    }
+
+    // Add any new remote entities that were not in local state
+    for (const remote of remoteList) {
+      if (!processedRemoteIds.has(remote.id)) {
+        merged.push(remote);
+      }
+    }
+
+    return merged;
+  }
+
+  private mergeRemoteCategories(localCats: TaskCategory[], remoteCats: TaskCategory[] | null): TaskCategory[] {
+    if (!remoteCats || remoteCats.length === 0) return localCats;
+
+    const merged = [...localCats];
+    for (const rem of remoteCats) {
+      const existingIdx = merged.findIndex((c) => c.id === rem.id || c.name.trim().toLowerCase() === rem.name.trim().toLowerCase());
+      if (existingIdx >= 0) {
+        const local = merged[existingIdx];
+        // Preserve local custom sub-categories so columns are never wiped out!
+        const existingSubs = [...(local.sub_categories || [])];
+        for (const remSub of (rem.sub_categories || [])) {
+          const subIdx = existingSubs.findIndex((s) => s.id === remSub.id || s.name.trim().toLowerCase() === remSub.name.trim().toLowerCase());
+          if (subIdx >= 0) {
+            existingSubs[subIdx] = { ...existingSubs[subIdx], ...remSub };
+          } else {
+            existingSubs.push(remSub);
+          }
+        }
+        merged[existingIdx] = {
+          ...rem,
+          ...local,
+          sub_categories: existingSubs,
+        };
+      } else {
+        merged.push(rem);
+      }
+    }
+    return merged;
   }
 
   private addDaysIso(baseIso: string, days: number): string {
@@ -746,152 +486,11 @@ class PMSDataStore {
   }
 
   /**
-   * Ensures every Client has >= 1 Project, every Project has >= 1 top-level Task
-   * with a valid start_date & due_date, and every top-level Task has starter Subtasks.
+   * Disabled legacy auto-generation to guarantee Supabase is the single source of truth.
+   * Tasks and projects are only created upon explicit user action or workflow cascade.
    */
   private backfillMissingProjectsAndTasks() {
-    let changed = false;
-    const today = new Date().toISOString().slice(0, 10);
-
-    // 1. Active engagements without a linked project
-    this.engagements.forEach((eng) => {
-      if (eng.status !== "Active") return;
-      const client = this.clients.find((c) => c.id === eng.client_id);
-      const clientName = eng.client_name || client?.client_name || "Client";
-
-      const project = this.projects.find(
-        (p) =>
-          p.service_engagement_id === eng.id ||
-          (p.client_id === eng.client_id && p.service_name === eng.service_name)
-      );
-
-      if (!project) {
-        const nextNum = this.projects.length + 1;
-        const year = new Date().getFullYear();
-        const startDate = eng.start_date || today;
-        const dueDate = eng.end_date || this.addDaysIso(startDate, 30);
-
-        this.projects.unshift({
-          id: generateId("proj"),
-          project_code: `PRJ-${year}-${String(nextNum).padStart(3, "0")}`,
-          project_name: `${clientName} — ${eng.service_name}`,
-          project_type: "Client Project",
-          client_id: eng.client_id,
-          client_name: clientName,
-          service_engagement_id: eng.id,
-          service_name: eng.service_name,
-          project_manager_id: eng.relationship_manager_id || this.currentUser.id,
-          project_manager_name: eng.relationship_manager_name || this.currentUser.full_name,
-          description: `Service delivery project for ${eng.service_name} (${eng.billing_frequency})`,
-          priority: "Medium",
-          start_date: startDate,
-          due_date: dueDate,
-          progress_percentage: 0,
-          status: "In Progress",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-        changed = true;
-      }
-    });
-
-    // 2. Every Client without ANY Project gets a Client Delivery Project
-    this.clients.forEach((client) => {
-      const hasProject = this.projects.some((p) => p.client_id === client.id);
-      if (!hasProject) {
-        const nextNum = this.projects.length + 1;
-        const year = new Date().getFullYear();
-        const startDate = (client.created_at || today).slice(0, 10);
-        const dueDate = this.addDaysIso(startDate, 30);
-
-        this.projects.unshift({
-          id: generateId("proj"),
-          project_code: `PRJ-${year}-${String(nextNum).padStart(3, "0")}`,
-          project_name: `${client.client_name} — Client Delivery Project`,
-          project_type: "Client Project",
-          client_id: client.id,
-          client_name: client.client_name,
-          project_manager_id: client.relationship_manager_id || this.currentUser.id,
-          project_manager_name: client.relationship_manager_name || this.currentUser.full_name,
-          description: `Primary compliance & execution project for ${client.client_name}.`,
-          priority: "Medium",
-          start_date: startDate,
-          due_date: dueDate,
-          progress_percentage: 0,
-          status: "In Progress",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-        changed = true;
-      }
-    });
-
-    // 3. Every Project without ANY top-level Task gets a deliverable Task (unless tasks were explicitly deleted)
-    this.projects.forEach((project) => {
-      if (this.deletedTaskProjectIds.includes(project.id)) return;
-      const hasTask = this.tasks.some((t) => t.project_id === project.id && !t.parent_task_id);
-      if (!hasTask) {
-        const nextTaskNum = this.tasks.length + 1;
-        const startDate = project.start_date || today;
-        const dueDate = project.due_date || this.addDaysIso(startDate, 14);
-        this.tasks.unshift({
-          id: generateId("tsk"),
-          task_code: `TSK-${String(nextTaskNum).padStart(3, "0")}`,
-          title: project.service_name
-            ? `${project.service_name} — Execution`
-            : `${project.project_name} — Initial Deliverable`,
-          project_id: project.id,
-          project_name: project.project_name,
-          assigned_employee_id: project.project_manager_id || this.currentUser.id,
-          assigned_employee_name: project.project_manager_name || this.currentUser.full_name,
-          priority: project.priority || "Medium",
-          start_date: startDate,
-          due_date: dueDate,
-          status: "To Do",
-          description: project.description || `Core deliverable task for ${project.project_name}.`,
-          created_by: this.currentUser.id,
-          created_by_name: this.currentUser.full_name,
-          comments_count: 0,
-          attachments_count: 0,
-          created_at: new Date().toISOString(),
-        });
-        changed = true;
-      }
-    });
-
-    // 4. Every top-level Task gets start_date (zero mock subtasks) and purge any legacy auto-seeded mock subtasks
-    const mockSubtaskTitles = new Set([
-      "1. Client Inputs & Source Document Verification",
-      "2. Working Paper Preparation, Review & Completion",
-    ]);
-    const beforeSubCount = this.tasks.length;
-    this.tasks = this.tasks.filter(
-      (t) =>
-        !(
-          t.parent_task_id &&
-          mockSubtaskTitles.has(t.title) &&
-          (t.description?.startsWith("Subtask step under ") || t.description?.startsWith("Subtask under "))
-        )
-    );
-    if (this.tasks.length !== beforeSubCount) {
-      changed = true;
-    }
-
-    const topLevelTasks = this.tasks.filter((t) => !t.parent_task_id);
-    topLevelTasks.forEach((task) => {
-      const proj = this.projects.find((p) => p.id === task.project_id);
-      if (!task.start_date) {
-        task.start_date = proj?.start_date || (task.created_at || today).slice(0, 10);
-        changed = true;
-      }
-    });
-
-    if (changed) {
-      this.projects.forEach((p) => {
-        p.progress_percentage = this.computeProjectProgress(p.id);
-      });
-      this.persist();
-    }
+    // No-op: Supabase is single source of truth; never auto-generate tasks on refresh
   }
 
   subscribe(listener: () => void): () => void {
@@ -1018,6 +617,12 @@ class PMSDataStore {
         new Set([...this.deletedTaskCategoryIds, ...parsed.deletedTaskCategoryIds])
       );
     }
+    if (Array.isArray(parsed.vaultCredentials) && parsed.vaultCredentials.length > 0) {
+      this.vaultCredentials = this.mergeById(this.vaultCredentials, parsed.vaultCredentials);
+    }
+    if (Array.isArray(parsed.vaultAuditLogs) && parsed.vaultAuditLogs.length > 0) {
+      this.vaultAuditLogs = this.mergeById(this.vaultAuditLogs, parsed.vaultAuditLogs);
+    }
     if (typeof parsed.updatedAt === "number") {
       this.localUpdatedAt = Math.max(this.localUpdatedAt, parsed.updatedAt);
     }
@@ -1052,6 +657,8 @@ class PMSDataStore {
       taskStatuses: this.taskStatuses,
       taskCategories: this.taskCategories,
       deletedTaskCategoryIds: this.deletedTaskCategoryIds,
+      vaultCredentials: this.vaultCredentials,
+      vaultAuditLogs: this.vaultAuditLogs,
       updatedAt,
     };
   }
@@ -1081,9 +688,15 @@ class PMSDataStore {
       // Purge all legacy mock practice tasks & mock categories permanently
       const MOCK_TASK_PREFIXES = ["tsk-gen-", "tsk-gst-", "tsk-inc-"];
       const initialTaskCount = this.tasks.length;
+      const seenBackfillKeys = new Set<string>();
       this.tasks = this.tasks.filter((t) => {
         if (t.category_id === "cat-general") return false;
         if (MOCK_TASK_PREFIXES.some((p) => t.id && t.id.startsWith(p))) return false;
+        if (t.title && t.title.includes("Client Delivery Project — Initial Deliverable")) {
+          const key = `${t.project_id || t.project_name}`;
+          if (seenBackfillKeys.has(key)) return false;
+          seenBackfillKeys.add(key);
+        }
         return true;
       });
       const initialCatCount = this.taskCategories.length;
@@ -1222,7 +835,7 @@ class PMSDataStore {
 
       const { data, error } = await supabase
         .from("clients")
-        .select("*, client_contacts(*), client_addresses(*), client_registrations(*)")
+        .select("*, client_contacts(*), client_addresses(*), client_registrations(*), client_bank_accounts(*)")
         .order("created_at", { ascending: false });
 
       if (error || !Array.isArray(data) || data.length === 0) return;
@@ -1234,6 +847,20 @@ class PMSDataStore {
         const contacts = Array.isArray(row.client_contacts) ? row.client_contacts : [];
         const primaryContact = contacts.find((c: any) => c.is_primary) || contacts[0];
         const addresses = Array.isArray(row.client_addresses) ? row.client_addresses : [];
+        const bankAccounts: ClientBankAccount[] = Array.isArray(row.client_bank_accounts)
+          ? row.client_bank_accounts.map((b: any) => ({
+              id: b.id,
+              client_id: b.client_id,
+              bank_name: b.bank_name,
+              account_number: b.account_number_encrypted || b.account_number || "",
+              account_holder_name: b.account_holder_name || undefined,
+              ifsc_code: b.ifsc_code,
+              branch_name: b.branch_name || undefined,
+              account_type: b.account_type || "Current",
+              upi_id: b.upi_id || undefined,
+              is_primary: Boolean(b.is_primary),
+            }))
+          : [];
 
         return {
           id: row.id,
@@ -1252,6 +879,7 @@ class PMSDataStore {
           contact: primaryContact,
           addresses,
           registration: reg,
+          bank_accounts: bankAccounts.length > 0 ? bankAccounts : undefined,
         };
       });
 
@@ -1259,7 +887,6 @@ class PMSDataStore {
         (lc) => !remoteClients.some((rc) => rc.id === lc.id || rc.client_code === lc.client_code)
       );
       this.clients = [...localOnly, ...remoteClients];
-      this.backfillMissingProjectsAndTasks();
       this.persist();
     } catch {
       // Non-fatal if offline or Supabase RLS denies unauthenticated read
@@ -1323,6 +950,19 @@ class PMSDataStore {
           dob_or_doi: client.registration.dob_or_doi || null,
           additional_registrations: client.registration.additional_registrations || [],
         });
+      }
+
+      if (client.bank_accounts && client.bank_accounts.length > 0) {
+        await supabase.from("client_bank_accounts").insert(
+          client.bank_accounts.map((acc, idx) => ({
+            client_id: client.id,
+            bank_name: acc.bank_name,
+            account_number_encrypted: acc.account_number,
+            ifsc_code: acc.ifsc_code,
+            account_type: acc.account_type || "Current",
+            is_primary: acc.is_primary !== undefined ? acc.is_primary : idx === 0,
+          }))
+        );
       }
     } catch {
       // Local persistence already succeeded
@@ -1548,13 +1188,12 @@ class PMSDataStore {
     return `CLI-${year}-${String(nextNum).padStart(3, "0")}`;
   }
 
-  addClient(
+  async addClient(
     newClient: Omit<Client, "id" | "client_code" | "created_at" | "updated_at">,
     options?: { skipDefaultProject?: boolean }
-  ): Client {
+  ): Promise<Client> {
     const client_code = this.getNextClientCode();
-    const id = generateId("cli");
-    const today = new Date().toISOString().slice(0, 10);
+    const id = ensureUuid();
     const trimmedNick = newClient.nick_name?.trim() || "";
     const resolvedFolderName =
       newClient.folder_name?.trim() ||
@@ -1566,9 +1205,16 @@ class PMSDataStore {
       folder_name: resolvedFolderName,
       id,
       client_code,
-      contact: newClient.contact ? { ...newClient.contact, client_id: id } : undefined,
-      addresses: newClient.addresses?.map((addr) => ({ ...addr, client_id: id })),
-      registration: newClient.registration ? { ...newClient.registration, client_id: id } : undefined,
+      contact: newClient.contact ? { ...newClient.contact, id: ensureUuid(newClient.contact.id), client_id: id } : undefined,
+      contacts: newClient.contacts?.map((c) => ({ ...c, id: ensureUuid(c.id), client_id: id })),
+      addresses: newClient.addresses?.map((addr) => ({ ...addr, id: ensureUuid(addr.id), client_id: id })),
+      registration: newClient.registration ? { ...newClient.registration, id: ensureUuid(newClient.registration.id), client_id: id } : undefined,
+      bank_accounts: newClient.bank_accounts?.map((b, idx) => ({
+        ...b,
+        id: ensureUuid(b.id),
+        client_id: id,
+        is_primary: b.is_primary !== undefined ? b.is_primary : idx === 0,
+      })),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       active_services_count: 0,
@@ -1580,34 +1226,23 @@ class PMSDataStore {
       outstanding_amount: 0,
     };
 
+    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
+    await insertClientToDb(client);
+
     this.clients.unshift(client);
     this.addActivityLog(`Onboarded new client: ${client.client_name}`, "client", id);
 
-    // Enforce Client -> Project -> Task -> Subtask flow even without selected services
-    if (!options?.skipDefaultProject) {
-      this.addProject({
-        project_name: `${client.client_name} — Client Delivery Project`,
-        project_type: "Client Project",
-        client_id: client.id,
-        client_name: client.client_name,
-        project_manager_id: client.relationship_manager_id || this.currentUser.id,
-        project_manager_name: client.relationship_manager_name || this.currentUser.full_name,
-        description: `Primary compliance & delivery project for ${client.client_name}.`,
-        priority: "Medium",
-        start_date: today,
-        due_date: this.addDaysIso(today, 30),
-        status: "In Progress",
-      });
-    }
-
     this.persist();
-    void this.pushClientToSupabase(client);
     return this.enrichClient(client);
   }
 
-  updateClient(id: string, updates: Partial<Client>): Client | null {
+  async updateClient(id: string, updates: Partial<Client>): Promise<Client | null> {
     const index = this.clients.findIndex(c => c.id === id);
     if (index === -1) return null;
+
+    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
+    await updateClientInDb(id, updates);
+
     this.clients[index] = {
       ...this.clients[index],
       ...updates,
@@ -1615,13 +1250,73 @@ class PMSDataStore {
     };
     this.addActivityLog(`Updated client profile: ${this.clients[index].client_name}`, "client", id);
     this.persist();
-    void this.pushClientToSupabase(this.clients[index]);
     return this.enrichClient(this.clients[index]);
   }
 
-  deleteClient(id: string): boolean {
+  async saveClientContact(contact: ClientContact): Promise<ClientContact> {
+    const saved = await upsertClientContactInDb(contact);
+    const client = this.clients.find((c) => c.id === contact.client_id);
+    if (client) {
+      const contacts = client.contacts ? [...client.contacts] : [];
+      const idx = contacts.findIndex((c) => c.id === saved.id);
+      if (idx >= 0) {
+        contacts[idx] = saved;
+      } else {
+        contacts.push(saved);
+      }
+      client.contacts = contacts;
+      if (saved.is_primary || !client.contact) {
+        client.contact = saved;
+      }
+      this.persist();
+    }
+    return saved;
+  }
+
+  async deleteClientContact(clientId: string, contactId: string): Promise<void> {
+    await deleteClientContactFromDb(contactId);
+    const client = this.clients.find((c) => c.id === clientId);
+    if (client && client.contacts) {
+      client.contacts = client.contacts.filter((c) => c.id !== contactId);
+      if (client.contact?.id === contactId) {
+        client.contact = client.contacts.find((c) => c.is_primary) || client.contacts[0] || undefined;
+      }
+      this.persist();
+    }
+  }
+
+  async saveClientBankAccount(bankAccount: ClientBankAccount): Promise<ClientBankAccount> {
+    const saved = await upsertClientBankAccountInDb(bankAccount);
+    const client = this.clients.find((c) => c.id === bankAccount.client_id);
+    if (client) {
+      const accounts = client.bank_accounts ? [...client.bank_accounts] : [];
+      const idx = accounts.findIndex((a) => a.id === saved.id);
+      if (idx >= 0) {
+        accounts[idx] = saved;
+      } else {
+        accounts.push(saved);
+      }
+      client.bank_accounts = accounts;
+      this.persist();
+    }
+    return saved;
+  }
+
+  async deleteClientBankAccount(clientId: string, bankAccountId: string): Promise<void> {
+    await deleteClientBankAccountFromDb(bankAccountId);
+    const client = this.clients.find((c) => c.id === clientId);
+    if (client && client.bank_accounts) {
+      client.bank_accounts = client.bank_accounts.filter((a) => a.id !== bankAccountId);
+      this.persist();
+    }
+  }
+
+  async deleteClient(id: string): Promise<boolean> {
     const target = this.clients.find((c) => c.id === id);
     if (!target) return false;
+
+    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
+    await deleteClientFromDb(id);
 
     const removedProjectIds = new Set(
       this.projects.filter((p) => p.client_id === id).map((p) => p.id)
@@ -1643,7 +1338,7 @@ class PMSDataStore {
     this.documents = this.documents.filter((d) => d.entity_id !== id);
 
     this.addActivityLog(`Deleted client: ${target.client_name}`, "client", id);
-    void this.deleteClientFromSupabase(id);
+    this.persist();
     return true;
   }
 
@@ -1652,17 +1347,20 @@ class PMSDataStore {
     return [...this.services];
   }
 
-  addService(service: Omit<Service, "id" | "created_at">): Service {
-    const id = generateId("srv");
+  async addService(service: Omit<Service, "id" | "created_at">): Promise<Service> {
+    const id = ensureUuid();
     const newService: Service = { ...service, id, created_at: new Date().toISOString() };
+    await insertServiceToDb(newService);
     this.services.push(newService);
     this.addActivityLog(`Added service to catalog: ${newService.service_name}`, "service", id);
+    this.persist();
     return newService;
   }
 
-  updateService(id: string, updates: Partial<Omit<Service, "id" | "created_at">>): Service | null {
+  async updateService(id: string, updates: Partial<Omit<Service, "id" | "created_at">>): Promise<Service | null> {
     const index = this.services.findIndex(s => s.id === id);
     if (index === -1) return null;
+    await updateServiceInDb(id, updates);
     this.services[index] = {
       ...this.services[index],
       ...updates,
@@ -1671,17 +1369,21 @@ class PMSDataStore {
     return this.services[index];
   }
 
-  deleteService(id: string): boolean {
+  async deleteService(id: string): Promise<boolean> {
     const target = this.services.find((s) => s.id === id);
     if (!target) return false;
+    await deleteServiceFromDb(id);
     this.services = this.services.filter((s) => s.id !== id);
     this.addActivityLog(`Deleted service from catalog: ${target.service_name}`, "service", id);
+    this.persist();
     return true;
   }
 
-  deleteServiceEngagement(engagementId: string): boolean {
+  async deleteServiceEngagement(engagementId: string): Promise<boolean> {
     const target = this.engagements.find((e) => e.id === engagementId);
     if (!target) return false;
+
+    await deleteEngagementFromDb(engagementId);
 
     const linkedProjectIds = new Set(
       this.projects
@@ -1702,6 +1404,7 @@ class PMSDataStore {
       "service_engagement",
       engagementId
     );
+    this.persist();
     return true;
   }
 
@@ -1725,9 +1428,9 @@ class PMSDataStore {
    * Subscribes a client to a service and automatically creates the linked
    * Client -> Project -> Task -> Subtask hierarchy for that service delivery.
    */
-  addServiceEngagementCascade(
+  async addServiceEngagementCascade(
     engagement: Omit<ServiceEngagement, "id" | "created_at">
-  ): { engagement: ServiceEngagement; project: Project; tasks: Task[] } {
+  ): Promise<{ engagement: ServiceEngagement; project: Project; tasks: Task[] }> {
     const createdEngagement = this.addServiceEngagement(engagement);
     const matchedService = this.services.find((s) => s.id === engagement.service_id);
     const today = new Date().toISOString().slice(0, 10);
@@ -1763,7 +1466,7 @@ class PMSDataStore {
       engagement.end_date ||
       this.addDaysIso(startDate, Math.max(offsetDays, maxTemplateEndOffset));
 
-    const project = this.addProject(
+    const project = await this.addProject(
       {
         project_name: `${engagement.client_name || "Client"} — ${engagement.service_name}`,
         project_type: "Client Project",
@@ -1789,10 +1492,10 @@ class PMSDataStore {
     const stages = matchingWorkflow?.versions?.[0]?.stages || [];
 
     if (tplTasks.length > 0) {
-      tplTasks.forEach((tplTask) => {
+      for (const tplTask of tplTasks) {
         const taskStart = this.addDaysIso(startDate, Math.max(0, tplTask.start_day_offset || 0));
         const taskDue = this.addDaysIso(taskStart, Math.max(0, (tplTask.duration_days || 1) - 1));
-        const createdTask = this.addTask({
+        const createdTask = await this.addTask({
           title: tplTask.task_name,
           project_id: project.id,
           project_name: project.project_name,
@@ -1811,13 +1514,13 @@ class PMSDataStore {
           created_by_name: this.currentUser.full_name,
         });
 
-        (tplTask.subtasks || []).forEach((tplSub) => {
+        for (const tplSub of (tplTask.subtasks || [])) {
           const subStart = this.addDaysIso(
             startDate,
             Math.max(0, tplSub.start_day_offset ?? tplTask.start_day_offset ?? 0)
           );
           const subDue = this.addDaysIso(subStart, Math.max(0, (tplSub.duration_days || 1) - 1));
-          this.addSubtask(createdTask.id, {
+          await this.addSubtask(createdTask.id, {
             title: tplSub.title,
             description: tplSub.description,
             start_date: subStart,
@@ -1835,7 +1538,7 @@ class PMSDataStore {
               engagement.relationship_manager_name ||
               this.currentUser.full_name,
           });
-        });
+        }
 
         (tplTask.default_comments || []).forEach((cmt) => {
           if (cmt.trim()) {
@@ -1844,73 +1547,69 @@ class PMSDataStore {
         });
 
         createdTasks.push(this.getTaskById(createdTask.id) || createdTask);
-      });
+      }
     } else if (stages.length > 0) {
       let runningStart = startDate;
-      stages.forEach((stage) => {
+      for (const stage of stages) {
         const stageEnd = this.addDaysIso(runningStart, Math.max(1, stage.default_days || 5));
         const stageDue = stageEnd > computedDueDate ? computedDueDate : stageEnd;
         const stageTasks = stage.tasks || [];
         if (stageTasks.length > 0) {
-          stageTasks.forEach((stTask) => {
-            createdTasks.push(
-              this.addTask(
-                {
-                  title: `${stTask.task_name} (${engagement.client_name || engagement.service_code})`,
-                  project_id: project.id,
-                  project_name: project.project_name,
-                  assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
-                  assigned_employee_name:
-                    engagement.relationship_manager_name || this.currentUser.full_name,
-                  priority: stTask.priority || "Medium",
-                  start_date: runningStart,
-                  due_date: stageDue,
-                  status: "To Do",
-                  description: stTask.description || stage.description,
-                  created_by: this.currentUser.id,
-                  created_by_name: this.currentUser.full_name,
-                })
-            );
-          });
-        } else {
-          createdTasks.push(
-            this.addTask({
-              title: `${stage.stage_name} — ${engagement.service_name}`,
+          for (const stTask of stageTasks) {
+            const t = await this.addTask({
+              title: `${stTask.task_name} (${engagement.client_name || engagement.service_code})`,
               project_id: project.id,
               project_name: project.project_name,
               assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
               assigned_employee_name:
                 engagement.relationship_manager_name || this.currentUser.full_name,
-              priority: "Medium",
+              priority: stTask.priority || "Medium",
               start_date: runningStart,
               due_date: stageDue,
               status: "To Do",
-              description: stage.description,
+              description: stTask.description || stage.description,
               created_by: this.currentUser.id,
               created_by_name: this.currentUser.full_name,
-            })
-          );
+            });
+            createdTasks.push(t);
+          }
+        } else {
+          const t = await this.addTask({
+            title: `${stage.stage_name} — ${engagement.service_name}`,
+            project_id: project.id,
+            project_name: project.project_name,
+            assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
+            assigned_employee_name:
+              engagement.relationship_manager_name || this.currentUser.full_name,
+            priority: "Medium",
+            start_date: runningStart,
+            due_date: stageDue,
+            status: "To Do",
+            description: stage.description,
+            created_by: this.currentUser.id,
+            created_by_name: this.currentUser.full_name,
+          });
+          createdTasks.push(t);
         }
         runningStart = stageDue;
-      });
+      }
     } else {
-      createdTasks.push(
-        this.addTask({
-          title: `${engagement.service_name} — ${engagement.billing_frequency} Execution`,
-          project_id: project.id,
-          project_name: project.project_name,
-          assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
-          assigned_employee_name:
-            engagement.relationship_manager_name || this.currentUser.full_name,
-          priority: "Medium",
-          start_date: startDate,
-          due_date: computedDueDate,
-          status: "To Do",
-          description: `Auto-generated deliverable task for ${engagement.client_name || "client"} under ${engagement.service_code}.`,
-          created_by: this.currentUser.id,
-          created_by_name: this.currentUser.full_name,
-        })
-      );
+      const t = await this.addTask({
+        title: `${engagement.service_name} — ${engagement.billing_frequency} Execution`,
+        project_id: project.id,
+        project_name: project.project_name,
+        assigned_employee_id: engagement.relationship_manager_id || this.currentUser.id,
+        assigned_employee_name:
+          engagement.relationship_manager_name || this.currentUser.full_name,
+        priority: "Medium",
+        start_date: startDate,
+        due_date: computedDueDate,
+        status: "To Do",
+        description: `Auto-generated deliverable task for ${engagement.client_name || "client"} under ${engagement.service_code}.`,
+        created_by: this.currentUser.id,
+        created_by_name: this.currentUser.full_name,
+      });
+      createdTasks.push(t);
     }
 
     return { engagement: createdEngagement, project, tasks: createdTasks };
@@ -1935,16 +1634,16 @@ class PMSDataStore {
     };
   }
 
-  addProject(
+  async addProject(
     projectData: Omit<Project, "id" | "project_code" | "progress_percentage" | "created_at" | "updated_at"> & {
       progress_percentage?: number;
     },
     options?: { skipDefaultTask?: boolean }
-  ): Project {
+  ): Promise<Project> {
     const nextNum = this.projects.length + 1;
     const year = new Date().getFullYear();
     const project_code = `PRJ-${year}-${String(nextNum).padStart(3, "0")}`;
-    const id = generateId("proj");
+    const id = ensureUuid();
     const today = new Date().toISOString().slice(0, 10);
 
     const newProject: Project = {
@@ -1957,6 +1656,9 @@ class PMSDataStore {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+
+    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
+    await insertProjectToDb(newProject);
 
     this.projects.unshift(newProject);
     this.addActivityLog(`Created project: ${newProject.project_name}`, "project", id);
@@ -1971,30 +1673,17 @@ class PMSDataStore {
       );
     }
 
-    if (!options?.skipDefaultTask) {
-      this.addTask({
-        title: `${newProject.project_name} — Execution Deliverable`,
-        project_id: newProject.id,
-        project_name: newProject.project_name,
-        assigned_employee_id: newProject.project_manager_id || this.currentUser.id,
-        assigned_employee_name: newProject.project_manager_name || this.currentUser.full_name,
-        priority: newProject.priority || "Medium",
-        start_date: newProject.start_date,
-        due_date: newProject.due_date,
-        status: "To Do",
-        description: newProject.description || `Deliverable task for ${newProject.project_name}.`,
-        created_by: this.currentUser.id,
-        created_by_name: this.currentUser.full_name,
-      });
-    }
-
     this.persist();
     return newProject;
   }
 
-  updateProject(id: string, updates: Partial<Project>): Project | null {
+  async updateProject(id: string, updates: Partial<Project>): Promise<Project | null> {
     const index = this.projects.findIndex((p) => p.id === id);
     if (index === -1) return null;
+
+    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
+    await updateProjectInDb(id, updates);
+
     this.projects[index] = {
       ...this.projects[index],
       ...updates,
@@ -2002,6 +1691,18 @@ class PMSDataStore {
     };
     this.persist();
     return this.projects[index];
+  }
+
+  async deleteProject(id: string): Promise<boolean> {
+    const target = this.projects.find((p) => p.id === id);
+    if (!target) return false;
+
+    await deleteProjectFromDb(id);
+    this.projects = this.projects.filter((p) => p.id !== id);
+    this.tasks = this.tasks.filter((t) => t.project_id !== id);
+    this.deletedTaskProjectIds.push(id);
+    this.persist();
+    return true;
   }
 
   // Customizable Task Statuses (Admin Settings)
@@ -2198,7 +1899,7 @@ class PMSDataStore {
               ? defaultMatch.sub_categories.map((s) => ({ ...s, category_id: c.id }))
               : [
                   {
-                    id: generateId("subcat"),
+                    id: `subcat-${c.id}-general`,
                     category_id: c.id,
                     name: "General",
                     code: "GEN",
@@ -2224,15 +1925,17 @@ class PMSDataStore {
     return this.getTaskCategories().find((c) => c.id === categoryId);
   }
 
-  addTaskCategory(data: {
+  async addTaskCategory(data: {
     name: string;
     code?: string;
     description?: string;
     color?: string;
     icon?: string;
-  }): TaskCategory {
-    const id = generateId("cat");
+    whatsapp_enabled?: boolean;
+  }): Promise<TaskCategory> {
+    const id = ensureUuid();
     const code = (data.code || data.name.slice(0, 4)).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const subId = ensureUuid();
     const newCategory: TaskCategory = {
       id,
       name: data.name.trim(),
@@ -2240,10 +1943,11 @@ class PMSDataStore {
       description: data.description?.trim() || "",
       color: data.color || "violet",
       icon: data.icon || "Layers",
+      whatsapp_enabled: data.whatsapp_enabled ?? true,
       created_at: new Date().toISOString(),
       sub_categories: [
         {
-          id: generateId("subcat"),
+          id: subId,
           category_id: id,
           name: "General",
           code: "GEN",
@@ -2252,15 +1956,19 @@ class PMSDataStore {
         },
       ],
     };
+
+    await insertTaskCategoryToDb(newCategory);
+
     this.taskCategories.push(newCategory);
     this.addActivityLog(`Created task category: ${newCategory.name}`, "task", id);
     this.persist();
     return newCategory;
   }
 
-  updateTaskCategory(id: string, updates: Partial<TaskCategory>): boolean {
+  async updateTaskCategory(id: string, updates: Partial<TaskCategory>): Promise<boolean> {
     const idx = this.taskCategories.findIndex((c) => c.id === id);
     if (idx === -1) return false;
+    await updateTaskCategoryInDb(id, updates);
     this.taskCategories[idx] = {
       ...this.taskCategories[idx],
       ...updates,
@@ -2274,27 +1982,57 @@ class PMSDataStore {
     return true;
   }
 
-  deleteTaskCategory(id: string): boolean {
+  async deleteTaskCategory(id: string): Promise<boolean> {
     const cat = this.taskCategories.find((c) => c.id === id);
     if (!cat) return false;
+
+    const catTasks = this.tasks.filter((t) => t.category_id === id);
+
+    // Remove from active taskCategories in memory
     this.taskCategories = this.taskCategories.filter((c) => c.id !== id);
     if (!this.deletedTaskCategoryIds.includes(id)) {
       this.deletedTaskCategoryIds.push(id);
     }
     // Also remove any tasks and subtasks associated with this deleted category
     this.tasks = this.tasks.filter((t) => t.category_id !== id);
-    this.addActivityLog(`Deleted task category: ${cat.name}`, "task", id);
+
+    // Move to Recycle Bin (25-day safe recovery)
+    await this.moveToRecycleBin(
+      "category",
+      cat.id,
+      cat.name,
+      {
+        ...cat,
+        tasks: catTasks,
+      },
+      {
+        code: cat.code,
+        subtitle: `${cat.sub_categories?.length || 0} Sub-groups, ${catTasks.length} Deliverable Tasks`,
+      }
+    );
+
+    // Delete from Supabase active table
+    try {
+      await deleteTaskCategoryFromDb(id);
+      for (const t of catTasks) {
+        await deleteTaskFromDb(t.id);
+      }
+    } catch (e) {
+      console.warn("Could not delete category from Supabase:", e);
+    }
+
+    this.addActivityLog(`Moved task category "${cat.name}" to Recycle Bin`, "task", id);
     this.persist();
     return true;
   }
 
-  addTaskSubCategory(
+  async addTaskSubCategory(
     categoryId: string,
-    data: { name: string; code?: string; description?: string }
-  ): TaskSubCategory | undefined {
+    data: { name: string; code?: string; description?: string; whatsapp_enabled?: boolean }
+  ): Promise<TaskSubCategory | undefined> {
     const cat = this.taskCategories.find((c) => c.id === categoryId);
     if (!cat) return undefined;
-    const subId = generateId("subcat");
+    const subId = ensureUuid();
     const code = (data.code || data.name.slice(0, 4)).toUpperCase().replace(/[^A-Z0-9]/g, "");
     const newSub: TaskSubCategory = {
       id: subId,
@@ -2302,8 +2040,10 @@ class PMSDataStore {
       name: data.name.trim(),
       code: code || "SUB",
       description: data.description?.trim() || "",
+      whatsapp_enabled: data.whatsapp_enabled ?? true,
       created_at: new Date().toISOString(),
     };
+    await insertTaskSubCategoryToDb(newSub);
     if (!cat.sub_categories) cat.sub_categories = [];
     cat.sub_categories.push(newSub);
     this.addActivityLog(`Added sub-category "${newSub.name}" under ${cat.name}`, "task", subId);
@@ -2311,15 +2051,16 @@ class PMSDataStore {
     return newSub;
   }
 
-  updateTaskSubCategory(
+  async updateTaskSubCategory(
     categoryId: string,
     subCategoryId: string,
     updates: Partial<TaskSubCategory>
-  ): boolean {
+  ): Promise<boolean> {
     const cat = this.taskCategories.find((c) => c.id === categoryId);
     if (!cat || !cat.sub_categories) return false;
     const subIdx = cat.sub_categories.findIndex((s) => s.id === subCategoryId);
     if (subIdx === -1) return false;
+    await updateTaskSubCategoryInDb(subCategoryId, updates);
     cat.sub_categories[subIdx] = {
       ...cat.sub_categories[subIdx],
       ...updates,
@@ -2333,12 +2074,45 @@ class PMSDataStore {
     return true;
   }
 
-  deleteTaskSubCategory(categoryId: string, subCategoryId: string): boolean {
+  async deleteTaskSubCategory(categoryId: string, subCategoryId: string): Promise<boolean> {
     const cat = this.taskCategories.find((c) => c.id === categoryId);
     if (!cat || !cat.sub_categories) return false;
     const sub = cat.sub_categories.find((s) => s.id === subCategoryId);
+    if (!sub) return false;
+
+    const subTasks = this.tasks.filter((t) => t.sub_category_id === subCategoryId);
+
     cat.sub_categories = cat.sub_categories.filter((s) => s.id !== subCategoryId);
-    this.addActivityLog(`Deleted sub-category "${sub?.name}" under ${cat.name}`, "task", subCategoryId);
+    this.tasks = this.tasks.filter((t) => t.sub_category_id !== subCategoryId);
+
+    // Move to Recycle Bin (25-day safe recovery)
+    await this.moveToRecycleBin(
+      "sub-category" as any,
+      sub.id,
+      sub.name,
+      {
+        ...sub,
+        parent_category_id: categoryId,
+        parent_category_name: cat.name,
+        tasks: subTasks,
+      },
+      {
+        code: sub.code,
+        category_name: cat.name,
+        subtitle: `Sub-group under ${cat.name} (${subTasks.length} Tasks)`,
+      }
+    );
+
+    try {
+      await deleteTaskSubCategoryFromDb(subCategoryId);
+      for (const t of subTasks) {
+        await deleteTaskFromDb(t.id);
+      }
+    } catch (e) {
+      console.warn("Could not delete sub-category from Supabase:", e);
+    }
+
+    this.addActivityLog(`Moved sub-category "${sub?.name}" under ${cat.name} to Recycle Bin`, "task", subCategoryId);
     this.persist();
     return true;
   }
@@ -2361,12 +2135,138 @@ class PMSDataStore {
     task.sub_category_name = foundSub.name;
     task.category_id = foundCat.id;
     task.category_name = foundCat.name;
+    void updateTaskInDb(task.id, {
+      category_id: foundCat.id,
+      sub_category_id: foundSub.id,
+    }).catch((e) => console.warn("Supabase move task error:", e));
     this.persist();
     return true;
   }
 
+  copyTaskToSubCategory(taskId: string, targetSubCategoryId: string, options?: { newTitle?: string }): Task | null {
+    const original = this.tasks.find((t) => t.id === taskId);
+    if (!original) return null;
+    let foundSub: TaskSubCategory | undefined;
+    let foundCat: TaskCategory | undefined;
+    for (const cat of this.getTaskCategories()) {
+      const sub = (cat.sub_categories || []).find((s) => s.id === targetSubCategoryId);
+      if (sub) {
+        foundSub = sub;
+        foundCat = cat;
+        break;
+      }
+    }
+    if (!foundSub || !foundCat) return null;
+
+    const taskCount = this.tasks.length + 1;
+    const taskCode = `TSK-${String(taskCount).padStart(3, "0")}`;
+    const newTaskId = generateId("task");
+
+    const newTask: Task = {
+      ...JSON.parse(JSON.stringify(original)),
+      id: newTaskId,
+      task_code: taskCode,
+      title: options?.newTitle || `${original.title} (Copy)`,
+      category_id: foundCat.id,
+      category_name: foundCat.name,
+      sub_category_id: foundSub.id,
+      sub_category_name: foundSub.name,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    this.tasks.unshift(newTask);
+
+    // Duplicate subtasks if any
+    const originalSubtasks = this.getSubtasks(taskId);
+    if (originalSubtasks && originalSubtasks.length > 0) {
+      originalSubtasks.forEach((st) => {
+        this.addSubtask(newTaskId, {
+          title: st.title,
+          description: st.description,
+          due_date: st.due_date,
+          assigned_employee_id: st.assigned_employee_id,
+          assigned_employee_name: st.assigned_employee_name,
+          priority: st.priority,
+        });
+      });
+    }
+
+    // Duplicate comments if any
+    const originalComments = this.getTaskComments(taskId);
+    if (originalComments && originalComments.length > 0) {
+      originalComments.forEach((c) => {
+        if (c.comment) {
+          this.addTaskComment(newTaskId, c.comment);
+        }
+      });
+    }
+
+    this.addActivityLog(`Copied task "${original.title}" to sub-category "${foundSub.name}"`, "task", newTaskId);
+    void insertTaskToDb(newTask).catch((e) => console.warn("Supabase insert copied task error:", e));
+    this.persist();
+    return newTask;
+  }
+
+  copyTasksToSubCategory(taskIds: string[], targetSubCategoryId: string): number {
+    let count = 0;
+    for (const id of taskIds) {
+      if (this.copyTaskToSubCategory(id, targetSubCategoryId)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  moveTasksToSubCategory(taskIds: string[], targetSubCategoryId: string): number {
+    let count = 0;
+    for (const id of taskIds) {
+      if (this.updateTaskSubCategoryAssignment(id, targetSubCategoryId)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   public ensureTaskCategorized(task: Task): Task {
-    if (task.category_id && task.sub_category_id) return task;
+    // If task has matching category_id or category_name in taskCategories, reconcile IDs and names
+    const matchingCat = this.taskCategories.find(
+      (c) =>
+        c.id === task.category_id ||
+        (task.category_name && c.name.trim().toLowerCase() === task.category_name.trim().toLowerCase()) ||
+        (task.category_id && c.name.trim().toLowerCase() === task.category_id.trim().toLowerCase())
+    );
+
+    if (matchingCat) {
+      let matchingSub = (matchingCat.sub_categories || []).find(
+        (s) =>
+          s.id === task.sub_category_id ||
+          (task.sub_category_name && s.name.trim().toLowerCase() === task.sub_category_name.trim().toLowerCase()) ||
+          (task.sub_category_id && s.name.trim().toLowerCase() === task.sub_category_id.trim().toLowerCase())
+      );
+      if (!matchingSub) {
+        matchingSub = matchingCat.sub_categories?.[0];
+      }
+      return {
+        ...task,
+        category_id: matchingCat.id,
+        category_name: matchingCat.name,
+        sub_category_id: matchingSub?.id || matchingCat.sub_categories?.[0]?.id || task.sub_category_id || `subcat-${matchingCat.id}-general`,
+        sub_category_name: matchingSub?.name || matchingCat.sub_categories?.[0]?.name || task.sub_category_name || "General",
+      };
+    }
+
+    // If task already has a category assigned (even if not found in taskCategories yet), DO NOT let keyword heuristics overwrite it!
+    if (task.category_id || task.category_name) {
+      return {
+        ...task,
+        category_id: task.category_id || `cat-${task.category_name?.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+        category_name: task.category_name || task.category_id || "General",
+        sub_category_id: task.sub_category_id || `subcat-general`,
+        sub_category_name: task.sub_category_name || "General",
+      };
+    }
+
     const text = `${task.title} ${task.project_name || ""} ${task.description || ""}`.toLowerCase();
     let catId = "cat-tax";
     let subCatId = "subcat-income-tax";
@@ -2475,10 +2375,59 @@ class PMSDataStore {
       (d) => d.entity_type === "task" && d.entity_id === task.id
     ).length;
 
+    const parentProject = this.projects.find((p) => p.id === task.project_id);
+    let resolvedClientId = task.client_id || parentProject?.client_id;
+    let resolvedClient = resolvedClientId ? this.clients.find((c) => c.id === resolvedClientId) : undefined;
+    let resolvedClientName = task.client_name || resolvedClient?.client_name || parentProject?.client_name;
+
+    // Resilient fallback client resolution across project names and titles (e.g. "ROHTI — Client Delivery Project")
+    if (!resolvedClient) {
+      const pName = task.project_name || parentProject?.project_name;
+      if (pName) {
+        const prefix = pName.split(/[-—–]/)[0].trim().toLowerCase();
+        resolvedClient = this.clients.find((c) => {
+          const cName = c.client_name?.trim().toLowerCase();
+          const nick = c.nick_name?.trim().toLowerCase();
+          return (cName && (prefix === cName || prefix.includes(cName) || cName.includes(prefix))) ||
+                 (nick && (prefix === nick || prefix.includes(nick)));
+        });
+        if (resolvedClient) {
+          resolvedClientId = resolvedClient.id;
+          resolvedClientName = resolvedClient.client_name;
+        }
+      }
+    }
+
     const categorized = this.ensureTaskCategorized(task);
+
+    // Ensure assigned_employees and assigned_employee_ids are present
+    let assigned_employees = task.assigned_employees;
+    let assigned_employee_ids = task.assigned_employee_ids;
+
+    if (!assigned_employees || assigned_employees.length === 0) {
+      if (task.assigned_employee_id) {
+        const emp = this.employees.find((e) => e.id === task.assigned_employee_id);
+        if (emp) {
+          assigned_employees = [{
+            id: emp.id,
+            full_name: emp.full_name,
+            designation: emp.designation_name || emp.employee_code,
+            email: emp.email,
+          }];
+          assigned_employee_ids = [emp.id];
+        }
+      }
+    } else if (!assigned_employee_ids) {
+      assigned_employee_ids = assigned_employees.map((e) => e.id);
+    }
 
     return {
       ...categorized,
+      client_id: resolvedClientId,
+      client_name: resolvedClientName,
+      project_name: task.project_name || parentProject?.project_name,
+      assigned_employees,
+      assigned_employee_ids,
       subtasks,
       comments_count: commentsCount,
       attachments_count: attachmentsCount,
@@ -2519,19 +2468,56 @@ class PMSDataStore {
       .map((t) => this.enrichTask(t));
   }
 
-  addTask(
+  async addTask(
     taskData: Omit<Task, "id" | "task_code" | "created_at" | "comments_count" | "attachments_count">
-  ): Task {
-    const topCount = this.tasks.filter((t) => !t.parent_task_id).length + 1;
-    const task_code = `TSK-${String(topCount).padStart(3, "0")}`;
-    const id = generateId("tsk");
+  ): Promise<Task> {
+    const existingCodes = new Set(this.tasks.map((t) => t.task_code));
+    let topCount = this.tasks.filter((t) => !t.parent_task_id).length + 1;
+    let task_code = `TSK-${String(topCount).padStart(3, "0")}`;
+    while (existingCodes.has(task_code)) {
+      topCount++;
+      task_code = `TSK-${String(topCount).padStart(3, "0")}`;
+    }
+    const id = ensureUuid();
     const today = new Date().toISOString().slice(0, 10);
     const parentProject = this.projects.find((p) => p.id === taskData.project_id);
+    const resolvedClientId = taskData.client_id || parentProject?.client_id;
+    const resolvedClient = resolvedClientId ? this.clients.find((c) => c.id === resolvedClientId) : undefined;
+    const resolvedClientName = taskData.client_name || resolvedClient?.client_name || parentProject?.client_name;
+
+    const finalAssignedEmployees = taskData.assigned_employees && taskData.assigned_employees.length > 0
+      ? taskData.assigned_employees
+      : (taskData.assigned_employee_id ? (() => {
+          const emp = this.employees.find((e) => e.id === taskData.assigned_employee_id);
+          return emp ? [{
+            id: emp.id,
+            full_name: emp.full_name,
+            designation: emp.designation_name || emp.employee_code,
+            email: emp.email,
+          }] : [];
+        })() : []);
+
+    const finalAssignedEmployeeIds = taskData.assigned_employee_ids && taskData.assigned_employee_ids.length > 0
+      ? taskData.assigned_employee_ids
+      : finalAssignedEmployees.map((e) => e.id);
+
+    const primaryEmployeeId = finalAssignedEmployeeIds[0] || taskData.assigned_employee_id;
+    const primaryEmployee = this.employees.find((e) => e.id === primaryEmployeeId);
+    const assignedNames = finalAssignedEmployees.length > 0
+      ? finalAssignedEmployees.map((e) => e.full_name).join(", ")
+      : (primaryEmployee?.full_name || taskData.assigned_employee_name);
 
     const newTask: Task = {
       ...taskData,
+      client_id: resolvedClientId,
+      client_name: resolvedClientName,
+      project_name: taskData.project_name || parentProject?.project_name,
       start_date: taskData.start_date || parentProject?.start_date || today,
       due_date: taskData.due_date || parentProject?.due_date || this.addDaysIso(today, 14),
+      assigned_employee_id: primaryEmployeeId,
+      assigned_employee_name: assignedNames,
+      assigned_employees: finalAssignedEmployees,
+      assigned_employee_ids: finalAssignedEmployeeIds,
       id,
       task_code,
       created_at: new Date().toISOString(),
@@ -2539,11 +2525,25 @@ class PMSDataStore {
       attachments_count: 0,
     };
 
+    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
+    await insertTaskToDb(newTask);
+
     this.tasks.unshift(newTask);
 
     this.refreshProjectProgress(newTask.project_id);
     this.addActivityLog(`Created task: ${newTask.title}`, "task", id);
-    if (newTask.assigned_employee_id) {
+    if (finalAssignedEmployees.length > 0) {
+      for (const emp of finalAssignedEmployees) {
+        this.addNotification(
+          emp.id,
+          `New Task Assigned: ${newTask.title}`,
+          `You have been assigned to task ${newTask.task_code}: "${newTask.title}".`,
+          "task_assigned",
+          "task",
+          id
+        );
+      }
+    } else if (newTask.assigned_employee_id) {
       this.addNotification(
         newTask.assigned_employee_id,
         `New Task Assigned: ${newTask.title}`,
@@ -2557,7 +2557,7 @@ class PMSDataStore {
     return this.enrichTask(newTask);
   }
 
-  addSubtask(
+  async addSubtask(
     parentTaskId: string,
     subtaskData: {
       title: string;
@@ -2568,15 +2568,16 @@ class PMSDataStore {
       start_date?: string;
       due_date?: string;
       status?: TaskStatus;
+      whatsapp_enabled?: boolean;
     }
-  ): Task | null {
+  ): Promise<Task | null> {
     const parent = this.tasks.find((t) => t.id === parentTaskId);
     if (!parent) return null;
 
     const existingCount = this.tasks.filter((t) => t.parent_task_id === parentTaskId).length;
     const today = new Date().toISOString().slice(0, 10);
     const sub: Task = {
-      id: generateId("sub"),
+      id: ensureUuid(),
       task_code: `${parent.task_code}.${existingCount + 1}`,
       project_id: parent.project_id,
       project_name: parent.project_name,
@@ -2597,6 +2598,9 @@ class PMSDataStore {
       created_at: new Date().toISOString(),
     };
 
+    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
+    await insertTaskToDb(sub);
+
     this.tasks.push(sub);
     this.refreshProjectProgress(parent.project_id);
     this.addActivityLog(`Added subtask "${sub.title}" to ${parent.task_code}`, "task", parent.id);
@@ -2604,45 +2608,238 @@ class PMSDataStore {
     return this.enrichTask(sub);
   }
 
-  updateTask(taskId: string, updates: Partial<Task>): Task | null {
+  async updateTask(taskId: string, updates: Partial<Task>): Promise<Task | null> {
     const index = this.tasks.findIndex((t) => t.id === taskId);
     if (index === -1) return null;
 
     const current = this.tasks[index];
+    const enriched = this.enrichTask(current);
     const nextStatus = updates.status ?? current.status;
-    this.tasks[index] = {
-      ...current,
+    const completed_at = this.isCompletedStatus(nextStatus)
+      ? current.completed_at || new Date().toISOString()
+      : updates.status
+      ? undefined
+      : current.completed_at;
+
+    let resolvedClientId = updates.client_id ?? current.client_id;
+    let resolvedClientName = updates.client_name ?? current.client_name;
+    let resolvedProjectId = updates.project_id ?? current.project_id;
+    let resolvedProjectName = updates.project_name ?? current.project_name;
+
+    if (updates.client_id) {
+      const cl = this.clients.find((c) => c.id === updates.client_id);
+      if (cl) {
+        resolvedClientName = cl.client_name;
+        // Only set project if task doesn't already have a parent project
+        if (!resolvedProjectId) {
+          const clientProj = this.projects.find((p) => p.client_id === cl.id);
+          if (clientProj) {
+            resolvedProjectId = clientProj.id;
+            resolvedProjectName = clientProj.project_name;
+          }
+        }
+      }
+    }
+
+    // Always preserve category and sub-category firmly!
+    const resolvedCategoryId = updates.category_id ?? current.category_id ?? enriched.category_id;
+    const resolvedCategoryName = updates.category_name ?? current.category_name ?? enriched.category_name;
+    const resolvedSubCategoryId = updates.sub_category_id ?? current.sub_category_id ?? enriched.sub_category_id;
+    const resolvedSubCategoryName = updates.sub_category_name ?? current.sub_category_name ?? enriched.sub_category_name;
+
+    // Handle assigned employees sync
+    let finalAssignedEmployees = updates.assigned_employees ?? current.assigned_employees;
+    let finalAssignedEmployeeIds = updates.assigned_employee_ids ?? current.assigned_employee_ids;
+
+    if (updates.assigned_employees !== undefined) {
+      finalAssignedEmployeeIds = updates.assigned_employees.map((e) => e.id);
+    } else if (updates.assigned_employee_ids !== undefined) {
+      finalAssignedEmployees = this.employees
+        .filter((e) => updates.assigned_employee_ids!.includes(e.id))
+        .map((e) => ({
+          id: e.id,
+          full_name: e.full_name,
+          designation: e.designation_name || e.employee_code,
+          email: e.email,
+        }));
+    } else if (updates.assigned_employee_id !== undefined) {
+      const emp = this.employees.find((e) => e.id === updates.assigned_employee_id);
+      if (emp) {
+        finalAssignedEmployees = [{
+          id: emp.id,
+          full_name: emp.full_name,
+          designation: emp.designation_name || emp.employee_code,
+          email: emp.email,
+        }];
+        finalAssignedEmployeeIds = [emp.id];
+      } else {
+        finalAssignedEmployees = [];
+        finalAssignedEmployeeIds = [];
+      }
+    }
+
+    const primaryEmployeeId = updates.assigned_employee_id ?? finalAssignedEmployeeIds?.[0];
+    const primaryEmployeeName = finalAssignedEmployees && finalAssignedEmployees.length > 0
+      ? finalAssignedEmployees.map((e) => e.full_name).join(", ")
+      : (updates.assigned_employee_name ?? current.assigned_employee_name);
+
+    const mergedUpdates: Partial<Task> = {
       ...updates,
-      completed_at:
-        this.isCompletedStatus(nextStatus)
-          ? current.completed_at || new Date().toISOString()
-          : updates.status
-          ? undefined
-          : current.completed_at,
+      assigned_employee_id: primaryEmployeeId,
+      assigned_employee_name: primaryEmployeeName,
+      assigned_employees: finalAssignedEmployees,
+      assigned_employee_ids: finalAssignedEmployeeIds,
+      category_id: resolvedCategoryId,
+      category_name: resolvedCategoryName,
+      sub_category_id: resolvedSubCategoryId,
+      sub_category_name: resolvedSubCategoryName,
+      client_id: resolvedClientId,
+      client_name: resolvedClientName,
+      project_id: resolvedProjectId,
+      project_name: resolvedProjectName,
+      completed_at,
     };
 
-    this.refreshProjectProgress(current.project_id);
+    // Direct database write — awaits DB confirmation, safely logs if offline or non-UUID id
+    try {
+      await updateTaskInDb(taskId, mergedUpdates);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase task update warning:", dbErr.message || dbErr);
+    }
+
+    this.tasks[index] = {
+      ...current,
+      ...mergedUpdates,
+    };
+
+    this.refreshProjectProgress(this.tasks[index].project_id);
     this.addActivityLog(`Updated task ${current.task_code}: ${this.tasks[index].title}`, "task", taskId);
     this.persist();
     return this.enrichTask(this.tasks[index]);
   }
 
-  updateTaskStatus(taskId: string, newStatus: Task["status"]): Task | null {
+  async ensureClientProject(clientId: string): Promise<Project | null> {
+    const existing = this.projects.find((p) => p.client_id === clientId);
+    if (existing) return existing;
+
+    const client = this.clients.find((c) => c.id === clientId);
+    if (!client) return null;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const startDate = (client.created_at || today).slice(0, 10);
+    const dueDate = this.addDaysIso(startDate, 30);
+
+    const newProject = await this.addProject({
+      project_name: `${client.client_name} — Practice Compliance`,
+      project_type: "Client Project",
+      client_id: client.id,
+      client_name: client.client_name,
+      project_manager_id: client.relationship_manager_id || this.currentUser.id,
+      project_manager_name: client.relationship_manager_name || this.currentUser.full_name,
+      description: `Primary delivery project for ${client.client_name}.`,
+      priority: "Medium",
+      start_date: startDate,
+      due_date: dueDate,
+      status: "In Progress",
+      assigned_employees: [],
+    });
+
+    return newProject;
+  }
+
+  async allotClientToTask(taskId: string, clientId: string): Promise<Task | null> {
+    const cl = this.clients.find((c) => c.id === clientId);
+    if (!cl) return null;
+
+    const taskIndex = this.tasks.findIndex((t) => t.id === taskId);
+    if (taskIndex === -1) return null;
+
+    const currentTask = this.tasks[taskIndex];
+    const enriched = this.enrichTask(currentTask);
+
+    // Keep the task firmly anchored to its category & sub-category
+    const catId = currentTask.category_id || enriched.category_id;
+    const catName = currentTask.category_name || enriched.category_name;
+    const subCatId = currentTask.sub_category_id || enriched.sub_category_id;
+    const subCatName = currentTask.sub_category_name || enriched.sub_category_name;
+
+    // Check if task already has a parent project
+    let targetProjectId = currentTask.project_id;
+    let targetProjectName = currentTask.project_name;
+
+    if (targetProjectId) {
+      const parentProj = this.projects.find((p) => p.id === targetProjectId);
+      if (parentProj) {
+        // Update parent project with client info so project and task are aligned
+        parentProj.client_id = cl.id;
+        parentProj.client_name = cl.client_name;
+        targetProjectName = parentProj.project_name;
+        try {
+          await updateProjectInDb(parentProj.id, { client_id: cl.id });
+        } catch (e) {
+          console.warn("Could not update parent project client_id in db:", e);
+        }
+      }
+    } else {
+      // If task has no project, find or create one for this client
+      const proj = await this.ensureClientProject(clientId);
+      if (proj) {
+        targetProjectId = proj.id;
+        targetProjectName = proj.project_name;
+      }
+    }
+
+    return this.updateTask(taskId, {
+      client_id: cl.id,
+      client_name: cl.client_name,
+      project_id: targetProjectId,
+      project_name: targetProjectName,
+      category_id: catId,
+      category_name: catName,
+      sub_category_id: subCatId,
+      sub_category_name: subCatName,
+    });
+  }
+
+  async allotClientToSubCategory(subCategoryId: string, clientId: string): Promise<number> {
+    const cl = this.clients.find((c) => c.id === clientId);
+    if (!cl) return 0;
+    const matching = this.tasks.filter((t) => t.sub_category_id === subCategoryId);
+    for (const t of matching) {
+      await this.allotClientToTask(t.id, clientId);
+    }
+    return matching.length;
+  }
+
+  async allotClientToCategory(categoryId: string, clientId: string): Promise<number> {
+    const cl = this.clients.find((c) => c.id === clientId);
+    if (!cl) return 0;
+    const matching = this.tasks.filter((t) => t.category_id === categoryId);
+    for (const t of matching) {
+      await this.allotClientToTask(t.id, clientId);
+    }
+    return matching.length;
+  }
+
+  async updateTaskStatus(taskId: string, newStatus: Task["status"]): Promise<Task | null> {
     const task = this.tasks.find((t) => t.id === taskId);
     if (!task) return null;
     const oldStatus = task.status;
+    const completed_at = this.isCompletedStatus(newStatus) ? new Date().toISOString() : undefined;
+
+    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
+    await updateTaskInDb(taskId, { status: newStatus, completed_at });
+
     task.status = newStatus;
-    if (this.isCompletedStatus(newStatus)) {
-      task.completed_at = new Date().toISOString();
-    } else {
-      task.completed_at = undefined;
-    }
+    task.completed_at = completed_at;
+
     this.refreshProjectProgress(task.project_id);
     this.addActivityLog(
       `Changed ${task.parent_task_id ? "subtask" : "task"} ${task.task_code} status from ${oldStatus} to ${newStatus}`,
       "task",
       taskId
     );
+    this.persist();
     return this.enrichTask(task);
   }
 
@@ -2868,7 +3065,7 @@ class PMSDataStore {
     return comment;
   }
 
-  deleteTask(taskId: string): boolean {
+  async deleteTask(taskId: string): Promise<boolean> {
     const target = this.tasks.find((t) => t.id === taskId);
     if (!target) return false;
 
@@ -2887,6 +3084,34 @@ class PMSDataStore {
       });
     }
 
+    const removedTasks = this.tasks.filter((t) => removedIds.has(t.id));
+
+    // Move to Recycle Bin (25-day safe recovery)
+    await this.moveToRecycleBin(
+      "task",
+      target.id,
+      target.title,
+      {
+        ...target,
+        subtasks: removedTasks.filter((t) => t.parent_task_id === target.id),
+      },
+      {
+        code: target.task_code,
+        category_name: target.category_name,
+        client_name: target.client_name,
+        subtitle: `${target.priority} Priority • ${target.status}`,
+      }
+    );
+
+    // Direct database delete — awaits DB confirmation, throws actual Supabase error on failure
+    for (const id of removedIds) {
+      try {
+        await deleteTaskFromDb(id);
+      } catch (e) {
+        console.warn("Could not delete task from Supabase:", e);
+      }
+    }
+
     if (isParent && !this.deletedTaskProjectIds.includes(target.project_id)) {
       this.deletedTaskProjectIds.push(target.project_id);
     }
@@ -2898,10 +3123,11 @@ class PMSDataStore {
     );
     this.refreshProjectProgress(target.project_id);
     this.addActivityLog(
-      `Deleted ${isParent ? "task" : "subtask"} ${target.task_code}: ${target.title}`,
+      `Moved ${isParent ? "task" : "subtask"} ${target.task_code} ("${target.title}") to Recycle Bin`,
       "task",
       taskId
     );
+    this.persist();
     return true;
   }
 
@@ -2914,18 +3140,20 @@ class PMSDataStore {
     return this.workflows.find(w => w.id === id);
   }
 
-  addWorkflow(wfData: Omit<WorkflowTemplate, "id" | "created_at">): WorkflowTemplate {
-    const id = generateId("wf");
+  async addWorkflow(wfData: Omit<WorkflowTemplate, "id" | "created_at">): Promise<WorkflowTemplate> {
+    const id = ensureUuid();
     const newWf: WorkflowTemplate = { ...wfData, id, created_at: new Date().toISOString() };
+    await insertWorkflowToDb(newWf);
     this.workflows.unshift(newWf);
     this.addActivityLog(`Published workflow template: ${newWf.workflow_name}`, "workflow", id);
     this.persist();
     return newWf;
   }
 
-  updateWorkflow(id: string, updates: Partial<WorkflowTemplate>): WorkflowTemplate | null {
+  async updateWorkflow(id: string, updates: Partial<WorkflowTemplate>): Promise<WorkflowTemplate | null> {
     const index = this.workflows.findIndex((w) => w.id === id);
     if (index === -1) return null;
+    await updateWorkflowInDb(id, updates);
     this.workflows[index] = {
       ...this.workflows[index],
       ...updates,
@@ -2935,9 +3163,10 @@ class PMSDataStore {
     return this.workflows[index];
   }
 
-  deleteWorkflow(id: string): boolean {
+  async deleteWorkflow(id: string): Promise<boolean> {
     const target = this.workflows.find((w) => w.id === id);
     if (!target) return false;
+    await deleteWorkflowFromDb(id);
     this.workflows = this.workflows.filter((w) => w.id !== id);
     this.addActivityLog(`Deleted workflow template: ${target.workflow_name}`, "workflow", id);
     this.persist();
@@ -3413,10 +3642,10 @@ class PMSDataStore {
    * Ensures every client engagement / project matching this workflow's service
    * has tasks generated for every template task in workflow.template_tasks.
    */
-  syncWorkflowTasksToSubscribedClients(workflowId: string): {
+  async syncWorkflowTasksToSubscribedClients(workflowId: string): Promise<{
     updatedProjects: number;
     createdTasks: number;
-  } {
+  }> {
     const wf = this.workflows.find((w) => w.id === workflowId);
     const tplTasks = wf?.template_tasks || [];
     if (!wf || tplTasks.length === 0) {
@@ -3432,7 +3661,7 @@ class PMSDataStore {
     );
 
     const candidateProjectIds = new Set<string>();
-    matchingEngagements.forEach((eng) => {
+    for (const eng of matchingEngagements) {
       let proj = this.projects.find(
         (p) =>
           p.service_engagement_id === eng.id ||
@@ -3442,7 +3671,7 @@ class PMSDataStore {
       if (!proj) {
         const startDate = eng.start_date || new Date().toISOString().slice(0, 10);
         const dueDate = eng.end_date || this.addDaysIso(startDate, 30);
-        proj = this.addProject(
+        proj = await this.addProject(
           {
             project_name: `${eng.client_name || "Client"} — ${eng.service_name}`,
             project_type: "Client Project",
@@ -3462,7 +3691,7 @@ class PMSDataStore {
         );
       }
       candidateProjectIds.add(proj.id);
-    });
+    }
 
     // Also include standalone client projects tagged with this workflow's service name
     if (serviceNameLower) {
@@ -3476,9 +3705,9 @@ class PMSDataStore {
     let updatedProjects = 0;
     let createdTasks = 0;
 
-    candidateProjectIds.forEach((projectId) => {
+    for (const projectId of candidateProjectIds) {
       const proj = this.projects.find((p) => p.id === projectId);
-      if (!proj) return;
+      if (!proj) continue;
 
       const existingTopTasks = this.tasks.filter(
         (t) => t.project_id === projectId && !t.parent_task_id
@@ -3491,11 +3720,11 @@ class PMSDataStore {
       const baseStart = proj.start_date || new Date().toISOString().slice(0, 10);
       const milestones = this.getNormalizedWorkflowMilestones(wf);
 
-      milestones.forEach((ms) => {
-        (ms.stages || []).forEach((stg) => {
-          (stg.sub_stages || []).forEach((subStg) => {
-            (subStg.tasks || []).forEach((tplTask) => {
-              if (existingTitles.has(tplTask.task_name.trim().toLowerCase())) return;
+      for (const ms of milestones) {
+        for (const stg of (ms.stages || [])) {
+          for (const subStg of (stg.sub_stages || [])) {
+            for (const tplTask of (subStg.tasks || [])) {
+              if (existingTitles.has(tplTask.task_name.trim().toLowerCase())) continue;
 
               const taskStart = this.addDaysIso(
                 ms.start_date || baseStart,
@@ -3505,7 +3734,7 @@ class PMSDataStore {
                 taskStart,
                 Math.max(0, (tplTask.duration_days || 1) - 1)
               );
-              const createdTask = this.addTask({
+              const createdTask = await this.addTask({
                 title: tplTask.task_name,
                 project_id: proj.id,
                 project_name: proj.project_name,
@@ -3532,7 +3761,7 @@ class PMSDataStore {
                 created_by_name: this.currentUser.full_name,
               });
 
-              (tplTask.subtasks || []).forEach((tplSub) => {
+              for (const tplSub of (tplTask.subtasks || [])) {
                 const subStart = this.addDaysIso(
                   ms.start_date || baseStart,
                   Math.max(0, (tplSub.start_day_offset ?? tplTask.start_day_offset ?? 1) - 1)
@@ -3541,7 +3770,7 @@ class PMSDataStore {
                   subStart,
                   Math.max(0, (tplSub.duration_days || 1) - 1)
                 );
-                this.addSubtask(createdTask.id, {
+                await this.addSubtask(createdTask.id, {
                   title: tplSub.title,
                   description: tplSub.description,
                   start_date: subStart,
@@ -3559,7 +3788,7 @@ class PMSDataStore {
                     proj.project_manager_name ||
                     this.currentUser.full_name,
                 });
-              });
+              }
 
               (tplTask.default_comments || []).forEach((cmt) => {
                 if (cmt.trim()) {
@@ -3569,15 +3798,15 @@ class PMSDataStore {
 
               addedHere += 1;
               createdTasks += 1;
-            });
-          });
-        });
-      });
+            }
+          }
+        }
+      }
 
       if (addedHere > 0) {
         updatedProjects += 1;
       }
-    });
+    }
 
     if (createdTasks > 0) {
       this.persist();
@@ -3594,14 +3823,14 @@ class PMSDataStore {
     return this.invoices.find(i => i.id === id);
   }
 
-  addInvoice(
+  async addInvoice(
     invoiceData: Omit<Invoice, "id" | "invoice_number" | "paid_amount" | "outstanding_balance" | "created_at"> & {
       invoice_number?: string;
       initial_paid_amount?: number;
       payment_mode?: PaymentMode;
       transaction_reference?: string;
     }
-  ): Invoice {
+  ): Promise<Invoice> {
     const {
       invoice_number: providedNumber,
       initial_paid_amount,
@@ -3613,7 +3842,7 @@ class PMSDataStore {
     const fy = restInvoiceData.financial_year || "2026-27";
     const nextSeq = 754 + this.invoices.length;
     const invoice_number = (providedNumber || "").trim() || `LMA/${fy}/${String(nextSeq).padStart(4, "0")}`;
-    const id = `inv-${Date.now()}`;
+    const id = ensureUuid();
     const tdsAmount = Number(restInvoiceData.tds_amount || 0);
     const netPayable = restInvoiceData.net_payable ?? Math.max(0, restInvoiceData.grand_total - tdsAmount);
 
@@ -3629,6 +3858,9 @@ class PMSDataStore {
       created_at: new Date().toISOString()
     };
 
+    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
+    await insertInvoiceToDb(newInvoice);
+
     this.invoices.unshift(newInvoice);
     this.addActivityLog(
       `Created invoice ${invoice_number} for ₹${netPayable.toLocaleString("en-IN")}`,
@@ -3638,7 +3870,7 @@ class PMSDataStore {
 
     const paidInit = Math.max(0, Math.min(Number(initial_paid_amount || 0), netPayable));
     if (paidInit > 0) {
-      this.recordPayment({
+      await this.recordPayment({
         client_id: newInvoice.client_id,
         client_name: newInvoice.client_name || newInvoice.client_legal_name,
         invoice_id: newInvoice.id,
@@ -3655,7 +3887,16 @@ class PMSDataStore {
       });
     }
 
+    this.persist();
     return newInvoice;
+  }
+
+  async deleteInvoice(invoiceId: string): Promise<boolean> {
+    await deleteInvoiceFromDb(invoiceId);
+    this.invoices = this.invoices.filter((i) => i.id !== invoiceId);
+    this.payments = this.payments.filter((p) => p.invoice_id !== invoiceId);
+    this.persist();
+    return true;
   }
 
   finalizeInvoice(invoiceId: string): Invoice | null {
@@ -3664,6 +3905,7 @@ class PMSDataStore {
     inv.status = "Finalized";
     inv.finalized_at = new Date().toISOString();
     this.addActivityLog(`Finalized invoice ${inv.invoice_number}`, "invoice", invoiceId);
+    this.persist();
     return inv;
   }
 
@@ -3674,6 +3916,7 @@ class PMSDataStore {
     inv.cancelled_at = new Date().toISOString();
     inv.cancel_reason = reason;
     this.addActivityLog(`Cancelled invoice ${inv.invoice_number}. Reason: ${reason}`, "invoice", invoiceId);
+    this.persist();
     return inv;
   }
 
@@ -3682,11 +3925,11 @@ class PMSDataStore {
     return [...this.payments];
   }
 
-  recordPayment(paymentData: Omit<Payment, "id" | "payment_number" | "created_at">): Payment {
+  async recordPayment(paymentData: Omit<Payment, "id" | "payment_number" | "created_at">): Promise<Payment> {
     const nextNum = this.payments.length + 1;
     const year = new Date().getFullYear();
     const payment_number = `PAY/${year}/${String(nextNum).padStart(5, "0")}`;
-    const id = `pay-${Date.now()}`;
+    const id = ensureUuid();
 
     const newPayment: Payment = {
       ...paymentData,
@@ -3695,6 +3938,9 @@ class PMSDataStore {
       status: "Completed",
       created_at: new Date().toISOString()
     };
+
+    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
+    await insertPaymentToDb(newPayment);
 
     this.payments.unshift(newPayment);
 
@@ -3723,13 +3969,24 @@ class PMSDataStore {
       "payment",
       id
     );
-
+    this.persist();
     return newPayment;
   }
 
   // Employees & Staff Directory
   getEmployees(): Employee[] {
-    return [...this.employees];
+    const seen = new Set<string>();
+    const unique: Employee[] = [];
+    for (const emp of this.employees) {
+      if (!emp) continue;
+      const nameKey = (emp.full_name || "").trim().toLowerCase();
+      if (!seen.has(emp.id) && !seen.has(nameKey)) {
+        seen.add(emp.id);
+        if (nameKey) seen.add(nameKey);
+        unique.push(emp);
+      }
+    }
+    return unique;
   }
 
   getEmployeeById(id: string): Employee | undefined {
@@ -3936,14 +4193,15 @@ class PMSDataStore {
     );
   }
 
-  addDocument(docData: Omit<FileObject, "id" | "created_at">): FileObject {
-    const id = generateId("doc");
+  async addDocument(docData: Omit<FileObject, "id" | "created_at">): Promise<FileObject> {
+    const id = ensureUuid();
     const newDoc: FileObject = {
       ...docData,
       id,
       created_at: new Date().toISOString(),
       is_deleted: false,
     };
+    await insertDocumentToDb(newDoc);
     this.documents.unshift(newDoc);
     this.addActivityLog(`Uploaded document: ${newDoc.file_name}`, "document", id);
     this.persist();
@@ -3992,9 +4250,10 @@ class PMSDataStore {
     return true;
   }
 
-  permanentlyDeleteDocument(docId: string, currentUser?: Employee): boolean {
+  async permanentlyDeleteDocument(docId: string, currentUser?: Employee): Promise<boolean> {
     const doc = this.documents.find((d) => d.id === docId);
     if (!doc) return false;
+    await deleteDocumentFromDb(docId);
     const user = currentUser || this.currentUser;
     this.documents = this.documents.filter((d) => d.id !== docId);
     this.addActivityLog(
@@ -4173,6 +4432,259 @@ class PMSDataStore {
     );
     this.persist();
     return total;
+  }
+
+
+  // WhatsApp Message Templates
+  getWhatsAppTemplates(): WhatsAppTemplate[] {
+    return [...this.whatsAppTemplates];
+  }
+
+  async addWhatsAppTemplate(tpl: Omit<WhatsAppTemplate, "id" | "created_at">): Promise<WhatsAppTemplate> {
+    const id = ensureUuid();
+    const newTpl: WhatsAppTemplate = {
+      ...tpl,
+      id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    await upsertWhatsAppTemplateInDb(newTpl);
+    this.whatsAppTemplates.push(newTpl);
+    this.persist();
+    return newTpl;
+  }
+
+  async updateWhatsAppTemplate(id: string, updates: Partial<WhatsAppTemplate>): Promise<WhatsAppTemplate | null> {
+    const idx = this.whatsAppTemplates.findIndex((t) => t.id === id);
+    if (idx === -1) return null;
+    const updated = {
+      ...this.whatsAppTemplates[idx],
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+    await upsertWhatsAppTemplateInDb(updated);
+    this.whatsAppTemplates[idx] = updated;
+    this.persist();
+    return this.whatsAppTemplates[idx];
+  }
+
+  async deleteWhatsAppTemplate(id: string): Promise<boolean> {
+    await deleteWhatsAppTemplateFromDb(id);
+    const prevLen = this.whatsAppTemplates.length;
+    this.whatsAppTemplates = this.whatsAppTemplates.filter((t) => t.id !== id);
+    if (this.whatsAppTemplates.length !== prevLen) {
+      this.persist();
+      return true;
+    }
+    return false;
+  }
+
+  // Centralized Universal Recycle Bin
+  getUniversalRecycleBin(): UniversalRecycleBinItem[] {
+    return [...this.universalRecycleBin];
+  }
+
+  async moveToRecycleBin(
+    itemType: any,
+    itemId: string,
+    title: string,
+    rawData: any,
+    options?: {
+      code?: string;
+      subtitle?: string;
+      category_name?: string;
+      client_name?: string;
+    }
+  ): Promise<UniversalRecycleBinItem> {
+    const user = this.currentUser;
+    const deleted_at = new Date().toISOString();
+    const recovery_deadline = new Date(Date.now() + 25 * 86400000).toISOString();
+    const binItem: UniversalRecycleBinItem = {
+      id: ensureUuid(),
+      item_id: itemId,
+      item_type: itemType,
+      title,
+      code: options?.code,
+      subtitle: options?.subtitle,
+      category_name: options?.category_name,
+      client_name: options?.client_name,
+      raw_data: rawData,
+      deleted_at,
+      deleted_by: isUuid(user.id) ? user.id : undefined,
+      deleted_by_name: user.full_name,
+      recovery_deadline,
+    };
+    this.universalRecycleBin.unshift(binItem);
+    try {
+      await insertRecycleBinItemToDb(binItem);
+    } catch (e) {
+      console.warn("Could not persist recycle bin item to Supabase:", e);
+    }
+    this.persist();
+    return binItem;
+  }
+
+  addToUniversalRecycleBin(
+    itemType: any,
+    itemId: string,
+    title: string,
+    rawData: any,
+    options?: {
+      code?: string;
+      subtitle?: string;
+      category_name?: string;
+      client_name?: string;
+    }
+  ) {
+    void this.moveToRecycleBin(itemType, itemId, title, rawData, options);
+  }
+
+  restoreRecycleBinItem(binId: string, currentUser?: Employee): boolean {
+    const itemIdx = this.universalRecycleBin.findIndex((i) => i.id === binId);
+    if (itemIdx === -1) return false;
+    const item = this.universalRecycleBin[itemIdx];
+    const user = currentUser || this.currentUser;
+
+    if (item.item_type === "document") {
+      this.restoreDocument(item.item_id, user);
+    } else if (item.item_type === "folder") {
+      this.restoreFolder(item.item_id, user);
+    } else if (item.item_type === "task" && item.raw_data) {
+      const taskData = item.raw_data as Task;
+      if (!this.tasks.some((t) => t.id === taskData.id)) {
+        this.tasks.unshift(taskData);
+      }
+      void insertTaskToDb(taskData).catch((e) => console.warn("Failed to re-insert task in Supabase:", e));
+      if (Array.isArray(taskData.subtasks)) {
+        for (const st of taskData.subtasks) {
+          if (!this.tasks.some((t) => t.id === st.id)) {
+            this.tasks.push(st);
+            void insertTaskToDb(st).catch(() => {});
+          }
+        }
+      }
+    } else if (item.item_type === "category" && item.raw_data) {
+      const catData = item.raw_data as TaskCategory & { tasks?: Task[] };
+      this.deletedTaskCategoryIds = this.deletedTaskCategoryIds.filter((cid) => cid !== catData.id);
+      if (!this.taskCategories.some((c) => c.id === catData.id)) {
+        this.taskCategories.push(catData);
+      }
+      void insertTaskCategoryToDb(catData).catch((e) => console.warn("Failed to re-insert category in Supabase:", e));
+      if (Array.isArray(catData.tasks)) {
+        for (const t of catData.tasks) {
+          if (!this.tasks.some((existing) => existing.id === t.id)) {
+            this.tasks.push(t);
+            void insertTaskToDb(t).catch(() => {});
+          }
+        }
+      }
+    } else if ((item.item_type === "sub-category" || (item.item_type as string) === "sub_category") && item.raw_data) {
+      const subData = item.raw_data as TaskSubCategory & { parent_category_id: string; tasks?: Task[] };
+      const parentCat = this.taskCategories.find((c) => c.id === subData.parent_category_id);
+      if (parentCat) {
+        if (!parentCat.sub_categories) parentCat.sub_categories = [];
+        if (!parentCat.sub_categories.some((s) => s.id === subData.id)) {
+          parentCat.sub_categories.push(subData);
+        }
+        void insertTaskSubCategoryToDb(subData).catch((e) => console.warn("Failed to re-insert sub-category in Supabase:", e));
+      }
+      if (Array.isArray(subData.tasks)) {
+        for (const t of subData.tasks) {
+          if (!this.tasks.some((existing) => existing.id === t.id)) {
+            this.tasks.push(t);
+            void insertTaskToDb(t).catch(() => {});
+          }
+        }
+      }
+    } else if (item.item_type === "client" && item.raw_data) {
+      if (!this.clients.some((c) => c.id === item.raw_data.id)) {
+        this.clients.unshift(item.raw_data);
+      }
+      void insertClientToDb(item.raw_data).catch(() => {});
+    } else if (item.item_type === "workflow" && item.raw_data) {
+      if (!this.workflows.some((w) => w.id === item.raw_data.id)) {
+        this.workflows.unshift(item.raw_data);
+      }
+      void insertWorkflowToDb(item.raw_data).catch(() => {});
+    } else if (item.item_type === "vault-credential" && item.raw_data) {
+      if (!this.vaultCredentials.some((c) => c.id === item.raw_data.id)) {
+        this.vaultCredentials.unshift(item.raw_data);
+      }
+      void insertVaultCredentialToDb(item.raw_data).catch(() => {});
+      this.logVaultActivity({
+        credential_id: item.raw_data.id,
+        portal_name: item.title,
+        action: "RESTORE",
+        performed_by_id: user.id,
+        performed_by_name: user.full_name,
+        details: `Restored credential "${item.title}" from Recycle Bin`,
+        client_name: item.client_name,
+      });
+    }
+
+    this.universalRecycleBin.splice(itemIdx, 1);
+    void deleteRecycleBinItemFromDb(binId).catch(() => {});
+    this.addActivityLog(
+      `Restored ${item.item_type} "${item.title}" from Recycle Bin by ${user.full_name}`,
+      "document",
+      item.item_id
+    );
+    this.persist();
+    return true;
+  }
+
+  restoreAllUniversalRecycleBin(currentUser?: Employee): number {
+    const user = currentUser || this.currentUser;
+    let count = 0;
+    const items = [...this.universalRecycleBin];
+    for (const item of items) {
+      if (this.restoreRecycleBinItem(item.id, user)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  emptyUniversalRecycleBin(currentUser?: Employee): number {
+    const user = currentUser || this.currentUser;
+    const count = this.universalRecycleBin.length;
+    for (const item of this.universalRecycleBin) {
+      void deleteRecycleBinItemFromDb(item.id).catch(() => {});
+    }
+    this.universalRecycleBin = [];
+    this.addActivityLog(
+      `Permanently emptied Universal Recycle Bin (${count} items erased by ${user.full_name})`,
+      "document"
+    );
+    this.persist();
+    return count;
+  }
+
+  permanentlyDeleteRecycleBinItem(binId: string, currentUser?: Employee): boolean {
+    const user = currentUser || this.currentUser;
+    const item = this.universalRecycleBin.find((i) => i.id === binId);
+    if (!item) return false;
+    this.universalRecycleBin = this.universalRecycleBin.filter((i) => i.id !== binId);
+    void deleteRecycleBinItemFromDb(binId).catch(() => {});
+
+    // Permanently remove from Supabase DB tables
+    if (item.item_type === "task") {
+      void deleteTaskFromDb(item.item_id).catch(() => {});
+    } else if (item.item_type === "category") {
+      void deleteTaskCategoryFromDb(item.item_id).catch(() => {});
+    } else if (item.item_type === "sub-category") {
+      void deleteTaskSubCategoryFromDb(item.item_id).catch(() => {});
+    } else if (item.item_type === "client") {
+      void deleteClientFromDb(item.item_id).catch(() => {});
+    }
+
+    this.addActivityLog(
+      `Permanently deleted ${item.item_type} "${item.title}" from Recycle Bin (${user.full_name})`,
+      "document",
+      item.item_id
+    );
+    this.persist();
+    return true;
   }
 
   // Notifications
@@ -4412,6 +4924,154 @@ class PMSDataStore {
       radiusMeters,
       record,
     };
+  }
+
+  // ==========================================================================
+  // CREDENTIAL VAULT (AES-256-GCM SECURE CREDENTIALS & AUDIT LOGS)
+  // ==========================================================================
+
+  getVaultCredentials(): VaultCredential[] {
+    return [...this.vaultCredentials];
+  }
+
+  getVaultCredentialById(id: string): VaultCredential | undefined {
+    return this.vaultCredentials.find((c) => c.id === id);
+  }
+
+  async addVaultCredential(
+    credData: Omit<VaultCredential, "id" | "created_at" | "updated_at">
+  ): Promise<VaultCredential> {
+    const id = ensureUuid();
+    const now = new Date().toISOString();
+    const newCred: VaultCredential = {
+      ...credData,
+      id,
+      created_at: now,
+      updated_at: now,
+      last_password_changed_at: credData.last_password_changed_at || now,
+      rotation_reminder_days: credData.rotation_reminder_days || 90,
+      password_history: credData.password_history || [],
+      created_by_id: this.currentUser?.id,
+      created_by_name: this.currentUser?.full_name,
+    };
+
+    // Direct database write
+    await insertVaultCredentialToDb(newCred);
+
+    this.vaultCredentials.unshift(newCred);
+    this.logVaultActivity({
+      credential_id: id,
+      portal_name: newCred.portal_name,
+      action: "CREATE",
+      performed_by_id: this.currentUser.id,
+      performed_by_name: this.currentUser.full_name,
+      details: `Created credential for "${newCred.portal_name}" (${newCred.username})`,
+      client_name: newCred.client_name,
+    });
+    this.persist();
+    return newCred;
+  }
+
+  async updateVaultCredential(
+    id: string,
+    updates: Partial<VaultCredential>
+  ): Promise<VaultCredential | null> {
+    const index = this.vaultCredentials.findIndex((c) => c.id === id);
+    if (index === -1) return null;
+
+    const current = this.vaultCredentials[index];
+    const now = new Date().toISOString();
+
+    let password_history = current.password_history ? [...current.password_history] : [];
+    let last_password_changed_at = current.last_password_changed_at;
+
+    // Track password history when password is changed
+    if (updates.password_encrypted && updates.password_encrypted !== current.password_encrypted) {
+      password_history.unshift({
+        id: ensureUuid(),
+        password_encrypted: current.password_encrypted,
+        changed_at: now,
+        changed_by_id: this.currentUser.id,
+        changed_by_name: this.currentUser.full_name,
+      });
+      last_password_changed_at = now;
+    }
+
+    const merged: VaultCredential = {
+      ...current,
+      ...updates,
+      password_history,
+      last_password_changed_at,
+      updated_at: now,
+    };
+
+    // Direct database write
+    await updateVaultCredentialInDb(id, merged);
+
+    this.vaultCredentials[index] = merged;
+    this.logVaultActivity({
+      credential_id: id,
+      portal_name: merged.portal_name,
+      action: "UPDATE",
+      performed_by_id: this.currentUser.id,
+      performed_by_name: this.currentUser.full_name,
+      details: `Updated credential information for "${merged.portal_name}"`,
+      client_name: merged.client_name,
+    });
+    this.persist();
+    return merged;
+  }
+
+  async deleteVaultCredential(id: string): Promise<boolean> {
+    const target = this.vaultCredentials.find((c) => c.id === id);
+    if (!target) return false;
+
+    // Direct database write
+    await deleteVaultCredentialFromDb(id);
+
+    // Safely move to Universal Recycle Bin with 25-day recovery window!
+    await this.moveToRecycleBin(
+      "vault-credential",
+      id,
+      `${target.portal_name} (${target.username})`,
+      target,
+      {
+        subtitle: target.category,
+        category_name: target.category,
+        client_name: target.client_name,
+      }
+    );
+
+    this.vaultCredentials = this.vaultCredentials.filter((c) => c.id !== id);
+    this.logVaultActivity({
+      credential_id: id,
+      portal_name: target.portal_name,
+      action: "DELETE",
+      performed_by_id: this.currentUser.id,
+      performed_by_name: this.currentUser.full_name,
+      details: `Moved credential for "${target.portal_name}" to Recycle Bin`,
+      client_name: target.client_name,
+    });
+    this.persist();
+    return true;
+  }
+
+  getVaultAuditLogs(): VaultAuditLog[] {
+    return [...this.vaultAuditLogs];
+  }
+
+  logVaultActivity(log: Omit<VaultAuditLog, "id" | "timestamp">): void {
+    const entry: VaultAuditLog = {
+      ...log,
+      id: ensureUuid(),
+      timestamp: new Date().toISOString(),
+    };
+    this.vaultAuditLogs.unshift(entry);
+    if (this.vaultAuditLogs.length > 500) {
+      this.vaultAuditLogs = this.vaultAuditLogs.slice(0, 500);
+    }
+    void insertVaultAuditLogToDb(entry).catch(() => {});
+    this.persist();
   }
 }
 

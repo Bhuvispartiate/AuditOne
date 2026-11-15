@@ -59,9 +59,6 @@ export default function NotificationsPage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
             Notification Center & Reminders
           </h1>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Real-time compliance alerts, assignment notices, overdue payments and workflow sign-offs.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">

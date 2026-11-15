@@ -60,7 +60,7 @@ function FinanceContent() {
     return matchesSearch && matchesMode;
   });
 
-  const handleRecordPayment = (e: React.FormEvent) => {
+  const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || amount <= 0) {
       toast.error("Please enter a valid payment amount.");
@@ -70,25 +70,29 @@ function FinanceContent() {
     const client = clients.find((c) => c.id === clientId);
     const invoice = invoices.find((i) => i.id === invoiceId);
 
-    const newPayment = pmsStore.recordPayment({
-      client_id: clientId,
-      client_name: client?.client_name,
-      invoice_id: invoiceId || undefined,
-      invoice_number: invoice?.invoice_number,
-      payment_date: paymentDate,
-      amount: Number(amount),
-      payment_mode: paymentMode,
-      transaction_reference: transactionRef || undefined,
-      received_by: pmsStore.getCurrentUser().id,
-      received_by_name: pmsStore.getCurrentUser().full_name,
-      remarks,
-      status: "Completed",
-    });
+    try {
+      const newPayment = await pmsStore.recordPayment({
+        client_id: clientId,
+        client_name: client?.client_name,
+        invoice_id: invoiceId || undefined,
+        invoice_number: invoice?.invoice_number,
+        payment_date: paymentDate,
+        amount: Number(amount),
+        payment_mode: paymentMode,
+        transaction_reference: transactionRef || undefined,
+        received_by: pmsStore.getCurrentUser().id,
+        received_by_name: pmsStore.getCurrentUser().full_name,
+        remarks,
+        status: "Completed",
+      });
 
-    toast.success(`Payment of ₹${newPayment.amount.toLocaleString("en-IN")} recorded under ${newPayment.payment_number}.`);
-    setIsModalOpen(false);
-    setTransactionRef("");
-    setRemarks("");
+      toast.success(`Payment of ₹${newPayment.amount.toLocaleString("en-IN")} saved to Supabase under ${newPayment.payment_number}.`);
+      setIsModalOpen(false);
+      setTransactionRef("");
+      setRemarks("");
+    } catch (err: any) {
+      toast.error(`Database error: ${err.message || "Failed to record payment."}`);
+    }
   };
 
   const exportPaymentsExcel = async () => {
@@ -120,9 +124,6 @@ function FinanceContent() {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
             Finance & Payment Management
           </h1>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Real-time receivables reconciliation, partial remittances, invoice allocation and automated balance ledger.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">

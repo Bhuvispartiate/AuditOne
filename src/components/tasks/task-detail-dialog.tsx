@@ -7,8 +7,12 @@ import {
   Trash2,
   Pencil,
   MessageSquare,
+  Building2,
+  FolderTree,
+  Folder,
 } from "lucide-react";
 import { whatsappClient } from "@/lib/whatsapp-client";
+import { WhatsAppChatDialog } from "@/components/whatsapp/whatsapp-chat-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +25,7 @@ import { ProjectTimeline } from "./project-timeline";
 import { SubtaskTree } from "./subtask-tree";
 import { TaskCommentsBox } from "./task-comments-box";
 import { TaskDocumentsBox } from "./task-documents-box";
+import { EmployeeMultiSelect } from "./employee-multi-select";
 
 import { isEmployeeRestricted } from "@/lib/access";
 
@@ -41,13 +46,13 @@ export function TaskDetailDialog({
 }: TaskDetailDialogProps) {
   const [, setTick] = useState(0);
   const [viewingTaskId, setViewingTaskId] = useState<string | null>(taskId);
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [showAddSubtaskForm, setShowAddSubtaskForm] = useState(false);
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [notesDraft, setNotesDraft] = useState("");
   const [subTitle, setSubTitle] = useState("");
   const [subStartDate, setSubStartDate] = useState("");
   const [subDueDate, setSubDueDate] = useState("");
   const [subAssigneeId, setSubAssigneeId] = useState("");
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   useEffect(() => {
     const unsub = pmsStore.subscribe(() => setTick((t) => t + 1));
@@ -57,16 +62,96 @@ export function TaskDetailDialog({
   useEffect(() => {
     if (open) {
       setViewingTaskId(taskId);
+      setIsConfirmingDelete(false);
     }
   }, [taskId, open]);
+
+  useEffect(() => {
+    setIsConfirmingDelete(false);
+  }, [viewingTaskId]);
 
   const activeId = viewingTaskId || taskId;
   const task = activeId ? pmsStore.getTaskById(activeId) : undefined;
   const project = task ? pmsStore.getProjectById(task.project_id) : undefined;
+  const clients = pmsStore.getClients();
   const employees = pmsStore.getEmployees();
   const statusNames = pmsStore.getTaskStatusNames();
+  const categories = pmsStore.getTaskCategories();
   const currentUser = pmsStore.getCurrentUser();
   const isReadOnly = Boolean(readOnly ?? isEmployeeRestricted(currentUser));
+
+  // Resolve active category for this task
+  const activeCategory = useMemo(() => {
+    if (!task) return undefined;
+    return categories.find(
+      (c) =>
+        c.id === task.category_id ||
+        (task.category_name && c.name.toLowerCase() === task.category_name.toLowerCase())
+    );
+  }, [categories, task?.category_id, task?.category_name]);
+
+  const availableSubCategories = useMemo(() => {
+    return activeCategory?.sub_categories || [];
+  }, [activeCategory]);
+
+  const activeSubCategory = useMemo(() => {
+    if (!task) return undefined;
+    return availableSubCategories.find(
+      (s) =>
+        s.id === task.sub_category_id ||
+        (task.sub_category_name && s.name.toLowerCase() === task.sub_category_name.toLowerCase())
+    );
+  }, [availableSubCategories, task?.sub_category_id, task?.sub_category_name]);
+
+  // Resolve allotted client for this task
+  const allottedClient = useMemo(() => {
+    if (!task) return undefined;
+    if (task.client_id) {
+      const match = clients.find((c) => c.id === task.client_id);
+      if (match) return match;
+    }
+    if (task.client_name) {
+      const cleanName = task.client_name.trim().toLowerCase();
+      const match = clients.find(
+        (c) =>
+          c.client_name.trim().toLowerCase() === cleanName ||
+          c.nick_name?.trim().toLowerCase() === cleanName ||
+          c.legal_name?.trim().toLowerCase() === cleanName
+      );
+      if (match) return match;
+    }
+    if (project?.client_id) {
+      const match = clients.find((c) => c.id === project.client_id);
+      if (match) return match;
+    }
+    if (project?.client_name) {
+      const cleanName = project.client_name.trim().toLowerCase();
+      const match = clients.find(
+        (c) =>
+          c.client_name.trim().toLowerCase() === cleanName ||
+          c.nick_name?.trim().toLowerCase() === cleanName ||
+          c.legal_name?.trim().toLowerCase() === cleanName
+      );
+      if (match) return match;
+    }
+    // Also match project_name prefix (e.g. "ROHTI — Client Delivery Project" or "ROHTI - Client Delivery Project")
+    const pName = task.project_name || project?.project_name;
+    if (pName) {
+      const prefix = pName.split(/[-—–]/)[0].trim().toLowerCase();
+      if (prefix) {
+        const match = clients.find(
+          (c) =>
+            c.client_name?.trim().toLowerCase() === prefix ||
+            c.nick_name?.trim().toLowerCase() === prefix ||
+            c.legal_name?.trim().toLowerCase() === prefix ||
+            prefix.includes(c.client_name?.trim().toLowerCase()) ||
+            c.client_name?.trim().toLowerCase().includes(prefix)
+        );
+        if (match) return match;
+      }
+    }
+    return undefined;
+  }, [task?.client_id, task?.client_name, task?.project_name, project?.client_id, project?.client_name, project?.project_name, clients]);
 
   // Build ancestor chain for hierarchical drill-down navigation (Task -> Subtask -> Sub-subtask)
   const ancestors = useMemo(() => {
@@ -86,8 +171,6 @@ export function TaskDetailDialog({
   useEffect(() => {
     if (task) {
       setShowAddSubtaskForm(false);
-      setEditingNotes(false);
-      setNotesDraft(task.description || "");
       setSubTitle("");
       setSubStartDate(task.start_date || new Date().toISOString().slice(0, 10));
       setSubDueDate(task.due_date || new Date().toISOString().slice(0, 10));
@@ -118,74 +201,59 @@ export function TaskDetailDialog({
     onUpdated?.();
   };
 
-  const handleTaskUpdate = (updates: Partial<typeof task>, message?: string) => {
-    pmsStore.updateTask(task.id, updates);
-    if (message) toast.success(message);
-    notifyChange();
+  const handleTaskUpdate = async (updates: Partial<typeof task>, message?: string) => {
+    try {
+      await pmsStore.updateTask(task.id, updates);
+      if (message) toast.success(message);
+      notifyChange();
+    } catch (err: any) {
+      toast.error(`Database error: ${err.message || "Failed to update task."}`);
+    }
   };
 
-  const handleAddSubtask = (e: React.FormEvent) => {
+  const handleAddSubtask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subTitle.trim()) {
       toast.error("Please enter a subtask title.");
       return;
     }
     const emp = employees.find((item) => item.id === subAssigneeId);
-    pmsStore.addSubtask(task.id, {
-      title: subTitle.trim(),
-      start_date: subStartDate || task.start_date,
-      due_date: subDueDate || task.due_date,
-      assigned_employee_id: emp?.id || task.assigned_employee_id,
-      assigned_employee_name: emp?.full_name || task.assigned_employee_name,
-    });
-    setSubTitle("");
-    setShowAddSubtaskForm(false);
-    toast.success("Subtask added.");
-    notifyChange();
+    try {
+      await pmsStore.addSubtask(task.id, {
+        title: subTitle.trim(),
+        start_date: subStartDate || task.start_date,
+        due_date: subDueDate || task.due_date,
+        assigned_employee_id: emp?.id || task.assigned_employee_id,
+        assigned_employee_name: emp?.full_name || task.assigned_employee_name,
+      });
+      setSubTitle("");
+      setShowAddSubtaskForm(false);
+      toast.success("Subtask saved to Supabase.");
+      notifyChange();
+    } catch (err: any) {
+      toast.error(`Database error: ${err.message || "Failed to add subtask."}`);
+    }
   };
 
-  const handleSaveNotes = () => {
-    handleTaskUpdate({ description: notesDraft.trim() }, "Overview notes updated");
-    setEditingNotes(false);
+  const handleSendWhatsApp = () => {
+    setIsWhatsAppOpen(true);
   };
 
-  const handleSendWhatsApp = async () => {
+  const handleExecuteDelete = async () => {
     if (!task) return;
-    const emp = employees.find((e) => e.id === task.assigned_employee_id);
-    let targetPhone = emp?.mobile_number;
-    let targetName = emp?.full_name || "Team Member";
-
-    if (!targetPhone && project?.client_id) {
-      const client = pmsStore.getClients().find((c) => c.id === project.client_id);
-      if (client?.contact?.mobile_number) {
-        targetPhone = client.contact.mobile_number;
-        targetName = client.contact.contact_person || client.client_name || "Client";
+    const parentId = task.parent_task_id;
+    try {
+      await pmsStore.deleteTask(task.id);
+      toast.success(`Deleted ${task.task_code}`);
+      setIsConfirmingDelete(false);
+      if (parentId) {
+        setViewingTaskId(parentId);
+      } else {
+        onOpenChange(false);
       }
-    }
-
-    if (!targetPhone) {
-      const manualPhone = window.prompt(
-        "Enter recipient WhatsApp mobile number (with country code, e.g., 919876543210):"
-      );
-      if (!manualPhone) return;
-      targetPhone = manualPhone;
-    }
-
-    toast.info("Sending WhatsApp notification...");
-    const res = await whatsappClient.sendTaskAssignment(
-      targetPhone,
-      targetName,
-      task.title,
-      project?.project_name || "Practice Project",
-      task.due_date
-    );
-
-    if (res.success && res.status === "SENT") {
-      toast.success(`WhatsApp alert sent to ${targetName} (+${targetPhone})!`);
-    } else {
-      toast.error(
-        `WhatsApp failed: ${res.error || res.status}. Ensure WhatsApp backend is running on port 8080.`
-      );
+      notifyChange();
+    } catch (err: any) {
+      toast.error(`Database error: ${err.message || "Failed to delete task."}`);
     }
   };
 
@@ -206,7 +274,7 @@ export function TaskDetailDialog({
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pr-10">
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs font-bold rounded-full border border-neutral-900 bg-neutral-900 px-2.5 py-0.5 text-white">
@@ -214,14 +282,24 @@ export function TaskDetailDialog({
                 </span>
                 <DialogTitle className="text-xl font-extrabold text-[#111827]">{task.title}</DialogTitle>
               </div>
-              {task.description && !editingNotes && (
-                <DialogDescription className="text-xs text-[#6b7280] mt-1">
-                  {task.description}
-                </DialogDescription>
-              )}
+
+              {/* Category & Sub-Category Breadcrumb Pill */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-violet-50 text-violet-900 border border-violet-200 text-xs font-bold">
+                  <FolderTree className="h-3.5 w-3.5 text-violet-600 shrink-0" />
+                  <span className="text-violet-600 font-semibold">Category:</span>
+                  <span className="font-extrabold">{task.category_name || activeCategory?.name || "General"}</span>
+                </span>
+                <span className="text-slate-400 font-bold text-xs">→</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-purple-50 text-purple-900 border border-purple-200 text-xs font-bold">
+                  <Folder className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                  <span className="text-purple-600 font-semibold">Sub-group:</span>
+                  <span className="font-extrabold">{task.sub_category_name || activeSubCategory?.name || "General"}</span>
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start shrink-0">
+            <div className="flex items-center gap-2 self-start shrink-0 mr-4">
               <Badge variant={task.status === "Completed" ? "success" : "secondary"} className="text-xs">
                 {task.status}
               </Badge>
@@ -243,27 +321,40 @@ export function TaskDetailDialog({
                     <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
                     <span>WhatsApp</span>
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const parentId = task.parent_task_id;
-                      pmsStore.deleteTask(task.id);
-                      toast.success(`Deleted ${task.task_code}`);
-                      if (parentId) {
-                        setViewingTaskId(parentId);
-                      } else {
-                        onOpenChange(false);
-                      }
-                      notifyChange();
-                    }}
-                    className="h-8 px-2.5 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold gap-1"
-                    title={`Delete ${levelLabel}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>Delete</span>
-                  </Button>
+
+                  {isConfirmingDelete ? (
+                    <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 p-0.5 rounded-xl animate-in fade-in">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleExecuteDelete}
+                        className="h-7 px-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold"
+                      >
+                        Confirm Delete?
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setIsConfirmingDelete(false)}
+                        className="h-7 px-2 rounded-lg text-slate-600 hover:text-slate-900 text-[11px] font-bold"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsConfirmingDelete(true)}
+                      className="h-8 px-2.5 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold gap-1"
+                      title={`Delete ${levelLabel}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Delete</span>
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -278,47 +369,126 @@ export function TaskDetailDialog({
                 <Calendar className="h-3.5 w-3.5 text-violet-600" />
                 <span>{levelLabel} Overview &amp; Schedule</span>
               </h4>
-              {!isReadOnly && (
-                <button
-                  type="button"
-                  onClick={() => setEditingNotes((v) => !v)}
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-[#111827]"
-                >
-                  <Pencil className="h-3 w-3" />
-                  <span>{editingNotes ? "Cancel Edit" : "Edit Notes"}</span>
-                </button>
-              )}
             </div>
 
-            {isReadOnly && task.description && (
-              <p className="text-xs text-slate-600 leading-relaxed pb-2 border-b border-slate-100">
-                {task.description}
-              </p>
-            )}
-
-            {!isReadOnly && editingNotes && (
-              <div className="space-y-2 pb-2 border-b border-slate-100">
-                <Textarea
-                  value={notesDraft}
-                  onChange={(e) => setNotesDraft(e.target.value)}
-                  rows={2}
-                  placeholder={`Overview instructions or checklist for ${task.task_code}...`}
-                  className="rounded-xl border-slate-300 text-xs"
-                />
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleSaveNotes}
-                    className="h-7 px-3 rounded-lg bg-neutral-900 text-white text-xs font-bold"
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+              {/* 1. Allotted Client */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                  <Building2 className="h-3 w-3 text-emerald-600" />
+                  <span>Allotted Client</span>
+                </label>
+                {isReadOnly ? (
+                  <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold text-[#111827] truncate">
+                    {task.client_name || project?.client_name || "Unassigned"}
+                  </div>
+                ) : (
+                  <select
+                    value={allottedClient?.id || task.client_id || project?.client_id || ""}
+                    onChange={async (e) => {
+                      const newCId = e.target.value;
+                      if (!newCId) return;
+                      try {
+                        await pmsStore.allotClientToTask(task.id, newCId);
+                        toast.success("Client allotted to task successfully");
+                        notifyChange();
+                      } catch (err: any) {
+                        toast.error(err?.message || "Failed to allot client");
+                      }
+                    }}
+                    className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827]"
                   >
-                    Save Overview
-                  </Button>
-                </div>
+                    <option value="">-- Select Client --</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.client_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
-            )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {/* 2. Category Selection */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                  <FolderTree className="h-3 w-3 text-violet-600" />
+                  <span>Category</span>
+                </label>
+                {isReadOnly ? (
+                  <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold text-[#111827] truncate">
+                    {task.category_name || activeCategory?.name || "General"}
+                  </div>
+                ) : (
+                  <select
+                    value={activeCategory?.id || task.category_id || ""}
+                    onChange={async (e) => {
+                      const newCatId = e.target.value;
+                      if (!newCatId) return;
+                      const targetCat = categories.find((c) => c.id === newCatId);
+                      if (!targetCat) return;
+                      const firstSub = targetCat.sub_categories?.[0];
+                      await handleTaskUpdate(
+                        {
+                          category_id: targetCat.id,
+                          category_name: targetCat.name,
+                          sub_category_id: firstSub?.id || "",
+                          sub_category_name: firstSub?.name || "General",
+                        },
+                        `Category updated to ${targetCat.name}`
+                      );
+                    }}
+                    className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827]"
+                  >
+                    <option value="">-- Select Category --</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* 3. Sub-Category / Sub-group Selection */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                  <Folder className="h-3 w-3 text-purple-600" />
+                  <span>Sub-group / Sub-Category</span>
+                </label>
+                {isReadOnly ? (
+                  <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold text-[#111827] truncate">
+                    {task.sub_category_name || activeSubCategory?.name || "General"}
+                  </div>
+                ) : (
+                  <select
+                    value={activeSubCategory?.id || task.sub_category_id || ""}
+                    onChange={async (e) => {
+                      const newSubId = e.target.value;
+                      if (!newSubId) return;
+                      const targetSub = availableSubCategories.find((s) => s.id === newSubId);
+                      if (!targetSub) return;
+                      await handleTaskUpdate(
+                        {
+                          sub_category_id: targetSub.id,
+                          sub_category_name: targetSub.name,
+                        },
+                        `Sub-group updated to ${targetSub.name}`
+                      );
+                    }}
+                    disabled={availableSubCategories.length === 0}
+                    className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827] disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <option value="">-- Select Sub-group --</option>
+                    {availableSubCategories.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* 4. Status */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600">Status</label>
                 {isReadOnly ? (
@@ -345,6 +515,7 @@ export function TaskDetailDialog({
                 )}
               </div>
 
+              {/* 5. Start Date */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600">Start Date</label>
                 {isReadOnly ? (
@@ -363,6 +534,7 @@ export function TaskDetailDialog({
                 )}
               </div>
 
+              {/* 6. Due Date */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600">Due Date</label>
                 {isReadOnly ? (
@@ -381,6 +553,7 @@ export function TaskDetailDialog({
                 )}
               </div>
 
+              {/* 7. Priority */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600">Priority</label>
                 {isReadOnly ? (
@@ -403,34 +576,35 @@ export function TaskDetailDialog({
                 )}
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-600">Assignee</label>
-                {isReadOnly ? (
-                  <div className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 flex items-center text-xs font-semibold text-[#111827] truncate">
-                    {task.assigned_employee_name || "Unassigned"}
-                  </div>
-                ) : (
-                  <select
-                    value={task.assigned_employee_id || ""}
-                    onChange={(e) => {
-                      const emp = employees.find((item) => item.id === e.target.value);
-                      handleTaskUpdate(
-                        {
-                          assigned_employee_id: e.target.value,
-                          assigned_employee_name: emp?.full_name || "Unassigned",
-                        },
-                        "Assignee updated"
-                      );
-                    }}
-                    className="w-full h-9 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-semibold text-[#111827]"
-                  >
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.full_name}
-                      </option>
-                    ))}
-                  </select>
-                )}
+              {/* 8. Assigned Team Members (spans full width on bottom row) */}
+              <div className="space-y-1 col-span-full">
+                <EmployeeMultiSelect
+                  employees={employees}
+                  selectedEmployeeIds={
+                    task.assigned_employee_ids && task.assigned_employee_ids.length > 0
+                      ? task.assigned_employee_ids
+                      : (task.assigned_employee_id ? [task.assigned_employee_id] : [])
+                  }
+                  readOnly={isReadOnly}
+                  onChange={(ids, emps) => {
+                    handleTaskUpdate(
+                      {
+                        assigned_employee_id: ids[0] || "",
+                        assigned_employee_name: emps.map((e) => e.full_name).join(", ") || "Unassigned",
+                        assigned_employee_ids: ids,
+                        assigned_employees: emps.map((e) => ({
+                          id: e.id,
+                          full_name: e.full_name,
+                          designation: e.designation_name || e.employee_code,
+                          email: e.email,
+                        })),
+                      },
+                      "Assignees updated"
+                    );
+                  }}
+                  label="Assigned Team Members"
+                  placeholder="Search and assign team members..."
+                />
               </div>
             </div>
           </div>
@@ -554,6 +728,17 @@ export function TaskDetailDialog({
           {/* BOX 5: Documents Upload for this Task / Subtask / Sub-subtask */}
           <TaskDocumentsBox task={task} onChanged={notifyChange} readOnly={isReadOnly} />
         </div>
+
+        {task && (
+          <WhatsAppChatDialog
+            open={isWhatsAppOpen}
+            onOpenChange={setIsWhatsAppOpen}
+            contextType={task.parent_task_id ? "subtask" : "task"}
+            task={task}
+            client={allottedClient}
+            project={project}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

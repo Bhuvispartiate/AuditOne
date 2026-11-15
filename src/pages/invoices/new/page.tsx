@@ -373,7 +373,7 @@ export default function NewInvoicePage() {
 
   const effectivePendingBalance = Math.max(0, calcs.netPayable - effectivePaidNow);
 
-  const handleGenerate = (e: React.FormEvent) => {
+  const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClient) {
       toast.error("Please select a client.");
@@ -406,46 +406,50 @@ export default function NewInvoicePage() {
           ? "Partially Paid"
           : "Finalized";
 
-    const newInvoice = pmsStore.addInvoice({
-      invoice_number: invoiceNumber.trim() || undefined,
-      financial_year: financialYear,
-      client_id: selectedClient.id,
-      client_name: selectedClient.reference_name || selectedClient.legal_name,
-      client_legal_name: selectedClient.legal_name,
-      client_address: addrText,
-      client_pan: selectedClient.registration?.pan,
-      client_gstin: selectedClient.registration?.gstin,
-      client_state: addrObj?.state || placeOfSupply,
-      client_contact: selectedClient.contact?.mobile_number || selectedClient.contact?.email,
-      invoice_date: invoiceDate,
-      due_date: dueDate,
-      terms_label: termsLabel.trim() || "Due on receipt",
-      place_of_supply: placeOfSupply,
-      is_interstate: isInterstate,
-      reverse_charge: false,
-      subtotal: calcs.subtotal,
-      discount_amount: calcs.totalDiscount,
-      taxable_amount: calcs.totalTaxable,
-      cgst_amount: calcs.totalCgst,
-      sgst_amount: calcs.totalSgst,
-      igst_amount: calcs.totalIgst,
-      total_gst: calcs.totalGst,
-      grand_total: calcs.grandTotal,
-      tds_section: tdsRate > 0 ? tdsSection.trim() : "",
-      tds_rate: tdsRate,
-      tds_amount: calcs.tdsAmount,
-      net_payable: calcs.netPayable,
-      status: invStatus,
-      notes,
-      terms_conditions: `Terms: ${termsLabel}. Make payments via UPI (${LMA_SUPPLIER.upiId}) or NEFT/RTGS to ${LMA_SUPPLIER.bank.bankName}.`,
-      items: calcs.processedItems,
-      initial_paid_amount: effectivePaidNow,
-      payment_mode: paymentMode,
-      transaction_reference: transactionRef.trim(),
-    });
+    try {
+      const newInvoice = await pmsStore.addInvoice({
+        invoice_number: invoiceNumber.trim() || undefined,
+        financial_year: financialYear,
+        client_id: selectedClient.id,
+        client_name: selectedClient.reference_name || selectedClient.legal_name,
+        client_legal_name: selectedClient.legal_name,
+        client_address: addrText,
+        client_pan: selectedClient.registration?.pan,
+        client_gstin: selectedClient.registration?.gstin,
+        client_state: addrObj?.state || placeOfSupply,
+        client_contact: selectedClient.contact?.mobile_number || selectedClient.contact?.email,
+        invoice_date: invoiceDate,
+        due_date: dueDate,
+        terms_label: termsLabel.trim() || "Due on receipt",
+        place_of_supply: placeOfSupply,
+        is_interstate: isInterstate,
+        reverse_charge: false,
+        subtotal: calcs.subtotal,
+        discount_amount: calcs.totalDiscount,
+        taxable_amount: calcs.totalTaxable,
+        cgst_amount: calcs.totalCgst,
+        sgst_amount: calcs.totalSgst,
+        igst_amount: calcs.totalIgst,
+        total_gst: calcs.totalGst,
+        grand_total: calcs.grandTotal,
+        tds_section: tdsRate > 0 ? tdsSection.trim() : "",
+        tds_rate: tdsRate,
+        tds_amount: calcs.tdsAmount,
+        net_payable: calcs.netPayable,
+        status: invStatus,
+        notes,
+        terms_conditions: `Terms: ${termsLabel}. Make payments via UPI (${LMA_SUPPLIER.upiId}) or NEFT/RTGS to ${LMA_SUPPLIER.bank.bankName}.`,
+        items: calcs.processedItems,
+        initial_paid_amount: effectivePaidNow,
+        payment_mode: paymentMode,
+        transaction_reference: transactionRef.trim(),
+      });
 
-    toast.success(`Tax Invoice ${newInvoice.invoice_number} generated!`);
-    navigate(`/invoices/${newInvoice.id}`);
+      toast.success(`Tax Invoice ${newInvoice.invoice_number} saved directly to Supabase!`);
+      navigate(`/invoices/${newInvoice.id}`);
+    } catch (err: any) {
+      toast.error(`Database error: ${err.message || "Failed to generate invoice."}`);
+    }
   };
 
   return (

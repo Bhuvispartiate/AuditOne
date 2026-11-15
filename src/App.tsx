@@ -28,6 +28,7 @@ import EmployeeProfilePage from "@/pages/employees/[id]/page";
 import AttendancePage from "@/pages/attendance/page";
 import TeamsPage from "@/pages/teams/page";
 import DocumentsPage from "@/pages/documents/page";
+import VaultPage from "@/pages/vault/page";
 import NotificationsPage from "@/pages/notifications/page";
 import ReportsPage from "@/pages/reports/page";
 import SettingsPage from "@/pages/settings/page";
@@ -42,7 +43,8 @@ function isAllowedForEmployee(pathname: string): boolean {
     pathname === "/tasks" ||
     pathname === "/attendance" ||
     pathname === "/documents" ||
-    pathname === "/recycle-bin"
+    pathname === "/recycle-bin" ||
+    pathname === "/vault"
   ) {
     return true;
   }
@@ -103,12 +105,15 @@ function EmployeeRouteGuard({ children }: { children: React.ReactNode }) {
 
 function SupabaseAuthListener() {
   useEffect(() => {
+    // Immediate direct database load from Supabase on mount / refresh
+    void pmsStore.loadAllFromSupabase();
+
     const supabase = createClient();
 
     supabase.auth.getSession().then(async ({ data }) => {
       const email = data.session?.user?.email;
       if (email) {
-        await pmsStore.hydrateFromSupabase(true);
+        await pmsStore.loadAllFromSupabase();
         const fullName =
           (data.session?.user?.user_metadata?.full_name as string | undefined) ||
           (data.session?.user?.user_metadata?.name as string | undefined);
@@ -118,7 +123,7 @@ function SupabaseAuthListener() {
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user?.email) {
-        await pmsStore.hydrateFromSupabase(true);
+        await pmsStore.loadAllFromSupabase();
         const fullName =
           (session.user.user_metadata?.full_name as string | undefined) ||
           (session.user.user_metadata?.name as string | undefined);
@@ -182,6 +187,7 @@ export default function App() {
           <Route path="/attendance" element={<AttendancePage />} />
 
           <Route path="/teams" element={<TeamsPage />} />
+          <Route path="/vault" element={<VaultPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/recycle-bin" element={<DocumentsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

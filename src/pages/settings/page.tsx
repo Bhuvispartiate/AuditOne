@@ -117,9 +117,6 @@ export default function SettingsPage() {
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
           Organization Settings &amp; Access Control
         </h1>
-        <p className="text-xs text-[#6b7280] mt-1 font-medium">
-          Customize Kanban task statuses, Role-Based Access Control (RBAC), Cloudflare R2 storage, and firm profile.
-        </p>
       </div>
 
       <Tabs defaultValue="statuses" className="w-full">

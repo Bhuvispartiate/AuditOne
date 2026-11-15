@@ -12,13 +12,27 @@ import {
   Unplug,
   Wifi,
   WifiOff,
+  Plus,
+  Trash2,
+  Pencil,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { pmsStore } from "@/lib/data/store";
+import { WhatsAppTemplate } from "@/types";
 import {
   whatsappClient,
   WhatsAppInstanceStatus,
@@ -45,6 +59,76 @@ export function WhatsAppSettingsTab() {
     "👋 Hello! This is a test WhatsApp message from the Linear Audit & PMS Automation Engine."
   );
   const [sending, setSending] = useState(false);
+
+  // Saved WhatsApp Templates state
+  const [, setTick] = useState(0);
+  const templates = pmsStore.getWhatsAppTemplates();
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<WhatsAppTemplate | null>(null);
+  const [templateTitle, setTemplateTitle] = useState("");
+  const [templateCategory, setTemplateCategory] = useState<"Task" | "Subtask" | "Workflow" | "General">("Task");
+  const [templateContent, setTemplateContent] = useState("");
+
+  const handleOpenAddTemplate = () => {
+    setEditingTemplate(null);
+    setTemplateTitle("");
+    setTemplateCategory("Task");
+    setTemplateContent("");
+    setIsTemplateModalOpen(true);
+  };
+
+  const handleOpenEditTemplate = (tpl: WhatsAppTemplate) => {
+    setEditingTemplate(tpl);
+    setTemplateTitle(tpl.title);
+    setTemplateCategory(tpl.category);
+    setTemplateContent(tpl.content);
+    setIsTemplateModalOpen(true);
+  };
+
+  const handleSaveTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!templateTitle.trim()) {
+      toast.error("Please enter a template title.");
+      return;
+    }
+    if (!templateContent.trim()) {
+      toast.error("Please enter template message content.");
+      return;
+    }
+
+    try {
+      if (editingTemplate) {
+        await pmsStore.updateWhatsAppTemplate(editingTemplate.id, {
+          title: templateTitle.trim(),
+          category: templateCategory,
+          content: templateContent.trim(),
+        });
+        toast.success(`Template "${templateTitle}" updated in Supabase.`);
+      } else {
+        await pmsStore.addWhatsAppTemplate({
+          title: templateTitle.trim(),
+          category: templateCategory,
+          content: templateContent.trim(),
+        });
+        toast.success(`Template "${templateTitle}" saved to Supabase.`);
+      }
+
+      setTick((t) => t + 1);
+      setIsTemplateModalOpen(false);
+    } catch (err: any) {
+      toast.error(`Database error: ${err.message || "Failed to save template."}`);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: string, title: string) => {
+    try {
+      await pmsStore.deleteWhatsAppTemplate(id);
+      setTick((t) => t + 1);
+      toast.success(`Template "${title}" removed.`);
+    } catch (err: any) {
+      toast.error(`Failed to delete template: ${err.message || err}`);
+    }
+  };
 
   const fetchStatusAndQr = async () => {
     const st = await whatsappClient.getStatus();
@@ -372,7 +456,95 @@ export function WhatsAppSettingsTab() {
         </CardContent>
       </Card>
 
-      {/* 4. SENT MESSAGES AUDIT LOG */}
+      {/* 4. SAVED WHATSAPP MESSAGE TEMPLATES */}
+      <Card className="rounded-[24px] border-[1.5px] border-slate-300 shadow-xs">
+        <CardHeader className="pb-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <CardTitle className="text-sm font-extrabold text-[#111827] flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-emerald-600" />
+              <span>Saved WhatsApp Message Templates</span>
+              <Badge className="bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                {templates.length} Templates
+              </Badge>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Saved fixed message templates with titles for Tasks, Subtasks, Workflows, and General Client Updates.
+            </CardDescription>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleOpenAddTemplate}
+            className="rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1 h-8"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Add Template</span>
+          </Button>
+        </CardHeader>
+        <CardContent className="p-5">
+          {templates.length === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-500">
+              No saved templates. Click &ldquo;Add Template&rdquo; to create your first standard message format.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {templates.map((tpl: WhatsAppTemplate) => (
+                <div
+                  key={tpl.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between gap-2.5 hover:border-emerald-300 transition-all"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-slate-900 truncate">
+                        {tpl.title}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] font-bold rounded-md px-1.5 py-0.2 border-slate-200 bg-slate-50 text-slate-700 shrink-0"
+                      >
+                        {tpl.category}
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-600 line-clamp-3 leading-relaxed whitespace-pre-wrap font-sans bg-slate-50/70 p-2 rounded-xl border border-slate-100">
+                      {tpl.content}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
+                    <span>
+                      Variables: <code className="text-emerald-700 font-mono">{"{client_name}"}</code>, <code className="text-emerald-700 font-mono">{"{task_title}"}</code>
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenEditTemplate(tpl)}
+                        className="h-6 w-6 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100"
+                        title="Edit Template"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteTemplate(tpl.id, tpl.title)}
+                        className="h-6 w-6 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50"
+                        title="Delete Template"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 5. SENT MESSAGES AUDIT LOG */}
       <Card className="rounded-[24px] border-[1.5px] border-slate-300 shadow-xs">
         <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
           <div>
@@ -429,6 +601,93 @@ export function WhatsAppSettingsTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* MODAL: ADD / EDIT WHATSAPP TEMPLATE */}
+      <Dialog open={isTemplateModalOpen} onOpenChange={setIsTemplateModalOpen}>
+        <DialogContent className="max-w-lg rounded-[24px] border-[1.5px] border-slate-300 bg-white p-6 shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-emerald-600" />
+              <span>{editingTemplate ? "Edit WhatsApp Template" : "Add WhatsApp Template"}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Save reusable communication formats with variable placeholders for tasks, subtasks, and workflows.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveTemplate} className="space-y-4 py-2">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Template Title *</label>
+              <Input
+                placeholder="e.g. GST Filing Status Update, Tax Notice Alert..."
+                value={templateTitle}
+                onChange={(e) => setTemplateTitle(e.target.value)}
+                required
+                className="h-10 rounded-xl border-slate-300 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Category Scope</label>
+              <select
+                value={templateCategory}
+                onChange={(e) => setTemplateCategory(e.target.value as any)}
+                className="w-full h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold"
+              >
+                <option value="Task">Task Deliverable</option>
+                <option value="Subtask">Subtask Execution</option>
+                <option value="Workflow">Engagement Workflow</option>
+                <option value="General">General Client Notice</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700">Template Message Content *</label>
+                <span className="text-[10px] text-slate-400">Supports WhatsApp bold (*text*)</span>
+              </div>
+              <Textarea
+                placeholder="Type template message body with placeholders like {client_name}, {task_title}, {due_date}..."
+                value={templateContent}
+                onChange={(e) => setTemplateContent(e.target.value)}
+                rows={5}
+                required
+                className="text-xs rounded-xl border-slate-300 font-sans leading-relaxed"
+              />
+              <div className="flex flex-wrap items-center gap-1 pt-1">
+                <span className="text-[10px] font-bold text-slate-400 mr-1">Click to insert:</span>
+                {["{client_name}", "{task_title}", "{due_date}", "{status}", "{project_name}"].map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setTemplateContent((prev) => `${prev} ${tag}`)}
+                    className="px-2 py-0.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[10px] font-mono text-slate-700"
+                  >
+                    +{tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsTemplateModalOpen(false)}
+                className="rounded-xl border-slate-300 text-xs font-bold h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-9"
+              >
+                {editingTemplate ? "Save Changes" : "Create Template"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

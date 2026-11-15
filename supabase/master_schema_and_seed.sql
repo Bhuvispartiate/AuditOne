@@ -470,6 +470,11 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS stage_id VARCHAR(100);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS stage_title VARCHAR(200);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sub_stage_id VARCHAR(100);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sub_stage_title VARCHAR(200);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS category_id VARCHAR(100);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sub_category_id VARCHAR(100);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS whatsapp_enabled BOOLEAN DEFAULT true;
+
+ALTER TABLE workflow_templates ADD COLUMN IF NOT EXISTS whatsapp_enabled BOOLEAN DEFAULT true;
 
 CREATE TABLE IF NOT EXISTS task_assignments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -726,6 +731,55 @@ CREATE TABLE IF NOT EXISTS task_statuses (
 );
 
 -- ============================================================================
+-- 9C. TASK CATEGORIES, SUB-GROUPS, UNIVERSAL RECYCLE BIN & WHATSAPP
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS task_categories (
+    id VARCHAR(100) PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    code VARCHAR(30),
+    description TEXT,
+    color VARCHAR(30) DEFAULT 'violet',
+    icon VARCHAR(50),
+    whatsapp_enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS task_sub_categories (
+    id VARCHAR(100) PRIMARY KEY,
+    category_id VARCHAR(100) NOT NULL REFERENCES task_categories(id) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL,
+    code VARCHAR(30),
+    description TEXT,
+    whatsapp_enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS universal_recycle_bin (
+    id VARCHAR(100) PRIMARY KEY,
+    item_id VARCHAR(100) NOT NULL,
+    item_type VARCHAR(50) NOT NULL,
+    title VARCHAR(250) NOT NULL,
+    code VARCHAR(50),
+    subtitle TEXT,
+    category_name VARCHAR(150),
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_by VARCHAR(100),
+    deleted_by_name VARCHAR(200),
+    recovery_deadline TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_templates (
+    id VARCHAR(100) PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    category VARCHAR(50) NOT NULL DEFAULT 'General',
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================================
 -- 10. INDEXES FOR HIGH PERFORMANCE
 -- ============================================================================
 
@@ -805,6 +859,10 @@ ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE office_geo_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE task_statuses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_sub_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE universal_recycle_bin ENABLE ROW LEVEL SECURITY;
+ALTER TABLE whatsapp_templates ENABLE ROW LEVEL SECURITY;
 
 -- Base RLS Policy Helper Functions
 CREATE OR REPLACE FUNCTION current_app_user_id() RETURNS UUID AS $$
@@ -915,6 +973,22 @@ DROP POLICY IF EXISTS "Authenticated users sync workspace state" ON system_setti
 CREATE POLICY "Authenticated users sync workspace state" ON system_settings
     FOR ALL USING (auth.role() = 'authenticated')
     WITH CHECK (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Authenticated users manage task categories" ON task_categories;
+CREATE POLICY "Authenticated users manage task categories" ON task_categories
+    FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Authenticated users manage task sub categories" ON task_sub_categories;
+CREATE POLICY "Authenticated users manage task sub categories" ON task_sub_categories
+    FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Authenticated users manage recycle bin" ON universal_recycle_bin;
+CREATE POLICY "Authenticated users manage recycle bin" ON universal_recycle_bin
+    FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Authenticated users manage whatsapp templates" ON whatsapp_templates;
+CREATE POLICY "Authenticated users manage whatsapp templates" ON whatsapp_templates
+    FOR ALL USING (auth.role() = 'authenticated');
 
 -- ============================================================================
 -- 12. DATABASE FUNCTIONS AND TRIGGERS
@@ -1027,61 +1101,7 @@ INSERT INTO designations (id, title, code, level, description) VALUES
 ('44444444-4444-4444-4444-444444440006', 'Articled Assistant / Trainee', 'TRAINEE', 6, 'Trainee or apprentice')
 ON CONFLICT (code) DO NOTHING;
 
--- 5. INITIAL 17 SERVICES CATALOG (Exceeds required 15 services)
-INSERT INTO services (id, service_code, service_name, description, default_fee, default_gst_rate, billing_type, status) VALUES
-('55555555-5555-5555-5555-555555550001', 'SRV-GST-01', 'GST Registration & Core Amendment', 'New GST registration, ARN tracking and core field modifications', 3500.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550002', 'SRV-GST-02', 'Monthly GST Return Compliance (GSTR-1 & 3B)', 'Monthly sales ledger upload, 2B ITC reconciliation and return filing', 5000.00, 18.00, 'Recurring', 'Active'),
-('55555555-5555-5555-5555-555555550003', 'SRV-GST-03', 'Annual GST Return & Reconciliation (GSTR-9/9C)', 'Annual consolidation, reverse charge check and table 9C audit memo', 15000.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550004', 'SRV-ITR-01', 'Corporate Income Tax Return (ITR-6)', 'Company tax return preparation, MAT computation and e-verification', 25000.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550005', 'SRV-ITR-02', 'Non-Corporate & Individual ITR (ITR-2/3/5)', 'Partnership, LLP and High Networth Individual income tax filing', 8500.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550006', 'SRV-AUD-01', 'Statutory Financial Audit', 'Independent financial statement examination under Companies Act 2013', 45000.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550007', 'SRV-AUD-02', 'Tax Audit u/s 44AB', 'Form 3CA/3CB and Form 3CD electronic certification and reporting', 30000.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550008', 'SRV-TDS-01', 'Quarterly TDS/TCS Return Compliance', 'Quarterly 24Q, 26Q, 27Q processing, challan tagging and Form 16 issuance', 4500.00, 18.00, 'Recurring', 'Active'),
-('55555555-5555-5555-5555-555555550009', 'SRV-ROC-01', 'Private Limited Company Incorporation', 'RUN name reservation, SPICe+ filing, PAN/TAN, DIN and Certificate of Incorporation', 12000.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550010', 'SRV-ROC-02', 'LLP Formation & Agreement Drafting', 'LLP name reservation, FiLLiP filing and supplementary LLP agreement stamping', 10000.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550011', 'SRV-ROC-03', 'Annual MCA ROC Compliance (AOC-4 & MGT-7)', 'Board report drafting, financial XBRL conversion and annual returns', 18000.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550012', 'SRV-IPR-01', 'Trademark Application & Clearance Search', 'Pre-filing classification, TM-A filing and tracking examiner reports', 7500.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550013', 'SRV-PAY-01', 'Monthly Payroll & Statutory ESI/PF Filing', 'Payslip preparation, ECR generation, Form 5/10 and monthly compliance', 8000.00, 18.00, 'Recurring', 'Active'),
-('55555555-5555-5555-5555-555555550014', 'SRV-ACC-01', 'End-to-End Accounting & Bookkeeping', 'Cloud ledger maintenance, bank reconciliation and monthly MIS preparation', 15000.00, 18.00, 'Recurring', 'Active'),
-('55555555-5555-5555-5555-555555550015', 'SRV-TP-01', 'Transfer Pricing Study & Form 3CEB', 'International benchmark analysis, TP study documentation and accountant report', 60000.00, 18.00, 'One-time', 'Active'),
-('55555555-5555-5555-5555-555555550016', 'SRV-CFO-01', 'Virtual CFO & Financial Advisory', 'Budgeting, cash flow forecasting, board presentations and investor reporting', 50000.00, 18.00, 'Recurring', 'Active'),
-('55555555-5555-5555-5555-555555550017', 'SRV-EXIM-01', 'DGFT Import Export Code (IEC) & Registration', 'DGFT application, ICEGATE linking and digital token validation', 4000.00, 18.00, 'One-time', 'Active')
-ON CONFLICT (service_code) DO NOTHING;
-
--- 6. DEFAULT WORKFLOW TEMPLATE: Annual Corporate Tax & ROC Filing
-INSERT INTO workflow_templates (id, workflow_code, workflow_name, service_id, description, is_active) VALUES
-('66666666-6666-6666-6666-666666660001', 'WF-ANNUAL-FILING', 'Annual Corporate Tax & ROC Filing Workflow', '55555555-5555-5555-5555-555555550004', 'Standard 6-stage lifecycle for corporate statutory accounts, tax audit and MCA return filing', true)
-ON CONFLICT (workflow_code) DO NOTHING;
-
-INSERT INTO workflow_template_versions (id, workflow_template_id, version_number, is_published, published_at) VALUES
-('66666666-6666-6666-6666-666666660002', '66666666-6666-6666-6666-666666660001', 1, true, NOW())
-ON CONFLICT (workflow_template_id, version_number) DO NOTHING;
-
--- 6 Stages for the Workflow
-INSERT INTO workflow_stages (id, template_version_id, stage_name, description, sequence_number, default_days, assigned_department_id) VALUES
-('77777777-7777-7777-7777-777777770001', '66666666-6666-6666-6666-666666660002', 'Document Collection', 'Client checklist dispatch, trial balance and ledger collection', 1, 7, '33333333-3333-3333-3333-333333330005'),
-('77777777-7777-7777-7777-777777770002', '66666666-6666-6666-6666-666666660002', 'Document Verification & Scrutiny', 'Vouching, bank statements cross-checking and 26AS/AIS verification', 2, 5, '33333333-3333-3333-3333-333333330003'),
-('77777777-7777-7777-7777-777777770003', '66666666-6666-6666-6666-666666660002', 'Draft Preparation', 'Financial statement preparation, schedule building and draft tax computation', 3, 10, '33333333-3333-3333-3333-333333330001'),
-('77777777-7777-7777-7777-777777770004', '66666666-6666-6666-6666-666666660002', 'Internal Review & Partner Sign-off', 'Supervisory check, partner quality control and client sign-off', 4, 3, '33333333-3333-3333-3333-333333330001'),
-('77777777-7777-7777-7777-777777770005', '66666666-6666-6666-6666-666666660002', 'Statutory Portal Filing', 'Portal XML/JSON generation, DSC signing and filing on IT/MCA portals', 5, 2, '33333333-3333-3333-3333-333333330002'),
-('77777777-7777-7777-7777-777777770006', '66666666-6666-6666-6666-666666660002', 'Completion & Documentation', 'Client acknowledgment delivery, archiving workpapers to R2 storage', 6, 2, '33333333-3333-3333-3333-333333330005')
-ON CONFLICT DO NOTHING;
-
--- Tasks for each stage
-INSERT INTO workflow_tasks (stage_id, task_name, description, sequence_number, default_days, priority, is_mandatory) VALUES
-('77777777-7777-7777-7777-777777770001', 'Send Document Requirement Checklist', 'Transmit standardized PBC checklist to client finance team', 1, 2, 'High', true),
-('77777777-7777-7777-7777-777777770001', 'Collect Final Trial Balance & Ledgers', 'Receive signed trial balance and supporting schedules', 2, 5, 'High', true),
-('77777777-7777-7777-7777-777777770002', 'Reconcile 26AS, AIS and TIS with Books', 'Identify any TDS mismatches or unreported incomes', 1, 3, 'Urgent', true),
-('77777777-7777-7777-7777-777777770002', 'Verify Statutory Dues & Loan Compliances', 'Check PF, ESI, GST payment receipts before due dates', 2, 2, 'Medium', true),
-('77777777-7777-7777-7777-777777770003', 'Prepare Draft Balance Sheet and P&L', 'Prepare Schedule III compliant financial statements', 1, 5, 'High', true),
-('77777777-7777-7777-7777-777777770003', 'Calculate Advance Tax & MAT under 115JB', 'Tax provision and deferred tax asset/liability calculation', 2, 3, 'High', true),
-('77777777-7777-7777-7777-777777770004', 'Partner Review & Scrutiny', 'Comprehensive review by practice director before submission', 1, 2, 'Urgent', true),
-('77777777-7777-7777-7777-777777770004', 'Client Approval & Signature on Declarations', 'Receive signed management representation letter (MRL)', 2, 2, 'High', true),
-('77777777-7777-7777-7777-777777770005', 'Upload ITR & Generate Acknowledgement', 'DSC affixation, portal submission and ITR-V download', 1, 1, 'Urgent', true),
-('77777777-7777-7777-7777-777777770006', 'Invoice Generation and Workpaper Archival', 'Ensure final billing is raised and papers archived in R2', 1, 2, 'Medium', true)
-ON CONFLICT DO NOTHING;
-
--- 6. PRIMARY SUPER ADMIN ACCOUNT (rohitaju21@gmail.com)
+-- 5. PRIMARY SUPER ADMIN ACCOUNT (rohitaju21@gmail.com)
 INSERT INTO users (id, email, full_name, is_active) VALUES
 ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'rohitaju21@gmail.com', 'ROHIT L', true)
 ON CONFLICT (email) DO UPDATE SET is_active = true;
@@ -1116,4 +1136,257 @@ INSERT INTO task_statuses (label, color, is_completed, sort_order) VALUES
 ('Completed', 'emerald', true, 4)
 ON CONFLICT (label) DO NOTHING;
 
+-- 8. INITIAL WHATSAPP MESSAGE TEMPLATES
+INSERT INTO whatsapp_templates (id, title, category, content) VALUES
+('wtpl-task-alloc', 'Task Allocation & Assignment', 'Task', '📋 *TASK ALLOCATED*
+
+Hello *{client_name}*,
+Task: *{task_title}*
+Project: *{project_name}*
+📅 Due Date: *{due_date}*
+Status: *{status}*
+
+Please review and let us know if any inputs are required.'),
+('wtpl-task-reminder', 'Deliverable Due Reminder', 'Task', '⏰ *REMINDER: TASK DUE SOON*
+
+Dear *{client_name}*,
+This is a gentle reminder that *{task_title}* is scheduled for completion on *{due_date}*.
+
+Kindly furnish any pending documents to ensure seamless compliance.'),
+('wtpl-wf-progress', 'Workflow Progress Update', 'Workflow', '🚀 *WORKFLOW PROGRESS UPDATE*
+
+Dear *{client_name}*,
+Your engagement workflow *{project_name}* has updated to: *{task_title}*.
+
+Our team is actively executing deliverables. Track live status anytime on your portal.'),
+('wtpl-general-notice', 'General Client Communication', 'General', '💼 *OFFICIAL FIRM COMMUNICATION*
+
+Dear *{client_name}*,
+Greetings from our advisory team.
+
+Regarding *{project_name}* ({task_title}), our team is ready to assist you. Please reach out if you have any questions.')
+ON CONFLICT (id) DO NOTHING;
+
+
+-- ============================================================================
+-- DIRECT SUPABASE DATABASE PERSISTENCE POLICIES
+-- Enables direct INSERT, UPDATE, SELECT, and DELETE across all PMS tables
+-- Guarantees that data entered on the website persists directly into Supabase
+-- ============================================================================
+
+-- 1. CLIENTS & CONTACTS & ADDRESSES & REGISTRATIONS
+DROP POLICY IF EXISTS "Direct access to clients" ON clients;
+CREATE POLICY "Direct access to clients" ON clients FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to client_contacts" ON client_contacts;
+CREATE POLICY "Direct access to client_contacts" ON client_contacts FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to client_addresses" ON client_addresses;
+CREATE POLICY "Direct access to client_addresses" ON client_addresses FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to client_registrations" ON client_registrations;
+CREATE POLICY "Direct access to client_registrations" ON client_registrations FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to client_bank_accounts" ON client_bank_accounts;
+CREATE POLICY "Direct access to client_bank_accounts" ON client_bank_accounts FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to client_documents" ON client_documents;
+CREATE POLICY "Direct access to client_documents" ON client_documents FOR ALL USING (true) WITH CHECK (true);
+
+-- 2. SERVICES & ENGAGEMENTS
+DROP POLICY IF EXISTS "Direct access to services" ON services;
+CREATE POLICY "Direct access to services" ON services FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to service_engagements" ON service_engagements;
+CREATE POLICY "Direct access to service_engagements" ON service_engagements FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to service_fee_records" ON service_fee_records;
+CREATE POLICY "Direct access to service_fee_records" ON service_fee_records FOR ALL USING (true) WITH CHECK (true);
+
+-- 3. PROJECTS & TASKS & COMMENTS
+DROP POLICY IF EXISTS "Direct access to projects" ON projects;
+CREATE POLICY "Direct access to projects" ON projects FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to project_assignments" ON project_assignments;
+CREATE POLICY "Direct access to project_assignments" ON project_assignments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to project_workflows" ON project_workflows;
+CREATE POLICY "Direct access to project_workflows" ON project_workflows FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to project_workflow_stages" ON project_workflow_stages;
+CREATE POLICY "Direct access to project_workflow_stages" ON project_workflow_stages FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to tasks" ON tasks;
+CREATE POLICY "Direct access to tasks" ON tasks FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to task_assignments" ON task_assignments;
+CREATE POLICY "Direct access to task_assignments" ON task_assignments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to task_comments" ON task_comments;
+CREATE POLICY "Direct access to task_comments" ON task_comments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to task_attachments" ON task_attachments;
+CREATE POLICY "Direct access to task_attachments" ON task_attachments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to task_status_history" ON task_status_history;
+CREATE POLICY "Direct access to task_status_history" ON task_status_history FOR ALL USING (true) WITH CHECK (true);
+
+-- 4. WORKFLOW TEMPLATES & STAGES
+DROP POLICY IF EXISTS "Direct access to workflow_templates" ON workflow_templates;
+CREATE POLICY "Direct access to workflow_templates" ON workflow_templates FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to workflow_template_versions" ON workflow_template_versions;
+CREATE POLICY "Direct access to workflow_template_versions" ON workflow_template_versions FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to workflow_milestones" ON workflow_milestones;
+CREATE POLICY "Direct access to workflow_milestones" ON workflow_milestones FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to workflow_stages" ON workflow_stages;
+CREATE POLICY "Direct access to workflow_stages" ON workflow_stages FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to workflow_sub_stages" ON workflow_sub_stages;
+CREATE POLICY "Direct access to workflow_sub_stages" ON workflow_sub_stages FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to workflow_tasks" ON workflow_tasks;
+CREATE POLICY "Direct access to workflow_tasks" ON workflow_tasks FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to workflow_conditions" ON workflow_conditions;
+CREATE POLICY "Direct access to workflow_conditions" ON workflow_conditions FOR ALL USING (true) WITH CHECK (true);
+
+-- 5. INVOICES & PAYMENTS & FINANCE
+DROP POLICY IF EXISTS "Direct access to invoices" ON invoices;
+CREATE POLICY "Direct access to invoices" ON invoices FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to invoice_items" ON invoice_items;
+CREATE POLICY "Direct access to invoice_items" ON invoice_items FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to invoice_sequences" ON invoice_sequences;
+CREATE POLICY "Direct access to invoice_sequences" ON invoice_sequences FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to payments" ON payments;
+CREATE POLICY "Direct access to payments" ON payments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to payment_allocations" ON payment_allocations;
+CREATE POLICY "Direct access to payment_allocations" ON payment_allocations FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to credit_notes" ON credit_notes;
+CREATE POLICY "Direct access to credit_notes" ON credit_notes FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to payment_reminders" ON payment_reminders;
+CREATE POLICY "Direct access to payment_reminders" ON payment_reminders FOR ALL USING (true) WITH CHECK (true);
+
+-- 6. FILES, CATEGORIES, SETTINGS & UNIVERSAL MODULES
+DROP POLICY IF EXISTS "Direct access to file_objects" ON file_objects;
+CREATE POLICY "Direct access to file_objects" ON file_objects FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to task_categories" ON task_categories;
+CREATE POLICY "Direct access to task_categories" ON task_categories FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to task_sub_categories" ON task_sub_categories;
+CREATE POLICY "Direct access to task_sub_categories" ON task_sub_categories FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to task_statuses" ON task_statuses;
+CREATE POLICY "Direct access to task_statuses" ON task_statuses FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to universal_recycle_bin" ON universal_recycle_bin;
+CREATE POLICY "Direct access to universal_recycle_bin" ON universal_recycle_bin FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to whatsapp_templates" ON whatsapp_templates;
+CREATE POLICY "Direct access to whatsapp_templates" ON whatsapp_templates FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to employees" ON employees;
+CREATE POLICY "Direct access to employees" ON employees FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to employee_private_details" ON employee_private_details;
+CREATE POLICY "Direct access to employee_private_details" ON employee_private_details FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to departments" ON departments;
+CREATE POLICY "Direct access to departments" ON departments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to designations" ON designations;
+CREATE POLICY "Direct access to designations" ON designations FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to teams" ON teams;
+CREATE POLICY "Direct access to teams" ON teams FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to team_members" ON team_members;
+CREATE POLICY "Direct access to team_members" ON team_members FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to notifications" ON notifications;
+CREATE POLICY "Direct access to notifications" ON notifications FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to activity_logs" ON activity_logs;
+CREATE POLICY "Direct access to activity_logs" ON activity_logs FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to office_geo_configs" ON office_geo_configs;
+CREATE POLICY "Direct access to office_geo_configs" ON office_geo_configs FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to attendance_records" ON attendance_records;
+CREATE POLICY "Direct access to attendance_records" ON attendance_records FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to system_settings" ON system_settings;
+CREATE POLICY "Direct access to system_settings" ON system_settings FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to users" ON users;
+CREATE POLICY "Direct access to users" ON users FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to user_roles" ON user_roles;
+CREATE POLICY "Direct access to user_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to roles" ON roles;
+CREATE POLICY "Direct access to roles" ON roles FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to permissions" ON permissions;
+CREATE POLICY "Direct access to permissions" ON permissions FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Direct access to role_permissions" ON role_permissions;
+CREATE POLICY "Direct access to role_permissions" ON role_permissions FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================================================
+-- CREDENTIAL VAULT TABLES (AES-256-GCM SECURE PASSWORDS & AUDIT LOGS)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS vault_credentials (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    portal_name TEXT NOT NULL,
+    login_url TEXT,
+    username TEXT NOT NULL,
+    password_encrypted TEXT NOT NULL,
+    registered_email TEXT,
+    registered_mobile TEXT,
+    account_holder_name TEXT,
+    category TEXT DEFAULT 'Taxation',
+    client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
+    client_name TEXT,
+    assigned_employee_ids JSONB DEFAULT '[]'::jsonb,
+    assigned_employee_names TEXT,
+    notes TEXT,
+    password_history JSONB DEFAULT '[]'::jsonb,
+    last_password_changed_at TIMESTAMPTZ DEFAULT NOW(),
+    rotation_reminder_days INT DEFAULT 90,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by_id UUID REFERENCES employees(id) ON DELETE SET NULL,
+    created_by_name TEXT
+);
+
+ALTER TABLE vault_credentials ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Direct access to vault_credentials" ON vault_credentials;
+CREATE POLICY "Direct access to vault_credentials" ON vault_credentials FOR ALL USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS vault_audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    credential_id UUID,
+    portal_name TEXT NOT NULL,
+    action TEXT NOT NULL,
+    performed_by_id UUID,
+    performed_by_name TEXT NOT NULL,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    details TEXT,
+    client_name TEXT
+);
+
+ALTER TABLE vault_audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Direct access to vault_audit_logs" ON vault_audit_logs;
+CREATE POLICY "Direct access to vault_audit_logs" ON vault_audit_logs FOR ALL USING (true) WITH CHECK (true);
 

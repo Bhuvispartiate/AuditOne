@@ -25,6 +25,11 @@ import {
   History,
   Info,
   ArchiveRestore,
+  Users2,
+  CheckSquare,
+  GitBranch,
+  FolderGit2,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +55,7 @@ import {
   isAdminUser,
 } from "@/lib/access";
 import { formatBytes, formatDate } from "@/lib/utils";
-import { DocumentCategory, DocumentFolder, FileObject } from "@/types";
+import { DocumentCategory, DocumentFolder, FileObject, UniversalRecycleBinItem } from "@/types";
 import { toast } from "sonner";
 
 // Compute remaining recovery days within the 25-day retention window
@@ -65,6 +70,83 @@ function getDaysRemaining(recoveryDeadline?: string, deletedAt?: string): number
     return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
   }
   return 25;
+}
+
+function getRecycleItemMeta(item: UniversalRecycleBinItem) {
+  switch (item.item_type) {
+    case "client":
+      return {
+        icon: Users2,
+        label: "Client",
+        badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
+        iconBg: "bg-blue-50 text-blue-700 border-blue-200",
+        border: "border-blue-200",
+      };
+    case "task":
+      return {
+        icon: CheckSquare,
+        label: "Task",
+        badgeColor: "bg-violet-100 text-violet-800 border-violet-200",
+        iconBg: "bg-violet-50 text-violet-700 border-violet-200",
+        border: "border-violet-200",
+      };
+    case "category":
+      return {
+        icon: Layers,
+        label: "Category",
+        badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+        iconBg: "bg-amber-50 text-amber-700 border-amber-200",
+        border: "border-amber-200",
+      };
+    case "sub-category":
+      return {
+        icon: FolderGit2,
+        label: "Sub-group",
+        badgeColor: "bg-orange-100 text-orange-800 border-orange-200",
+        iconBg: "bg-orange-50 text-orange-700 border-orange-200",
+        border: "border-orange-200",
+      };
+    case "workflow":
+      return {
+        icon: GitBranch,
+        label: "Workflow",
+        badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+        iconBg: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        border: "border-emerald-200",
+      };
+    case "document":
+      return {
+        icon: FileText,
+        label: "Document",
+        badgeColor: "bg-sky-100 text-sky-800 border-sky-200",
+        iconBg: "bg-sky-50 text-sky-700 border-sky-200",
+        border: "border-sky-200",
+      };
+    case "folder":
+      return {
+        icon: Folder,
+        label: "Folder",
+        badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-200",
+        iconBg: "bg-indigo-50 text-indigo-700 border-indigo-200",
+        border: "border-indigo-200",
+      };
+    case "vault-credential":
+      return {
+        icon: KeyRound,
+        label: "Vault Credential",
+        badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
+        iconBg: "bg-purple-50 text-purple-700 border-purple-200",
+        border: "border-purple-200",
+      };
+    default:
+      return {
+        icon: ArchiveRestore,
+        label: "Item",
+        badgeColor: "bg-slate-100 text-slate-800 border-slate-200",
+        iconBg: "bg-slate-50 text-slate-700 border-slate-200",
+        border: "border-slate-200",
+      };
+  }
 }
 
 function DocumentsContent() {
@@ -105,7 +187,9 @@ function DocumentsContent() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedFolderId, setSelectedFolderId] = useState<string>("ALL");
-  const [recycleBinFilter, setRecycleBinFilter] = useState<"ALL" | "DOCUMENT" | "FOLDER">("ALL");
+  const [recycleBinFilter, setRecycleBinFilter] = useState<
+    "ALL" | "CLIENT" | "TASK" | "CATEGORY" | "WORKFLOW" | "DOCUMENT_FOLDER" | "VAULT"
+  >("ALL");
 
   // Modals
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(autoUpload && !isEmployee);
@@ -120,7 +204,7 @@ function DocumentsContent() {
 
   // Permanent Delete Double-Verification Modal
   const [permDeleteTarget, setPermDeleteTarget] = useState<{
-    type: "document" | "folder" | "all";
+    type: string;
     id?: string;
     name: string;
   } | null>(null);
@@ -136,7 +220,7 @@ function DocumentsContent() {
   // Data fetching
   const rawDocuments = pmsStore.getDocuments();
   const folders = pmsStore.getDocumentFolders();
-  const recycleBin = pmsStore.getRecycleBinItems();
+  const universalRecycleBin = pmsStore.getUniversalRecycleBin();
 
   const allClients = pmsStore.getClients();
   const allProjects = pmsStore.getProjects();
@@ -221,30 +305,44 @@ function DocumentsContent() {
     return matchesSearch && matchesCategory && matchesFolder;
   });
 
-  const filteredRecycleDocs = recycleBin.documents.filter((d) => {
-    const matchesSearch =
-      !search.trim() ||
-      d.file_name.toLowerCase().includes(search.toLowerCase()) ||
-      d.category.toLowerCase().includes(search.toLowerCase());
-    const matchesType = recycleBinFilter === "ALL" || recycleBinFilter === "DOCUMENT";
-    return matchesSearch && matchesType;
-  });
+  const filteredUniversalItems = useMemo(() => {
+    return universalRecycleBin.filter((item: UniversalRecycleBinItem) => {
+      const q = search.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        item.title.toLowerCase().includes(q) ||
+        (item.code && item.code.toLowerCase().includes(q)) ||
+        (item.subtitle && item.subtitle.toLowerCase().includes(q)) ||
+        (item.client_name && item.client_name.toLowerCase().includes(q)) ||
+        (item.category_name && item.category_name.toLowerCase().includes(q)) ||
+        (item.deleted_by_name && item.deleted_by_name.toLowerCase().includes(q));
 
-  const filteredRecycleFolders = recycleBin.folders.filter((f) => {
-    const matchesSearch =
-      !search.trim() ||
-      f.name.toLowerCase().includes(search.toLowerCase()) ||
-      (f.description && f.description.toLowerCase().includes(search.toLowerCase()));
-    const matchesType = recycleBinFilter === "ALL" || recycleBinFilter === "FOLDER";
-    return matchesSearch && matchesType;
-  });
+      if (!matchesSearch) return false;
 
-  const expiringSoonCount =
-    recycleBin.documents.filter((d) => getDaysRemaining(d.recovery_deadline, d.deleted_at) <= 5).length +
-    recycleBin.folders.filter((f) => getDaysRemaining(f.recovery_deadline, f.deleted_at) <= 5).length;
+      if (recycleBinFilter === "ALL") return true;
+      if (recycleBinFilter === "CLIENT") return item.item_type === "client";
+      if (recycleBinFilter === "TASK") return item.item_type === "task";
+      if (recycleBinFilter === "CATEGORY") return item.item_type === "category" || item.item_type === "sub-category";
+      if (recycleBinFilter === "WORKFLOW") return item.item_type === "workflow";
+      if (recycleBinFilter === "DOCUMENT_FOLDER") return item.item_type === "document" || item.item_type === "folder";
+      if (recycleBinFilter === "VAULT") return item.item_type === "vault-credential";
+      return true;
+    });
+  }, [universalRecycleBin, search, recycleBinFilter]);
+
+  const clientCount = universalRecycleBin.filter((i: UniversalRecycleBinItem) => i.item_type === "client").length;
+  const taskCount = universalRecycleBin.filter((i: UniversalRecycleBinItem) => i.item_type === "task").length;
+  const categoryCount = universalRecycleBin.filter((i: UniversalRecycleBinItem) => i.item_type === "category" || i.item_type === "sub-category").length;
+  const workflowCount = universalRecycleBin.filter((i: UniversalRecycleBinItem) => i.item_type === "workflow").length;
+  const docFolderCount = universalRecycleBin.filter((i: UniversalRecycleBinItem) => i.item_type === "document" || i.item_type === "folder").length;
+  const vaultCount = universalRecycleBin.filter((i: UniversalRecycleBinItem) => i.item_type === "vault-credential").length;
+
+  const expiringSoonCount = universalRecycleBin.filter(
+    (i: UniversalRecycleBinItem) => getDaysRemaining(i.recovery_deadline, i.deleted_at) <= 5
+  ).length;
 
   // Actions
-  const handleUpload = (e: React.FormEvent) => {
+  const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fileName.trim()) {
       toast.error("Please specify a document title or file name.");
@@ -257,27 +355,31 @@ function DocumentsContent() {
       ? `${chosenFolder.path.replace(/^\//, "")}/${fileName.replace(/\s+/g, "_")}`
       : `clients/${client?.client_code || "general"}/${fileName.replace(/\s+/g, "_")}`;
 
-    pmsStore.addDocument({
-      bucket_name: "pms-documents",
-      r2_object_key: objectKey,
-      file_name: fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`,
-      file_size: fileSize,
-      mime_type: "application/pdf",
-      category: fileCategory,
-      entity_type: "client",
-      entity_id: associatedClientId,
-      folder_id: associatedFolderId || undefined,
-      folder_name: chosenFolder?.name,
-      uploaded_by: pmsStore.getCurrentUser().id,
-      uploaded_by_name: pmsStore.getCurrentUser().full_name,
-      version_number: 1,
-      expiry_date: expiryDate || undefined,
-    });
+    try {
+      await pmsStore.addDocument({
+        bucket_name: "pms-documents",
+        r2_object_key: objectKey,
+        file_name: fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`,
+        file_size: fileSize,
+        mime_type: "application/pdf",
+        category: fileCategory,
+        entity_type: "client",
+        entity_id: associatedClientId,
+        folder_id: associatedFolderId || undefined,
+        folder_name: chosenFolder?.name,
+        uploaded_by: pmsStore.getCurrentUser().id,
+        uploaded_by_name: pmsStore.getCurrentUser().full_name,
+        version_number: 1,
+        expiry_date: expiryDate || undefined,
+      });
 
-    toast.success(`Document uploaded to Cloudflare R2 bucket: ${objectKey}`);
-    setIsUploadModalOpen(false);
-    setFileName("");
-    setAssociatedFolderId("");
+      toast.success(`Document record saved to Supabase: ${objectKey}`);
+      setIsUploadModalOpen(false);
+      setFileName("");
+      setAssociatedFolderId("");
+    } catch (err: any) {
+      toast.error(`Database error: ${err.message || "Failed to save document."}`);
+    }
   };
 
   const handleCreateFolder = (e: React.FormEvent) => {
@@ -330,8 +432,13 @@ function DocumentsContent() {
     }
   };
 
+  const handleRestoreUniversalItem = (item: UniversalRecycleBinItem) => {
+    pmsStore.restoreRecycleBinItem(item.id, currentUser);
+    toast.success(`Restored ${item.item_type} "${item.title}" back to active workspace.`);
+  };
+
   const handleRestoreAll = () => {
-    const count = pmsStore.restoreAllRecycleBin(currentUser);
+    const count = pmsStore.restoreAllUniversalRecycleBin(currentUser);
     toast.success(`Restored all ${count} item(s) from Recycle Bin back to repository.`);
   };
 
@@ -339,14 +446,11 @@ function DocumentsContent() {
     if (!permDeleteTarget || !isPermDeleteMatch) return;
 
     if (permDeleteTarget.type === "all") {
-      const purged = pmsStore.emptyRecycleBin(currentUser);
+      const purged = pmsStore.emptyUniversalRecycleBin(currentUser);
       toast.success(`Emptied Recycle Bin: Permanently purged ${purged} item(s).`);
-    } else if (permDeleteTarget.type === "document" && permDeleteTarget.id) {
-      pmsStore.permanentlyDeleteDocument(permDeleteTarget.id, currentUser);
-      toast.success(`Permanently deleted document "${permDeleteTarget.name}".`);
-    } else if (permDeleteTarget.type === "folder" && permDeleteTarget.id) {
-      pmsStore.permanentlyDeleteFolder(permDeleteTarget.id, currentUser);
-      toast.success(`Permanently purged folder "${permDeleteTarget.name}".`);
+    } else if (permDeleteTarget.id) {
+      pmsStore.permanentlyDeleteRecycleBinItem(permDeleteTarget.id, currentUser);
+      toast.success(`Permanently deleted ${permDeleteTarget.type} "${permDeleteTarget.name}".`);
     }
 
     setPermDeleteTarget(null);
@@ -365,9 +469,6 @@ function DocumentsContent() {
               Cloud Document Storage &amp; Recovery
             </h1>
           </div>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            Private, encrypted object storage for client KYC, audits, workpapers, and a centralized 25-day recovery system.
-          </p>
         </div>
 
         {/* View Switcher Tabs */}
@@ -399,7 +500,7 @@ function DocumentsContent() {
           >
             <Trash2 className="h-4 w-4" />
             <span>Recycle Bin</span>
-            {recycleBin.totalCount > 0 && (
+            {universalRecycleBin.length > 0 && (
               <span
                 className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
                   currentTab === "recycle-bin"
@@ -407,7 +508,7 @@ function DocumentsContent() {
                     : "bg-rose-100 text-rose-700"
                 }`}
               >
-                {recycleBin.totalCount}
+                {universalRecycleBin.length}
               </span>
             )}
           </button>
@@ -742,7 +843,7 @@ function DocumentsContent() {
                   </Badge>
                 </div>
                 <p className="text-xs text-rose-900 leading-relaxed max-w-4xl">
-                  A centralized recovery system that temporarily stores deleted documents and folders, allowing authorized users to restore them within <strong>25 days</strong> or permanently delete them with proper authorization. All actions are tracked through audit logs to ensure data security and accountability.
+                  A centralized recovery system that temporarily stores deleted clients, tasks, categories, workflows, documents, and folders, allowing authorized users to restore them within <strong>25 days</strong> or permanently delete them with proper authorization. All actions are tracked through audit logs to ensure data security and accountability.
                 </p>
               </div>
             </div>
@@ -755,10 +856,10 @@ function DocumentsContent() {
                 Recoverable Items
               </span>
               <span className="text-2xl font-extrabold text-slate-900">
-                {recycleBin.totalCount}
+                {universalRecycleBin.length}
               </span>
               <span className="text-[11px] text-slate-500 block">
-                {recycleBin.documents.length} docs · {recycleBin.folders.length} folders
+                {clientCount} clients · {taskCount} tasks · {categoryCount} categories
               </span>
             </div>
 
@@ -795,7 +896,7 @@ function DocumentsContent() {
 
           {/* Recycle Bin Controls & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setRecycleBinFilter("ALL")}
@@ -805,33 +906,77 @@ function DocumentsContent() {
                     : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                All ({recycleBin.totalCount})
+                All ({universalRecycleBin.length})
               </button>
               <button
                 type="button"
-                onClick={() => setRecycleBinFilter("DOCUMENT")}
+                onClick={() => setRecycleBinFilter("CLIENT")}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                  recycleBinFilter === "DOCUMENT"
+                  recycleBinFilter === "CLIENT"
                     ? "bg-[#111827] text-white"
                     : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                Documents ({recycleBin.documents.length})
+                Clients ({clientCount})
               </button>
               <button
                 type="button"
-                onClick={() => setRecycleBinFilter("FOLDER")}
+                onClick={() => setRecycleBinFilter("TASK")}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                  recycleBinFilter === "FOLDER"
+                  recycleBinFilter === "TASK"
                     ? "bg-[#111827] text-white"
                     : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                Folders ({recycleBin.folders.length})
+                Tasks ({taskCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecycleBinFilter("CATEGORY")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                  recycleBinFilter === "CATEGORY"
+                    ? "bg-[#111827] text-white"
+                    : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Categories ({categoryCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecycleBinFilter("WORKFLOW")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                  recycleBinFilter === "WORKFLOW"
+                    ? "bg-[#111827] text-white"
+                    : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Workflows ({workflowCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecycleBinFilter("DOCUMENT_FOLDER")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                  recycleBinFilter === "DOCUMENT_FOLDER"
+                    ? "bg-[#111827] text-white"
+                    : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Docs &amp; Folders ({docFolderCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecycleBinFilter("VAULT")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                  recycleBinFilter === "VAULT"
+                    ? "bg-[#111827] text-white"
+                    : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Vault ({vaultCount})
               </button>
             </div>
 
-            {canAdminRecycleBin && recycleBin.totalCount > 0 && (
+            {canAdminRecycleBin && universalRecycleBin.length > 0 && (
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -870,7 +1015,7 @@ function DocumentsContent() {
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
                   type="search"
-                  placeholder="Search deleted files or folders in Recycle Bin..."
+                  placeholder="Search deleted items in Recycle Bin by title, code, client, or category..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-10 h-10 rounded-2xl border-slate-300 text-xs font-medium"
@@ -880,39 +1025,52 @@ function DocumentsContent() {
           </Card>
 
           {/* Recycle Bin Items List */}
-          {recycleBin.totalCount === 0 ? (
+          {filteredUniversalItems.length === 0 ? (
             <div className="rounded-[24px] border-[1.5px] border-dashed border-slate-300 bg-white p-14 text-center space-y-3">
               <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500" />
               <h3 className="text-base font-extrabold text-[#111827]">Recycle Bin is Empty</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                No documents or folders currently in recovery. All deleted items will be held here safely for 25 days before permanent deletion.
+                No items currently in recovery. All deleted clients, tasks, categories, workflows, documents, and folders will be held here safely for 25 days before permanent deletion.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {/* Folders in Recycle Bin */}
-              {filteredRecycleFolders.map((fld) => {
-                const daysLeft = getDaysRemaining(fld.recovery_deadline, fld.deleted_at);
+              {filteredUniversalItems.map((item: UniversalRecycleBinItem) => {
+                const meta = getRecycleItemMeta(item);
+                const IconComp = meta.icon;
+                const daysLeft = getDaysRemaining(item.recovery_deadline, item.deleted_at);
 
                 return (
                   <Card
-                    key={fld.id}
-                    className="rounded-[24px] border-[1.5px] border-rose-200 bg-white shadow-xs p-5 space-y-3.5 flex flex-col justify-between"
+                    key={item.id}
+                    className={`rounded-[24px] border-[1.5px] ${meta.border} bg-white shadow-xs p-5 space-y-3.5 flex flex-col justify-between`}
                   >
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="h-9 w-9 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center shrink-0">
-                            <Folder className="h-4 w-4" />
+                          <div
+                            className={`h-9 w-9 rounded-xl ${meta.iconBg} flex items-center justify-center shrink-0 border`}
+                          >
+                            <IconComp className="h-4 w-4" />
                           </div>
                           <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-extrabold uppercase bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
-                                Folder
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${meta.badgeColor}`}
+                              >
+                                {meta.label}
                               </span>
+                              {item.code && (
+                                <span className="font-mono text-[10px] font-bold text-slate-500">
+                                  {item.code}
+                                </span>
+                              )}
                             </div>
-                            <h4 className="text-sm font-extrabold text-[#111827] truncate mt-0.5">
-                              {fld.name}
+                            <h4
+                              className="text-sm font-extrabold text-[#111827] truncate mt-0.5"
+                              title={item.title}
+                            >
+                              {item.title}
                             </h4>
                           </div>
                         </div>
@@ -934,22 +1092,40 @@ function DocumentsContent() {
                       </div>
 
                       <div className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-[11px] space-y-1 text-slate-600">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Path:</span>
-                          <span className="font-mono text-slate-700 font-semibold truncate max-w-[180px]">
-                            {fld.path}
+                        {item.subtitle && (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-400 shrink-0">Details:</span>
+                            <span className="font-semibold text-slate-800 truncate text-right">
+                              {item.subtitle}
+                            </span>
+                          </div>
+                        )}
+                        {item.category_name && (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-400 shrink-0">Category:</span>
+                            <span className="font-medium text-slate-700 truncate text-right">
+                              {item.category_name}
+                            </span>
+                          </div>
+                        )}
+                        {item.client_name && (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-400 shrink-0">Client:</span>
+                            <span className="font-medium text-slate-700 truncate text-right">
+                              {item.client_name}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-400 shrink-0">Deleted By:</span>
+                          <span className="font-semibold text-slate-800 truncate text-right">
+                            {item.deleted_by_name || "Authorized User"}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Deleted By:</span>
-                          <span className="font-semibold text-slate-800">
-                            {fld.deleted_by_name || "Authorized User"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Deleted At:</span>
-                          <span className="font-medium text-slate-700">
-                            {formatDate(fld.deleted_at || fld.created_at)}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-400 shrink-0">Deleted At:</span>
+                          <span className="font-medium text-slate-700 text-right">
+                            {formatDate(item.deleted_at)}
                           </span>
                         </div>
                       </div>
@@ -960,11 +1136,11 @@ function DocumentsContent() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => handleRestore({ type: "folder", id: fld.id, name: fld.name })}
+                        onClick={() => handleRestoreUniversalItem(item)}
                         className="rounded-xl border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold gap-1 h-8"
                       >
                         <RotateCcw className="h-3 w-3" />
-                        <span>Restore Folder</span>
+                        <span>Restore {meta.label}</span>
                       </Button>
 
                       {canAdminRecycleBin && (
@@ -974,113 +1150,9 @@ function DocumentsContent() {
                           variant="ghost"
                           onClick={() => {
                             setPermDeleteTarget({
-                              type: "folder",
-                              id: fld.id,
-                              name: fld.name,
-                            });
-                            setPermDeleteInput("");
-                          }}
-                          className="rounded-xl text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold gap-1 h-8"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          <span>Delete Permanently</span>
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-                );
-              })}
-
-              {/* Documents in Recycle Bin */}
-              {filteredRecycleDocs.map((doc) => {
-                const daysLeft = getDaysRemaining(doc.recovery_deadline, doc.deleted_at);
-
-                return (
-                  <Card
-                    key={doc.id}
-                    className="rounded-[24px] border-[1.5px] border-rose-200 bg-white shadow-xs p-5 space-y-3.5 flex flex-col justify-between"
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="h-9 w-9 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center shrink-0">
-                            <FileText className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-extrabold uppercase bg-slate-100 text-slate-800 px-2 py-0.5 rounded-full border border-slate-200">
-                                {doc.category}
-                              </span>
-                              <span className="font-mono text-[10px] font-bold text-slate-400">
-                                v{doc.version_number}.0
-                              </span>
-                            </div>
-                            <h4 className="text-sm font-extrabold text-[#111827] truncate mt-0.5">
-                              {doc.file_name}
-                            </h4>
-                          </div>
-                        </div>
-
-                        {/* Days Left Badge */}
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-extrabold rounded-full px-2.5 py-0.5 shrink-0 ${
-                            daysLeft > 10
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                              : daysLeft > 3
-                              ? "bg-amber-50 text-amber-800 border-amber-300"
-                              : "bg-rose-50 text-rose-700 border-rose-300 animate-pulse"
-                          }`}
-                        >
-                          <Clock className="h-3 w-3 mr-1" />
-                          {daysLeft} days left
-                        </Badge>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-[11px] space-y-1 text-slate-600">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">File Size:</span>
-                          <span className="font-mono text-slate-800 font-semibold">
-                            {formatBytes(doc.file_size)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Deleted By:</span>
-                          <span className="font-semibold text-slate-800">
-                            {doc.deleted_by_name || "Authorized User"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Deleted At:</span>
-                          <span className="font-medium text-slate-700">
-                            {formatDate(doc.deleted_at || doc.created_at)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleRestore({ type: "document", id: doc.id, name: doc.file_name })}
-                        className="rounded-xl border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold gap-1 h-8"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        <span>Restore</span>
-                      </Button>
-
-                      {canAdminRecycleBin && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setPermDeleteTarget({
-                              type: "document",
-                              id: doc.id,
-                              name: doc.file_name,
+                              type: item.item_type,
+                              id: item.id,
+                              name: item.title,
                             });
                             setPermDeleteInput("");
                           }}

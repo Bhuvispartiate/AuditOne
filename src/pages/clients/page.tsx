@@ -101,11 +101,6 @@ export default function ClientsListPage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
             Client 360° Master Directory
           </h1>
-          <p className="text-xs text-[#6b7280] mt-1 font-medium">
-            {isEmployee
-              ? "View-only Client 360° accounts assigned to your projects and tasks."
-              : "Central repository of corporate and individual client engagements, registrations and accounts."}
-          </p>
         </div>
         {isEmployee ? (
           <Badge
