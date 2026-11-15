@@ -216,7 +216,7 @@ export default function WorkflowsPage() {
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
             Template Tasks
           </span>
-          <span className="text-lg font-extrabold text-violet-700">
+          <span className="text-lg font-extrabold text-[#201815]">
             {workflows.reduce((sum, w) => sum + (w.template_tasks?.length || 0), 0)}
           </span>
         </div>
@@ -277,20 +277,20 @@ export default function WorkflowsPage() {
               <Card
                 key={wf.id}
                 onClick={() => navigate(`/workflows/${wf.id}`)}
-                className="rounded-[24px] border-[1.5px] border-slate-300 bg-white cursor-pointer transition-all hover:border-violet-600 hover:shadow-md group relative overflow-hidden flex flex-col justify-between"
+                className="rounded-[24px] border-[1.5px] border-[#E2DACD] bg-[#FAF8F5] cursor-pointer transition-all hover:border-[#201815] hover:shadow-md group relative overflow-hidden flex flex-col justify-between"
               >
                 <div className="p-5 space-y-4">
                   {/* Top Header Row */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="h-10 w-10 rounded-2xl flex items-center justify-center shrink-0 bg-violet-100 text-violet-800 border border-violet-200">
+                      <div className="h-10 w-10 rounded-2xl flex items-center justify-center shrink-0 bg-[#EFE8DC] text-[#201815] border border-[#E2DACD]">
                         <GitBranch className="h-5 w-5" />
                       </div>
                       <div>
                         <span className="font-mono text-[10px] font-extrabold px-2 py-0.5 rounded-full border bg-slate-50 border-slate-300 text-slate-700">
                           {wf.workflow_code}
                         </span>
-                        <h3 className="text-base font-extrabold text-[#111827] mt-0.5 group-hover:text-violet-800 transition-colors">
+                        <h3 className="text-base font-extrabold text-[#111827] mt-0.5 group-hover:text-[#201815] transition-colors">
                           {wf.workflow_name}
                         </h3>
                       </div>
@@ -331,8 +331,8 @@ export default function WorkflowsPage() {
                   </div>
 
                   {/* Service Tag */}
-                  <div className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50/70 px-2.5 py-1 text-xs font-bold text-violet-800">
-                    <Briefcase className="h-3.5 w-3.5 text-violet-600" />
+                  <div className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2DACD] bg-[#EFE8DC] px-2.5 py-1 text-xs font-bold text-[#201815]">
+                    <Briefcase className="h-3.5 w-3.5 text-[#201815]" />
                     <span>Service: {wf.service_name || "Unassigned"}</span>
                   </div>
 
@@ -370,7 +370,7 @@ export default function WorkflowsPage() {
                       e.stopPropagation();
                       navigate(`/workflows/${wf.id}`);
                     }}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 group-hover:text-violet-900 group-hover:translate-x-0.5 transition-all"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[#201815] group-hover:text-[#342722] group-hover:translate-x-0.5 transition-all"
                   >
                     <span>Open Workflow</span>
                     <ArrowRight className="h-3.5 w-3.5" />

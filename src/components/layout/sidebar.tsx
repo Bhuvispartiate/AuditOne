@@ -381,27 +381,6 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
         })}
       </div>
 
-      {/* Signature Deep Espresso Feature Card matching reference image bottom-left */}
-      {!effectiveCollapsed && (
-        <div className="mx-3 my-2 p-3.5 rounded-2xl bg-[#2A1C17] border border-[#3E2C24] text-[#FAF8F5] shadow-xs">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="h-6 w-6 rounded-lg bg-white/10 flex items-center justify-center">
-              <Zap className="h-3.5 w-3.5 text-amber-300" />
-            </div>
-            <span className="text-xs font-extrabold tracking-tight">Practice Suite</span>
-          </div>
-          <p className="text-[10px] text-[#C4BCB3] leading-relaxed mb-2.5">
-            Audit, Direct Tax &amp; GST compliance unified in one console.
-          </p>
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center justify-center w-full py-1.5 px-3 rounded-full bg-[#FAF8F5] hover:bg-[#EFE8DC] text-[11px] font-extrabold text-[#201815] transition-colors"
-          >
-            Dashboard Overview
-          </Link>
-        </div>
-      )}
-
       {/* Bottom Utility Navigation */}
       {!isEmployee && (
         <div className="px-3 pt-2 pb-2 border-t border-[#382620] space-y-1">

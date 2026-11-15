@@ -89,12 +89,12 @@ function getCategoryColorTheme(color?: string) {
   switch (color) {
     case "violet":
       return {
-        badge: "bg-violet-50 text-violet-700 border-violet-200",
-        iconBg: "bg-violet-100 text-violet-700",
-        border: "hover:border-violet-400",
-        accent: "text-violet-700",
-        bar: "bg-violet-600",
-        columnBorder: "border-violet-200 bg-violet-50/20",
+        badge: "bg-[#FAF8F5] text-[#201815] border-[#E2DACD]",
+        iconBg: "bg-[#EFE8DC] text-[#201815]",
+        border: "hover:border-[#201815]",
+        accent: "text-[#201815]",
+        bar: "bg-[#201815] text-[#FAF8F5]",
+        columnBorder: "border-[#E2DACD] bg-[#FAF8F5]",
       };
     case "sky":
       return {
@@ -1896,7 +1896,7 @@ function TasksContent() {
                                   className={`w-full h-8 text-xs font-bold rounded-xl gap-1.5 shadow-sm transition-all ${
                                     taskClipboard.mode === "copy"
                                       ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200"
-                                      : "bg-violet-600 hover:bg-violet-700 text-white shadow-violet-200"
+                                      : "bg-[#201815] hover:bg-[#342722] text-white"
                                   }`}
                                 >
                                   {taskClipboard.mode === "copy" ? (
@@ -3046,7 +3046,7 @@ function TasksContent() {
                   onChange={(e) => setCatColor(e.target.value)}
                   className="w-full h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold"
                 >
-                  <option value="violet">Violet</option>
+                  <option value="violet">Brown / Espresso</option>
                   <option value="sky">Sky Blue</option>
                   <option value="emerald">Emerald Green</option>
                   <option value="amber">Amber / Orange</option>
@@ -3758,7 +3758,7 @@ function TasksContent() {
                 setMoveCopyAction("copy");
                 setIsMoveCopyModalOpen(true);
               }}
-              className="h-8 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold gap-1.5 shadow-sm"
+              className="h-8 rounded-full bg-[#201815] hover:bg-[#342722] text-[#FAF8F5] text-xs font-bold gap-1.5 shadow-sm"
             >
               <FolderInput className="h-3.5 w-3.5" />
               <span>Copy / Move to...</span>
@@ -3879,7 +3879,7 @@ function TasksContent() {
                   type="button"
                   variant={moveCopyAction === "move" ? "default" : "outline"}
                   onClick={() => setMoveCopyAction("move")}
-                  className={`text-xs font-bold h-9 ${moveCopyAction === "move" ? "bg-violet-600 hover:bg-violet-700 text-white" : ""}`}
+                  className={`text-xs font-bold h-9 ${moveCopyAction === "move" ? "bg-[#201815] hover:bg-[#342722] text-[#FAF8F5]" : ""}`}
                 >
                   <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
                   Move Tasks

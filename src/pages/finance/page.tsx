@@ -676,7 +676,7 @@ export default function FinanceCentralPage() {
                 </h3>
                 <button
                   onClick={() => switchTab("approvals")}
-                  className="text-xs font-bold text-violet-700 hover:underline"
+                  className="text-xs font-bold text-[#201815] hover:underline"
                 >
                   View All &rarr;
                 </button>
@@ -727,12 +727,12 @@ export default function FinanceCentralPage() {
             <div className="rounded-[24px] border border-slate-200 bg-white p-5 space-y-3 shadow-xs">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-extrabold text-[#111827] flex items-center gap-2">
-                  <Receipt className="h-4 w-4 text-violet-600" />
+                  <Receipt className="h-4 w-4 text-[#201815]" />
                   <span>Recent Generated Invoices</span>
                 </h3>
                 <button
                   onClick={() => switchTab("all-invoices")}
-                  className="text-xs font-bold text-violet-700 hover:underline"
+                  className="text-xs font-bold text-[#201815] hover:underline"
                 >
                   View Register &rarr;
                 </button>
@@ -934,7 +934,7 @@ export default function FinanceCentralPage() {
                     setSelectedSingleTaskIds([]);
                     setSingleTaskAmounts({});
                   }}
-                  className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900 focus:ring-violet-500"
+                  className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900 focus:ring-[#201815]"
                 >
                   <option value="">Select a client...</option>
                   {clients.map((c) => (
@@ -1560,7 +1560,7 @@ export default function FinanceCentralPage() {
                               ? "bg-sky-50 text-sky-800 border-sky-300"
                               : req.request_type === "recurring"
                               ? "bg-blue-50 text-blue-800 border-blue-300"
-                              : "bg-violet-50 text-violet-800 border-violet-300"
+                              : "bg-[#EFE8DC] text-[#201815] border-[#E2DACD]"
                           }`}
                         >
                           {req.request_type} Billing
