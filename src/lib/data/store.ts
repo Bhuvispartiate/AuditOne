@@ -4099,6 +4099,32 @@ class PMSDataStore {
   }
 
   /**
+   * Helper to generate guaranteed collision-free sequential Request Numbers
+   */
+  generateNextRequestNumber(type: "single" | "bulk" | "recurring", additionalOffset = 0): string {
+    const year = new Date().getFullYear();
+    const prefix = type === "single" ? "REQ-SIN" : type === "bulk" ? "REQ-BLK" : "REQ-REC";
+    const existing = new Set(this.invoiceRequests.map((r) => (r.request_number || "").toUpperCase()));
+    const nums: number[] = [];
+    for (const r of this.invoiceRequests) {
+      if (r.request_number) {
+        const m = r.request_number.match(/REQ-(?:SIN|BLK|REC)-\d{4}-(\d+)/i);
+        if (m) {
+          nums.push(parseInt(m[1], 10));
+        }
+      }
+    }
+    const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
+    let seq = Math.max(maxNum + 1 + additionalOffset, this.invoiceRequests.length + 1 + additionalOffset);
+    let candidate = `${prefix}-${year}-${String(seq).padStart(4, "0")}`;
+    while (existing.has(candidate.toUpperCase())) {
+      seq++;
+      candidate = `${prefix}-${year}-${String(seq).padStart(4, "0")}`;
+    }
+    return candidate;
+  }
+
+  /**
    * Single Invoice Creation:
    * Creates an invoice request for one client with one or more completed billable tasks.
    * Mandates Admin Approval before invoice generation.
@@ -4182,8 +4208,7 @@ class PMSDataStore {
     const igstTotal = is_interstate ? totalTax : 0;
     const grandTotal = subtotal + totalTax;
 
-    const reqSeq = this.invoiceRequests.length + 1;
-    const reqNumber = `REQ-SIN-${new Date().getFullYear()}-${String(reqSeq).padStart(4, "0")}`;
+    const reqNumber = this.generateNextRequestNumber("single");
     const id = ensureUuid();
 
     const newRequest: InvoiceRequest = {
@@ -4270,8 +4295,14 @@ class PMSDataStore {
       throw new Error("No tasks selected for bulk invoice generation.");
     }
 
-    const batchSeq = this.bulkBatches.length + 1;
-    const batchCode = `BATCH-${new Date().getFullYear()}-${String(batchSeq).padStart(4, "0")}`;
+    const year = new Date().getFullYear();
+    const existingBatches = new Set(this.bulkBatches.map((b) => (b.batch_code || "").toUpperCase()));
+    let bSeq = this.bulkBatches.length + 1;
+    let batchCode = `BATCH-${year}-${String(bSeq).padStart(4, "0")}`;
+    while (existingBatches.has(batchCode.toUpperCase())) {
+      bSeq++;
+      batchCode = `BATCH-${year}-${String(bSeq).padStart(4, "0")}`;
+    }
     const batchId = ensureUuid();
     const gst_rate = input.gst_rate ?? 18;
 
@@ -4353,8 +4384,7 @@ class PMSDataStore {
       const grandTotal = subtotal + totalTax;
       batchTotalAmount += grandTotal;
 
-      const reqSeq = this.invoiceRequests.length + generatedRequests.length + 1;
-      const reqNumber = `REQ-BLK-${new Date().getFullYear()}-${String(reqSeq).padStart(4, "0")}`;
+      const reqNumber = this.generateNextRequestNumber("bulk", generatedRequests.length);
       const reqId = ensureUuid();
 
       // Ensure items have invoice_request_id set
@@ -4520,8 +4550,7 @@ class PMSDataStore {
       const client = this.clients.find((c) => c.id === schedule.client_id);
       if (!client) continue;
 
-      const reqSeq = this.invoiceRequests.length + createdRequests.length + 1;
-      const reqNumber = `REQ-REC-${new Date().getFullYear()}-${String(reqSeq).padStart(4, "0")}`;
+      const reqNumber = this.generateNextRequestNumber("recurring", createdRequests.length);
       const reqId = ensureUuid();
 
       const item: InvoiceRequestItem = {

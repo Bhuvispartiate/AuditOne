@@ -1369,8 +1369,7 @@ export async function fetchInvoiceRequestsFromDb(): Promise<InvoiceRequest[]> {
 export async function insertInvoiceRequestToDb(req: InvoiceRequest): Promise<InvoiceRequest> {
   const supabase = createClient();
   const id = ensureUuid(req.id);
-
-  const { error } = await supabase.from("invoice_requests").insert({
+  const payload: Record<string, any> = {
     id,
     request_number: req.request_number,
     request_type: req.request_type,
@@ -1397,7 +1396,21 @@ export async function insertInvoiceRequestToDb(req: InvoiceRequest): Promise<Inv
     status: req.status || "Pending Approval",
     created_at: req.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  });
+  };
+
+  let { error } = await supabase.from("invoice_requests").insert(payload);
+
+  // If a request_number unique collision occurs with existing DB records, retry with a unique timestamp suffix
+  if (error && error.message && error.message.includes("invoice_requests_request_number_key")) {
+    console.warn("Collision on invoice_requests_request_number_key, retrying with unique suffix...");
+    const suffix = Date.now().toString().slice(-4);
+    payload.request_number = `${req.request_number}-${suffix}`;
+    const retry = await supabase.from("invoice_requests").insert(payload);
+    error = retry.error;
+    if (!error) {
+      req.request_number = payload.request_number;
+    }
+  }
 
   if (error) {
     console.error("Supabase insert invoice_request error:", error);
