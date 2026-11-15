@@ -1751,6 +1751,15 @@ export async function insertTaskCategoryToDb(cat: TaskCategory): Promise<TaskCat
     throw new Error(error.message);
   }
 
+  // Also persist initial subcategories into database if provided
+  if (cat.sub_categories && cat.sub_categories.length > 0) {
+    for (const sub of cat.sub_categories) {
+      await insertTaskSubCategoryToDb(sub).catch((err) => {
+        console.warn("Could not insert subcategory into db:", err);
+      });
+    }
+  }
+
   return { ...cat, id, sub_categories: cat.sub_categories || [] };
 }
 

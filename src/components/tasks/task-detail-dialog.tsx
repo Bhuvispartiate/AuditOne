@@ -730,12 +730,11 @@ export function TaskDetailDialog({
                   </div>
                 )}
 
-                {/* Initiate Invoice CTA for Completed Billable Tasks with balance */}
-                {(task.status === "Completed" || pmsStore.isCompletedStatus(task.status)) &&
-                 ((task.remaining_amount ?? task.billing_amount ?? 0) - (task.pending_approval_amount ?? 0) > 0) && (
+                {/* Initiate Invoice CTA for Completed or Partially Invoiced Tasks with available balance */}
+                {pmsStore.isTaskEligibleForBilling(task) && (
                   <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-xs">
                     <div>
-                      <p className="text-xs font-extrabold">Deliverable is Completed &amp; Ready for Billing</p>
+                      <p className="text-xs font-extrabold">Deliverable Ready for Billing</p>
                       <p className="text-[11px] text-emerald-100">
                         Available unbilled amount: ₹{((task.remaining_amount ?? task.billing_amount ?? 0) - (task.pending_approval_amount ?? 0)).toLocaleString("en-IN")}
                       </p>

@@ -1054,16 +1054,16 @@ export default function FinanceCentralPage() {
                 <div>
                   <span className="font-extrabold text-slate-500 text-[10px] uppercase">Eligible Tasks Ready</span>
                   <p className="font-bold text-emerald-700 mt-0.5">
-                    {eligibleSingleTasks.length} Completed deliverables available
+                    {eligibleSingleTasks.length} Billable deliverables available
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Completed Billable Tasks Table */}
+            {/* Completed & Invoiced Billable Tasks Table */}
             <div className="space-y-2">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center justify-between">
-                <span>Completed Billable Deliverables</span>
+                <span>Eligible Billable Deliverables</span>
                 <span className="text-[11px] font-semibold text-slate-500">
                   {selectedSingleTaskIds.length} of {eligibleSingleTasks.length} selected
                 </span>
@@ -1072,9 +1072,9 @@ export default function FinanceCentralPage() {
               {eligibleSingleTasks.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-8 text-center text-xs text-slate-500 space-y-2">
                   <Receipt className="h-8 w-8 text-slate-400 mx-auto opacity-70" />
-                  <p className="font-extrabold text-slate-700">No unbilled completed tasks available for this client.</p>
+                  <p className="font-extrabold text-slate-700">No unbilled deliverables available for this client.</p>
                   <p className="text-[11px] text-slate-500 max-w-md mx-auto">
-                    To bill this client, mark deliverable tasks as &quot;Billable&quot; in Task Management and update their status to &quot;Completed&quot;.
+                    To bill this client, mark deliverable tasks as &quot;Billable&quot; in Task Management and mark completed or initiate billing milestones.
                   </p>
                   <Link to="/tasks">
                     <Button size="sm" variant="outline" className="mt-2 text-xs font-bold rounded-xl">
@@ -1319,7 +1319,7 @@ export default function FinanceCentralPage() {
             {/* Completed Tasks Across Clients Table */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-extrabold uppercase tracking-wider text-slate-700">
-                <span>Completed Deliverables ({filteredBulkTasks.length})</span>
+                <span>Eligible Deliverables ({filteredBulkTasks.length})</span>
                 <span className="text-[11px] font-semibold text-slate-500">
                   {selectedBulkTaskIds.length} tasks selected across {bulkClientGroupsPreview.length} clients
                 </span>
@@ -1327,7 +1327,7 @@ export default function FinanceCentralPage() {
 
               {filteredBulkTasks.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-xs text-slate-500">
-                  No completed billable tasks found matching filters.
+                  No eligible billable deliverables found matching filters.
                 </div>
               ) : (
                 <div className="rounded-2xl border border-slate-200 overflow-hidden">

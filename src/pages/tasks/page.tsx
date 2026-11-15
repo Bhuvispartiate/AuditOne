@@ -1017,13 +1017,12 @@ function TasksContent() {
                 <span>₹{(task.billing_amount || 0).toLocaleString("en-IN")} • {task.billing_status || "To Be Billed"}</span>
               </span>
 
-              {(task.status === "Completed" || pmsStore.isCompletedStatus(task.status)) &&
-               ((task.remaining_amount ?? task.billing_amount ?? 0) - (task.pending_approval_amount ?? 0) > 0) && (
+              {pmsStore.isTaskEligibleForBilling(task) && (
                 <Link
                   to={`/finance?tab=single-invoice&clientId=${task.client_id || ""}&taskId=${task.id}`}
                   onClick={(e) => e.stopPropagation()}
                   className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] shadow-2xs"
-                  title="Initiate Single Invoice for this completed deliverable"
+                  title="Initiate Single Invoice for this billable deliverable"
                 >
                   <span>Bill Task</span>
                 </Link>

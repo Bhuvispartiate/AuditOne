@@ -550,14 +550,14 @@ class PMSDataStore {
     // Remote categories from Supabase are the authoritative single source of truth
     const filteredRemote = remoteCats.filter((c) => !recycleBinIdSet.has(c.id) && !deletedCatSet.has(c.id));
 
-    // Only allow genuinely unsaved offline categories created in the last 15 seconds
+    // Retain genuinely unsaved offline categories created in the last 3 minutes
     const remoteIdSet = new Set(filteredRemote.map((r) => r.id));
     const now = Date.now();
     const unsavedDrafts = localCats.filter((loc) => {
       if (remoteIdSet.has(loc.id)) return false;
       if (recycleBinIdSet.has(loc.id) || deletedCatSet.has(loc.id)) return false;
       const ageMs = now - new Date(loc.created_at || 0).getTime();
-      return ageMs >= 0 && ageMs < 15000 && !isUuid(loc.id);
+      return ageMs >= 0 && ageMs < 180000;
     });
 
     return [...filteredRemote, ...unsavedDrafts];
@@ -792,7 +792,7 @@ class PMSDataStore {
       }
 
       // Purge all legacy mock practice tasks, mock categories, mock workflows, and mock services permanently
-      const MOCK_TASK_PREFIXES = ["tsk-gen-", "tsk-gst-", "tsk-inc-", "tsk-0"];
+      const MOCK_TASK_PREFIXES = ["tsk-gen-", "tsk-gst-", "tsk-inc-"];
       const MOCK_CAT_IDS = ["cat-general", "cat-tax", "cat-audit", "cat-roc", "cat-acc", "cat-adv"];
       const MOCK_WF_IDS = ["wf-company-incorp", "wf-gst-reg", "wf-tax-audit", "wf-stat-audit"];
       const MOCK_SRV_PREFIXES = ["srv-"];
@@ -812,7 +812,8 @@ class PMSDataStore {
       this.tasks = this.tasks.filter((t) => {
         if (MOCK_CAT_IDS.includes(t.category_id || "")) return false;
         if (this.deletedTaskIds.includes(t.id) || (t.task_code && this.deletedTaskIds.includes(t.task_code.toUpperCase()))) return false;
-        if (MOCK_TASK_PREFIXES.some((p) => (t.id && t.id.toLowerCase().startsWith(p)) || (t.task_code && t.task_code.toLowerCase().startsWith(p)))) return false;
+        // Never purge real tasks with valid UUIDs or legitimate production task codes (TSK-001, etc.)
+        if (!isUuid(t.id) && MOCK_TASK_PREFIXES.some((p) => t.id && t.id.toLowerCase().startsWith(p))) return false;
         if (t.title && t.title.includes("Client Delivery Project — Initial Deliverable")) {
           const key = `${t.project_id || t.project_name}`;
           if (seenBackfillKeys.has(key)) return false;
@@ -4143,20 +4144,39 @@ class PMSDataStore {
   }
 
   /**
+   * Evaluates if a task is eligible for billing:
+   * 1. Must be billable (is_billable === true)
+   * 2. Available balance (remaining_amount - pending_approval_amount) > 0
+   * 3. Either status is Completed OR task already has an invoice generated / is partially billed
+   */
+  isTaskEligibleForBilling(task: Task): boolean {
+    if (!task || !task.is_billable) return false;
+    const remaining = task.remaining_amount !== undefined ? task.remaining_amount : (task.billing_amount || 0);
+    const pending = task.pending_approval_amount || 0;
+    const available = remaining - pending;
+    if (available <= 0) return false;
+
+    // Eligible if Completed
+    if (this.isCompletedStatus(task.status)) return true;
+    // Eligible if invoice already generated / partially billed
+    if ((Number(task.billed_amount) || 0) > 0) return true;
+    if (task.billing_status === "Partially Billed") return true;
+    if (this.invoices && this.invoices.some((inv) => inv.items?.some((it) => it.task_id === task.id))) return true;
+    if (this.invoiceRequests && this.invoiceRequests.some((req) => req.items?.some((it) => it.task_id === task.id))) return true;
+
+    return false;
+  }
+
+  /**
    * Returns all tasks eligible for billing:
    * 1. Must be billable (is_billable === true)
-   * 2. Must be Completed (status === 'Completed' or isCompletedStatus)
-   * 3. Available amount (remaining_amount - pending_approval_amount) > 0
+   * 2. Available balance (remaining_amount - pending_approval_amount) > 0
+   * 3. Completed OR already has an invoice generated / partially billed
    */
   getCompletedBillableTasks(clientId?: string): Task[] {
     return this.getTasks()
       .filter((t) => {
-        if (!t.is_billable) return false;
-        if (!this.isCompletedStatus(t.status)) return false;
-        const remaining = t.remaining_amount !== undefined ? t.remaining_amount : (t.billing_amount || 0);
-        const pending = t.pending_approval_amount || 0;
-        const available = remaining - pending;
-        if (available <= 0) return false;
+        if (!this.isTaskEligibleForBilling(t)) return false;
         if (clientId && t.client_id !== clientId) return false;
         return true;
       });
@@ -4225,8 +4245,8 @@ class PMSDataStore {
       const task = this.tasks.find((t) => t.id === item.task_id);
       if (!task) throw new Error(`Task ${item.task_id} not found.`);
       if (!task.is_billable) throw new Error(`Task ${task.task_code} is marked non-billable.`);
-      if (!this.isCompletedStatus(task.status)) {
-        throw new Error(`Task ${task.task_code} is not completed yet.`);
+      if (!this.isTaskEligibleForBilling(task)) {
+        throw new Error(`Task ${task.task_code} is not completed or eligible for billing yet.`);
       }
 
       const remaining = task.remaining_amount !== undefined ? task.remaining_amount : (task.billing_amount || 0);
@@ -4404,7 +4424,7 @@ class PMSDataStore {
 
       for (const it of clientItems) {
         const task = this.tasks.find((t) => t.id === it.task_id);
-        if (!task || !task.is_billable || !this.isCompletedStatus(task.status)) continue;
+        if (!task || !this.isTaskEligibleForBilling(task)) continue;
 
         const remaining = task.remaining_amount !== undefined ? task.remaining_amount : (task.billing_amount || 0);
         const pending = task.pending_approval_amount || 0;

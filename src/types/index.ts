@@ -590,6 +590,8 @@ export interface InvoiceItem {
   id: string;
   invoice_id?: string;
   service_id?: string;
+  task_id?: string;
+  task_code?: string;
   description: string;
   sub_description?: string;
   sac_code?: string;
