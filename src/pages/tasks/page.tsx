@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import {
   Plus,
   Users,
@@ -327,6 +327,10 @@ function TasksContent() {
   const [taskWhatsAppEnabled, setTaskWhatsAppEnabled] = useState(true);
   const [catWhatsAppEnabled, setCatWhatsAppEnabled] = useState(true);
   const [subWhatsAppEnabled, setSubWhatsAppEnabled] = useState(true);
+  // Task Billing Integration
+  const [isBillable, setIsBillable] = useState(false);
+  const [billingAmount, setBillingAmount] = useState<number | "">("");
+  const [billingDescription, setBillingDescription] = useState("");
   // Multi-selection & Clipboard state (Copy / Move / Paste)
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [taskClipboard, setTaskClipboard] = useState<{
@@ -594,6 +598,11 @@ function TasksContent() {
       : primaryEmp?.full_name;
     const chosenSub = subCategories.find((s) => s.id === modalSubCategoryId) || subCategories[0];
 
+    if (isBillable && (!billingAmount || Number(billingAmount) <= 0)) {
+      toast.error("Please enter a valid billable amount in INR.");
+      return;
+    }
+
     try {
       const created = await pmsStore.addTask({
         title: taskTitle.trim(),
@@ -622,6 +631,10 @@ function TasksContent() {
         whatsapp_enabled: taskWhatsAppEnabled,
         created_by: pmsStore.getCurrentUser().id,
         created_by_name: pmsStore.getCurrentUser().full_name,
+        is_billable: isBillable,
+        billing_amount: isBillable ? Number(billingAmount) : 0,
+        billing_description: billingDescription || undefined,
+        currency: "INR",
       });
 
       const subtasksToAdd = [...draftSubtasks];
@@ -649,6 +662,9 @@ function TasksContent() {
       setDescription("");
       setDraftSubtaskInput("");
       setDraftSubtasks([]);
+      setIsBillable(false);
+      setBillingAmount("");
+      setBillingDescription("");
     } catch (err: any) {
       toast.error(`Database error: ${err.message || "Failed to create task."}`);
     }
@@ -986,6 +1002,34 @@ function TasksContent() {
               {task.project_name || parentProj?.project_name}
             </span>
           </div>
+
+          {/* Billing Status Badge & Quick Bill Action */}
+          {task.is_billable && (
+            <div className="mt-1.5 flex items-center justify-between gap-1 text-[10px]">
+              <span className={`px-2 py-0.5 rounded-md font-extrabold flex items-center gap-1 border ${
+                task.billing_status === "Billed"
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                  : task.billing_status === "Partially Billed"
+                  ? "bg-sky-50 text-sky-800 border-sky-300"
+                  : "bg-amber-50 text-amber-900 border-amber-300"
+              }`}>
+                <Receipt className="h-2.5 w-2.5" />
+                <span>₹{(task.billing_amount || 0).toLocaleString("en-IN")} • {task.billing_status || "To Be Billed"}</span>
+              </span>
+
+              {(task.status === "Completed" || pmsStore.isCompletedStatus(task.status)) &&
+               ((task.remaining_amount ?? task.billing_amount ?? 0) - (task.pending_approval_amount ?? 0) > 0) && (
+                <Link
+                  to={`/finance?tab=single-invoice&clientId=${task.client_id || ""}&taskId=${task.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] shadow-2xs"
+                  title="Initiate Single Invoice for this completed deliverable"
+                >
+                  <span>Bill Task</span>
+                </Link>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Category & Sub-category badge if not in sub-category view */}
@@ -3363,6 +3407,110 @@ function TasksContent() {
                         />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Finance & Task Billing Section */}
+                  <div className={`rounded-2xl border transition-all p-4 space-y-3.5 shadow-xs ${
+                    isBillable
+                      ? "border-amber-300 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/30"
+                      : "border-slate-300 bg-white"
+                  }`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <div className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                          isBillable ? "bg-amber-600 text-white" : "bg-slate-200 text-slate-700"
+                        }`}>
+                          <Receipt className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h5 className="text-xs font-extrabold text-[#111827]">
+                              Task Billing & Finance Integration
+                            </h5>
+                            <Badge
+                              variant="outline"
+                              className={isBillable ? "border-amber-300 bg-amber-100 text-amber-900 font-bold text-[10px]" : "border-slate-300 bg-slate-100 text-slate-600 font-bold text-[10px]"}
+                            >
+                              {isBillable ? "Billable Task" : "Non-Billable"}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-[#4b5563] leading-snug">
+                            {isBillable
+                              ? "When completed, this deliverable automatically enters the Single/Bulk Invoice billing register."
+                              : "Operational task excluded from client invoice generation and billing cycles."}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsBillable(false);
+                            setBillingAmount("");
+                          }}
+                          className={`px-2.5 py-1 text-xs font-extrabold rounded-lg transition-all ${
+                            !isBillable ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          Non-Billable
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsBillable(true)}
+                          className={`px-2.5 py-1 text-xs font-extrabold rounded-lg transition-all ${
+                            isBillable ? "bg-amber-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          Billable
+                        </button>
+                      </div>
+                    </div>
+
+                    {isBillable && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-amber-200/80">
+                        <div className="sm:col-span-1 space-y-1">
+                          <label className="text-[11px] font-extrabold text-[#111827] flex items-center gap-1">
+                            <span>Billable Amount (₹)</span>
+                            <span className="text-rose-600 font-bold">*</span>
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#6b7280]">
+                              ₹
+                            </span>
+                            <Input
+                              type="number"
+                              min={1}
+                              step="any"
+                              value={billingAmount}
+                              onChange={(e) => setBillingAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                              placeholder="e.g. 15000"
+                              required={isBillable}
+                              className="pl-7 h-9 rounded-xl border-amber-300 bg-white font-bold text-xs focus:ring-amber-500"
+                            />
+                          </div>
+                          <span className="text-[10px] text-amber-800 font-semibold">
+                            Currency: INR (₹)
+                          </span>
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="text-[11px] font-extrabold text-[#111827]">
+                            Billing Service Description (Optional)
+                          </label>
+                          <Input
+                            type="text"
+                            value={billingDescription}
+                            onChange={(e) => setBillingDescription(e.target.value)}
+                            placeholder="e.g. Filing charges & statutory audit fees"
+                            className="h-9 rounded-xl border-amber-300 bg-white text-xs"
+                          />
+                          <span className="text-[10px] text-[#4b5563]">
+                            Appears as line-item description in GST Invoice drafts.
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* WhatsApp Integration Toggle Card */}

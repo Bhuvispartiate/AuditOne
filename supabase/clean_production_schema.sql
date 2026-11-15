@@ -516,6 +516,14 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sub_stage_title VARCHAR(200);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS whatsapp_enabled BOOLEAN DEFAULT true;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id) ON DELETE SET NULL;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS client_name VARCHAR(200);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_billable BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS billing_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS billed_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remaining_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pending_approval_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS billing_status VARCHAR(30) NOT NULL DEFAULT 'To Be Billed';
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS billing_description TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS currency VARCHAR(10) NOT NULL DEFAULT 'INR';
 
 CREATE TABLE IF NOT EXISTS task_assignments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -640,6 +648,114 @@ CREATE TABLE IF NOT EXISTS payment_reminders (
     recipient_email VARCHAR(255),
     recipient_phone VARCHAR(20),
     status VARCHAR(30) NOT NULL DEFAULT 'Sent'
+);
+
+-- ============================================================================
+-- 9B. CENTRALIZED FINANCE: BULK BATCHES, RECURRING INVOICES & APPROVAL REQUESTS
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS bulk_invoice_batches (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    batch_code VARCHAR(50) NOT NULL UNIQUE,
+    created_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+    created_by_name VARCHAR(150),
+    total_clients INT NOT NULL DEFAULT 0,
+    total_tasks INT NOT NULL DEFAULT 0,
+    total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    status VARCHAR(30) NOT NULL DEFAULT 'Pending Approval',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS recurring_invoices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    schedule_code VARCHAR(50) NOT NULL UNIQUE,
+    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
+    client_name VARCHAR(200) NOT NULL,
+    service_id UUID REFERENCES services(id) ON DELETE SET NULL,
+    service_name VARCHAR(200),
+    title VARCHAR(250) NOT NULL,
+    description TEXT,
+    frequency VARCHAR(30) NOT NULL DEFAULT 'Monthly',
+    base_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    gst_rate NUMERIC(5, 2) NOT NULL DEFAULT 18.00,
+    tax_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    end_date DATE,
+    next_billing_date DATE NOT NULL,
+    last_generated_date DATE,
+    invoices_generated_count INT NOT NULL DEFAULT 0,
+    status VARCHAR(30) NOT NULL DEFAULT 'Active',
+    auto_submit_for_approval BOOLEAN NOT NULL DEFAULT true,
+    notes TEXT,
+    created_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+    created_by_name VARCHAR(150),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS invoice_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    request_number VARCHAR(50) NOT NULL UNIQUE,
+    request_type VARCHAR(30) NOT NULL DEFAULT 'single',
+    bulk_batch_id UUID REFERENCES bulk_invoice_batches(id) ON DELETE SET NULL,
+    recurring_invoice_id UUID REFERENCES recurring_invoices(id) ON DELETE SET NULL,
+    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
+    client_name VARCHAR(200) NOT NULL,
+    client_legal_name VARCHAR(200),
+    client_gstin VARCHAR(50),
+    client_address TEXT,
+    requested_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+    requested_by_name VARCHAR(150),
+    subtotal NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    gst_rate NUMERIC(5, 2) NOT NULL DEFAULT 18.00,
+    cgst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    sgst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    igst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    total_gst NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    grand_total NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    place_of_supply VARCHAR(100) DEFAULT 'Tamil Nadu',
+    is_interstate BOOLEAN DEFAULT false,
+    notes TEXT,
+    terms_conditions TEXT,
+    status VARCHAR(30) NOT NULL DEFAULT 'Pending Approval',
+    approved_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+    approved_by_name VARCHAR(150),
+    approved_at TIMESTAMPTZ,
+    rejection_reason TEXT,
+    generated_invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
+    generated_invoice_number VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS invoice_request_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_request_id UUID NOT NULL REFERENCES invoice_requests(id) ON DELETE CASCADE,
+    task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
+    task_code VARCHAR(50),
+    task_title VARCHAR(250),
+    description TEXT NOT NULL,
+    sac_code VARCHAR(20),
+    billable_task_total NUMERIC(12, 2) DEFAULT 0.00,
+    billable_task_remaining NUMERIC(12, 2) DEFAULT 0.00,
+    amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    gst_rate NUMERIC(5, 2) NOT NULL DEFAULT 18.00,
+    cgst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    sgst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    igst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS invoice_approval_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_request_id UUID NOT NULL REFERENCES invoice_requests(id) ON DELETE CASCADE,
+    action VARCHAR(50) NOT NULL,
+    actor_id UUID REFERENCES employees(id) ON DELETE SET NULL,
+    actor_name VARCHAR(150) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================================
@@ -906,6 +1022,11 @@ ALTER TABLE universal_recycle_bin ENABLE ROW LEVEL SECURITY;
 ALTER TABLE whatsapp_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vault_credentials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vault_audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bulk_invoice_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recurring_invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_request_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_approval_logs ENABLE ROW LEVEL SECURITY;
 
 -- Apply Open Access Policies to enable persistent read/write for all application modules
 DO $$
@@ -926,7 +1047,8 @@ DECLARE
         'payment_reminders', 'notifications', 'activity_logs', 'system_settings',
         'approval_records', 'office_geo_configs', 'attendance_records', 'task_statuses',
         'task_categories', 'task_sub_categories', 'universal_recycle_bin', 'whatsapp_templates',
-        'vault_credentials', 'vault_audit_logs'
+        'vault_credentials', 'vault_audit_logs', 'bulk_invoice_batches', 'recurring_invoices',
+        'invoice_requests', 'invoice_request_items', 'invoice_approval_logs'
     ];
 BEGIN
     FOREACH tbl IN ARRAY tbls LOOP

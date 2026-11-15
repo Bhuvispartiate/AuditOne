@@ -31,6 +31,11 @@ import {
   WhatsAppTemplate,
   VaultCredential,
   VaultAuditLog,
+  InvoiceRequest,
+  InvoiceRequestItem,
+  RecurringInvoice,
+  BulkInvoiceBatch,
+  InvoiceApprovalLog,
 } from "@/types";
 
 export function isUuid(id?: string | null): boolean {
@@ -740,6 +745,22 @@ export async function fetchTasksFromDb(): Promise<Task[]> {
     updated_at: row.updated_at,
     comments_count: 0,
     subtasks: [] as Task[],
+    is_billable: Boolean(row.is_billable ?? false),
+    billing_amount: Number(row.billing_amount) || 0,
+    billed_amount: Number(row.billed_amount) || 0,
+    remaining_amount: row.remaining_amount !== undefined && row.remaining_amount !== null
+      ? Number(row.remaining_amount)
+      : Math.max(0, (Number(row.billing_amount) || 0) - (Number(row.billed_amount) || 0)),
+    pending_approval_amount: Number(row.pending_approval_amount) || 0,
+    billing_status: row.billing_status || (
+      (Number(row.billed_amount) || 0) >= (Number(row.billing_amount) || 0) && (Number(row.billing_amount) || 0) > 0
+        ? 'Billed'
+        : (Number(row.billed_amount) || 0) > 0
+        ? 'Partially Billed'
+        : 'To Be Billed'
+    ),
+    billing_description: row.billing_description || undefined,
+    currency: row.currency || 'INR',
   }));
 
   // Build parent-subtask tree
@@ -778,6 +799,14 @@ export async function insertTaskToDb(task: Task): Promise<Task> {
     client_id: isUuid(task.client_id) ? task.client_id : null,
     client_name: task.client_name || null,
     whatsapp_enabled: task.whatsapp_enabled ?? true,
+    is_billable: Boolean(task.is_billable ?? false),
+    billing_amount: task.billing_amount || 0,
+    billed_amount: task.billed_amount || 0,
+    remaining_amount: task.remaining_amount !== undefined ? task.remaining_amount : (task.billing_amount || 0),
+    pending_approval_amount: task.pending_approval_amount || 0,
+    billing_status: task.billing_status || "To Be Billed",
+    billing_description: task.billing_description || null,
+    currency: task.currency || "INR",
     created_at: task.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
@@ -834,6 +863,14 @@ export async function updateTaskInDb(id: string, updates: Partial<Task>): Promis
   if (updates.client_name !== undefined) {
     dbUpdates.client_name = updates.client_name || null;
   }
+  if (updates.is_billable !== undefined) dbUpdates.is_billable = updates.is_billable;
+  if (updates.billing_amount !== undefined) dbUpdates.billing_amount = updates.billing_amount;
+  if (updates.billed_amount !== undefined) dbUpdates.billed_amount = updates.billed_amount;
+  if (updates.remaining_amount !== undefined) dbUpdates.remaining_amount = updates.remaining_amount;
+  if (updates.pending_approval_amount !== undefined) dbUpdates.pending_approval_amount = updates.pending_approval_amount;
+  if (updates.billing_status !== undefined) dbUpdates.billing_status = updates.billing_status;
+  if (updates.billing_description !== undefined) dbUpdates.billing_description = updates.billing_description || null;
+  if (updates.currency !== undefined) dbUpdates.currency = updates.currency;
 
   const { error } = await supabase.from("tasks").update(dbUpdates).eq("id", targetId);
   if (error) {
@@ -1220,6 +1257,353 @@ export async function insertPaymentToDb(payment: Payment): Promise<Payment> {
   }
 
   return { ...payment, id };
+}
+
+// ----------------------------------------------------------------------------
+// CENTRALIZED FINANCE: INVOICE REQUESTS, RECURRING INVOICES, BULK BATCHES & LOGS
+// ----------------------------------------------------------------------------
+
+export async function fetchInvoiceRequestsFromDb(): Promise<InvoiceRequest[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("invoice_requests")
+    .select("*, invoice_request_items(*), clients(client_name, legal_name, gstin)")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Supabase fetch invoice_requests error:", error);
+    return [];
+  }
+
+  return (data || []).map((row: any): InvoiceRequest => ({
+    id: row.id,
+    request_number: row.request_number,
+    request_type: row.request_type || "single",
+    bulk_batch_id: row.bulk_batch_id || undefined,
+    recurring_invoice_id: row.recurring_invoice_id || undefined,
+    client_id: row.client_id,
+    client_name: row.client_name || row.clients?.client_name || "Client",
+    client_legal_name: row.client_legal_name || row.clients?.legal_name || undefined,
+    client_gstin: row.client_gstin || row.clients?.gstin || undefined,
+    client_address: row.client_address || undefined,
+    requested_by: row.requested_by || undefined,
+    requested_by_name: row.requested_by_name || undefined,
+    subtotal: Number(row.subtotal) || 0,
+    gst_rate: Number(row.gst_rate) || 18,
+    cgst_amount: Number(row.cgst_amount) || 0,
+    sgst_amount: Number(row.sgst_amount) || 0,
+    igst_amount: Number(row.igst_amount) || 0,
+    total_gst: Number(row.total_gst) || 0,
+    grand_total: Number(row.grand_total) || 0,
+    place_of_supply: row.place_of_supply || "Tamil Nadu",
+    is_interstate: Boolean(row.is_interstate),
+    notes: row.notes || undefined,
+    terms_conditions: row.terms_conditions || undefined,
+    status: row.status || "Pending Approval",
+    approved_by: row.approved_by || undefined,
+    approved_by_name: row.approved_by_name || undefined,
+    approved_at: row.approved_at || undefined,
+    rejection_reason: row.rejection_reason || undefined,
+    generated_invoice_id: row.generated_invoice_id || undefined,
+    generated_invoice_number: row.generated_invoice_number || undefined,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    items: (row.invoice_request_items || []).map((it: any): InvoiceRequestItem => ({
+      id: it.id,
+      invoice_request_id: it.invoice_request_id,
+      task_id: it.task_id || undefined,
+      task_code: it.task_code || undefined,
+      task_title: it.task_title || undefined,
+      description: it.description,
+      sac_code: it.sac_code || undefined,
+      billable_task_total: Number(it.billable_task_total) || 0,
+      billable_task_remaining: Number(it.billable_task_remaining) || 0,
+      amount: Number(it.amount) || 0,
+      gst_rate: Number(it.gst_rate) || 18,
+      cgst_amount: Number(it.cgst_amount) || 0,
+      sgst_amount: Number(it.sgst_amount) || 0,
+      igst_amount: Number(it.igst_amount) || 0,
+      total_amount: Number(it.total_amount) || 0,
+    })),
+  }));
+}
+
+export async function insertInvoiceRequestToDb(req: InvoiceRequest): Promise<InvoiceRequest> {
+  const supabase = createClient();
+  const id = ensureUuid(req.id);
+
+  const { error } = await supabase.from("invoice_requests").insert({
+    id,
+    request_number: req.request_number,
+    request_type: req.request_type,
+    bulk_batch_id: req.bulk_batch_id && isUuid(req.bulk_batch_id) ? req.bulk_batch_id : null,
+    recurring_invoice_id: req.recurring_invoice_id && isUuid(req.recurring_invoice_id) ? req.recurring_invoice_id : null,
+    client_id: ensureUuid(req.client_id),
+    client_name: req.client_name,
+    client_legal_name: req.client_legal_name || null,
+    client_gstin: req.client_gstin || null,
+    client_address: req.client_address || null,
+    requested_by: isUuid(req.requested_by) ? req.requested_by : null,
+    requested_by_name: req.requested_by_name || null,
+    subtotal: req.subtotal || 0,
+    gst_rate: req.gst_rate || 18,
+    cgst_amount: req.cgst_amount || 0,
+    sgst_amount: req.sgst_amount || 0,
+    igst_amount: req.igst_amount || 0,
+    total_gst: req.total_gst || 0,
+    grand_total: req.grand_total || 0,
+    place_of_supply: req.place_of_supply || "Tamil Nadu",
+    is_interstate: Boolean(req.is_interstate),
+    notes: req.notes || null,
+    terms_conditions: req.terms_conditions || null,
+    status: req.status || "Pending Approval",
+    created_at: req.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error("Supabase insert invoice_request error:", error);
+    throw new Error(error.message);
+  }
+
+  if (req.items && req.items.length > 0) {
+    const itemRows = req.items.map((it: InvoiceRequestItem) => ({
+      id: ensureUuid(it.id),
+      invoice_request_id: id,
+      task_id: isUuid(it.task_id) ? it.task_id : null,
+      task_code: it.task_code || null,
+      task_title: it.task_title || null,
+      description: it.description,
+      sac_code: it.sac_code || null,
+      billable_task_total: it.billable_task_total || 0,
+      billable_task_remaining: it.billable_task_remaining || 0,
+      amount: it.amount || 0,
+      gst_rate: it.gst_rate || 18,
+      cgst_amount: it.cgst_amount || 0,
+      sgst_amount: it.sgst_amount || 0,
+      igst_amount: it.igst_amount || 0,
+      total_amount: it.total_amount || 0,
+      created_at: new Date().toISOString(),
+    }));
+
+    const { error: itErr } = await supabase.from("invoice_request_items").insert(itemRows);
+    if (itErr) console.warn("Supabase insert invoice_request_items error:", itErr);
+  }
+
+  return { ...req, id };
+}
+
+export async function updateInvoiceRequestInDb(id: string, updates: Partial<InvoiceRequest>): Promise<void> {
+  const supabase = createClient();
+  const dbUpdates: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
+  if (updates.approved_by !== undefined) dbUpdates.approved_by = isUuid(updates.approved_by) ? updates.approved_by : null;
+  if (updates.approved_by_name !== undefined) dbUpdates.approved_by_name = updates.approved_by_name;
+  if (updates.approved_at !== undefined) dbUpdates.approved_at = updates.approved_at;
+  if (updates.rejection_reason !== undefined) dbUpdates.rejection_reason = updates.rejection_reason;
+  if (updates.generated_invoice_id !== undefined) dbUpdates.generated_invoice_id = isUuid(updates.generated_invoice_id) ? updates.generated_invoice_id : null;
+  if (updates.generated_invoice_number !== undefined) dbUpdates.generated_invoice_number = updates.generated_invoice_number;
+
+  const { error } = await supabase.from("invoice_requests").update(dbUpdates).eq("id", id);
+  if (error) {
+    console.error("Supabase update invoice_request error:", error);
+    throw new Error(error.message);
+  }
+}
+
+export async function fetchRecurringInvoicesFromDb(): Promise<RecurringInvoice[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("recurring_invoices")
+    .select("*, clients(client_name), services(service_name)")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Supabase fetch recurring_invoices error:", error);
+    return [];
+  }
+
+  return (data || []).map((row: any): RecurringInvoice => ({
+    id: row.id,
+    schedule_code: row.schedule_code,
+    client_id: row.client_id,
+    client_name: row.client_name || row.clients?.client_name || "Client",
+    service_id: row.service_id || undefined,
+    service_name: row.service_name || row.services?.service_name || undefined,
+    title: row.title,
+    description: row.description || undefined,
+    frequency: row.frequency || "Monthly",
+    base_amount: Number(row.base_amount) || 0,
+    gst_rate: Number(row.gst_rate) || 18,
+    tax_amount: Number(row.tax_amount) || 0,
+    total_amount: Number(row.total_amount) || 0,
+    start_date: row.start_date,
+    end_date: row.end_date || undefined,
+    next_billing_date: row.next_billing_date,
+    last_generated_date: row.last_generated_date || undefined,
+    invoices_generated_count: Number(row.invoices_generated_count) || 0,
+    status: row.status || "Active",
+    auto_submit_for_approval: Boolean(row.auto_submit_for_approval ?? true),
+    notes: row.notes || undefined,
+    created_by: row.created_by || undefined,
+    created_by_name: row.created_by_name || undefined,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+}
+
+export async function insertRecurringInvoiceToDb(item: RecurringInvoice): Promise<RecurringInvoice> {
+  const supabase = createClient();
+  const id = ensureUuid(item.id);
+
+  const { error } = await supabase.from("recurring_invoices").insert({
+    id,
+    schedule_code: item.schedule_code,
+    client_id: ensureUuid(item.client_id),
+    client_name: item.client_name,
+    service_id: isUuid(item.service_id) ? item.service_id : null,
+    service_name: item.service_name || null,
+    title: item.title,
+    description: item.description || null,
+    frequency: item.frequency || "Monthly",
+    base_amount: item.base_amount || 0,
+    gst_rate: item.gst_rate || 18,
+    tax_amount: item.tax_amount || 0,
+    total_amount: item.total_amount || 0,
+    start_date: item.start_date || new Date().toISOString().slice(0, 10),
+    end_date: item.end_date || null,
+    next_billing_date: item.next_billing_date,
+    last_generated_date: item.last_generated_date || null,
+    invoices_generated_count: item.invoices_generated_count || 0,
+    status: item.status || "Active",
+    auto_submit_for_approval: item.auto_submit_for_approval ?? true,
+    notes: item.notes || null,
+    created_by: isUuid(item.created_by) ? item.created_by : null,
+    created_by_name: item.created_by_name || null,
+    created_at: item.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error("Supabase insert recurring_invoices error:", error);
+    throw new Error(error.message);
+  }
+
+  return { ...item, id };
+}
+
+export async function updateRecurringInvoiceInDb(id: string, updates: Partial<RecurringInvoice>): Promise<void> {
+  const supabase = createClient();
+  const dbUpdates: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
+  if (updates.next_billing_date !== undefined) dbUpdates.next_billing_date = updates.next_billing_date;
+  if (updates.last_generated_date !== undefined) dbUpdates.last_generated_date = updates.last_generated_date;
+  if (updates.invoices_generated_count !== undefined) dbUpdates.invoices_generated_count = updates.invoices_generated_count;
+  if (updates.base_amount !== undefined) dbUpdates.base_amount = updates.base_amount;
+  if (updates.tax_amount !== undefined) dbUpdates.tax_amount = updates.tax_amount;
+  if (updates.total_amount !== undefined) dbUpdates.total_amount = updates.total_amount;
+  if (updates.title !== undefined) dbUpdates.title = updates.title;
+
+  const { error } = await supabase.from("recurring_invoices").update(dbUpdates).eq("id", id);
+  if (error) {
+    console.error("Supabase update recurring_invoices error:", error);
+    throw new Error(error.message);
+  }
+}
+
+export async function deleteRecurringInvoiceFromDb(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("recurring_invoices").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function fetchBulkBatchesFromDb(): Promise<BulkInvoiceBatch[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("bulk_invoice_batches").select("*").order("created_at", { ascending: false });
+  if (error) {
+    console.error("Supabase fetch bulk_invoice_batches error:", error);
+    return [];
+  }
+  return (data || []).map((row: any): BulkInvoiceBatch => ({
+    id: row.id,
+    batch_code: row.batch_code,
+    created_by: row.created_by || undefined,
+    created_by_name: row.created_by_name || undefined,
+    total_clients: Number(row.total_clients) || 0,
+    total_tasks: Number(row.total_tasks) || 0,
+    total_amount: Number(row.total_amount) || 0,
+    status: row.status || "Pending Approval",
+    created_at: row.created_at,
+  }));
+}
+
+export async function insertBulkBatchToDb(batch: BulkInvoiceBatch): Promise<BulkInvoiceBatch> {
+  const supabase = createClient();
+  const id = ensureUuid(batch.id);
+
+  const { error } = await supabase.from("bulk_invoice_batches").insert({
+    id,
+    batch_code: batch.batch_code,
+    created_by: isUuid(batch.created_by) ? batch.created_by : null,
+    created_by_name: batch.created_by_name || null,
+    total_clients: batch.total_clients || 0,
+    total_tasks: batch.total_tasks || 0,
+    total_amount: batch.total_amount || 0,
+    status: batch.status || "Pending Approval",
+    created_at: batch.created_at || new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error("Supabase insert bulk_invoice_batches error:", error);
+    throw new Error(error.message);
+  }
+
+  return { ...batch, id };
+}
+
+export async function fetchApprovalLogsFromDb(): Promise<InvoiceApprovalLog[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("invoice_approval_logs").select("*").order("created_at", { ascending: false });
+  if (error) {
+    console.error("Supabase fetch invoice_approval_logs error:", error);
+    return [];
+  }
+  return (data || []).map((row: any): InvoiceApprovalLog => ({
+    id: row.id,
+    invoice_request_id: row.invoice_request_id,
+    action: row.action,
+    actor_id: row.actor_id || undefined,
+    actor_name: row.actor_name,
+    notes: row.notes || undefined,
+    created_at: row.created_at,
+  }));
+}
+
+export async function insertApprovalLogToDb(log: InvoiceApprovalLog): Promise<InvoiceApprovalLog> {
+  const supabase = createClient();
+  const id = ensureUuid(log.id);
+
+  const { error } = await supabase.from("invoice_approval_logs").insert({
+    id,
+    invoice_request_id: ensureUuid(log.invoice_request_id),
+    action: log.action,
+    actor_id: isUuid(log.actor_id) ? log.actor_id : null,
+    actor_name: log.actor_name,
+    notes: log.notes || null,
+    created_at: log.created_at || new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error("Supabase insert invoice_approval_logs error:", error);
+  }
+
+  return { ...log, id };
 }
 
 // ----------------------------------------------------------------------------

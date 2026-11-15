@@ -44,6 +44,7 @@ interface WhatsAppChatDialogProps {
   workflow?: WorkflowTemplate | null;
   category?: TaskCategory | null;
   subCategory?: TaskSubCategory | null;
+  customInitialMessage?: string;
 }
 
 export function WhatsAppChatDialog({
@@ -56,6 +57,7 @@ export function WhatsAppChatDialog({
   workflow,
   category,
   subCategory,
+  customInitialMessage,
 }: WhatsAppChatDialogProps) {
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -389,16 +391,20 @@ export function WhatsAppChatDialog({
         setRecipientName(clientContactPerson || resolvedClient.client_name);
         setPhoneNumber(clientPhone || "");
 
-        const defaultTpl = templates[0];
-        if (defaultTpl) {
-          setSelectedTemplateId(defaultTpl.id);
-          applyTemplate(defaultTpl, clientContactPerson || resolvedClient.client_name, liveTask || task, resolvedClient);
+        if (customInitialMessage) {
+          setMessage(customInitialMessage);
         } else {
-          setMessage(
-            `👋 Hello ${clientContactPerson || resolvedClient.client_name},\n\nUpdate regarding ${
-              liveTask?.title || task?.title || workflow?.workflow_name || "your compliance engagement"
-            }. Please let us know if you need any assistance.`
-          );
+          const defaultTpl = templates[0];
+          if (defaultTpl) {
+            setSelectedTemplateId(defaultTpl.id);
+            applyTemplate(defaultTpl, clientContactPerson || resolvedClient.client_name, liveTask || task, resolvedClient);
+          } else {
+            setMessage(
+              `👋 Hello ${clientContactPerson || resolvedClient.client_name},\n\nUpdate regarding ${
+                liveTask?.title || task?.title || workflow?.workflow_name || "your compliance engagement"
+              }. Please let us know if you need any assistance.`
+            );
+          }
         }
       } else if (assignedEmployee?.mobile_number) {
         setRecipientType("assignee");

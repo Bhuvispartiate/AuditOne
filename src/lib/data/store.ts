@@ -46,7 +46,17 @@ import {
   VaultCategory,
   VaultPasswordHistoryEntry,
   VaultAuditLog,
-  VaultAuditAction
+  VaultAuditAction,
+  TaskBillingStatus,
+  InvoiceRequestType,
+  InvoiceApprovalStatus,
+  RecurringFrequency,
+  RecurringInvoiceStatus,
+  BulkInvoiceBatch,
+  InvoiceRequest,
+  InvoiceRequestItem,
+  RecurringInvoice,
+  InvoiceApprovalLog
 } from "@/types";
 import { createClient, SUPERADMIN_EMAIL, isSuperAdminEmail } from "@/lib/supabase/client";
 import { calculateDistanceMeters } from "@/lib/geo";
@@ -106,6 +116,17 @@ import {
   deleteVaultCredentialFromDb,
   fetchVaultAuditLogsFromDb,
   insertVaultAuditLogToDb,
+  fetchInvoiceRequestsFromDb,
+  insertInvoiceRequestToDb,
+  updateInvoiceRequestInDb,
+  fetchRecurringInvoicesFromDb,
+  insertRecurringInvoiceToDb,
+  updateRecurringInvoiceInDb,
+  deleteRecurringInvoiceFromDb,
+  fetchBulkBatchesFromDb,
+  insertBulkBatchToDb,
+  fetchApprovalLogsFromDb,
+  insertApprovalLogToDb,
   ensureUuid,
   isUuid,
 } from "@/lib/supabase/db";
@@ -267,6 +288,10 @@ class PMSDataStore {
   private deletedTaskCategoryIds: string[] = [];
   private vaultCredentials: VaultCredential[] = [];
   private vaultAuditLogs: VaultAuditLog[] = [];
+  private invoiceRequests: InvoiceRequest[] = [];
+  private recurringInvoices: RecurringInvoice[] = [];
+  private bulkBatches: BulkInvoiceBatch[] = [];
+  private approvalLogs: InvoiceApprovalLog[] = [];
   private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
   private authenticated: boolean = false;
   private listeners: Set<() => void> = new Set();
@@ -310,6 +335,10 @@ class PMSDataStore {
         documents,
         vaultCreds,
         vaultLogs,
+        invoiceRequests,
+        recurringInvoices,
+        bulkBatches,
+        approvalLogs,
       ] = await Promise.all([
         fetchClientsFromDb().catch((e) => { console.warn("Direct Supabase fetch clients failed:", e); return null; }),
         fetchServicesFromDb().catch((e) => { console.warn("Direct Supabase fetch services failed:", e); return null; }),
@@ -326,6 +355,10 @@ class PMSDataStore {
         fetchDocumentsFromDb().catch((e) => { console.warn("Direct Supabase fetch documents failed:", e); return null; }),
         fetchVaultCredentialsFromDb().catch((e) => { console.warn("Direct Supabase fetch vault_credentials failed:", e); return null; }),
         fetchVaultAuditLogsFromDb().catch((e) => { console.warn("Direct Supabase fetch vault_audit_logs failed:", e); return null; }),
+        fetchInvoiceRequestsFromDb().catch((e) => { console.warn("Direct Supabase fetch invoice_requests failed:", e); return null; }),
+        fetchRecurringInvoicesFromDb().catch((e) => { console.warn("Direct Supabase fetch recurring_invoices failed:", e); return null; }),
+        fetchBulkBatchesFromDb().catch((e) => { console.warn("Direct Supabase fetch bulk_batches failed:", e); return null; }),
+        fetchApprovalLogsFromDb().catch((e) => { console.warn("Direct Supabase fetch approval_logs failed:", e); return null; }),
       ]);
 
       if (recycleBin !== null) {
@@ -388,6 +421,18 @@ class PMSDataStore {
       }
       if (vaultLogs !== null) {
         this.vaultAuditLogs = this.mergeRemoteEntities(this.vaultAuditLogs, vaultLogs);
+      }
+      if (invoiceRequests !== null) {
+        this.invoiceRequests = this.mergeRemoteEntities(this.invoiceRequests, invoiceRequests);
+      }
+      if (recurringInvoices !== null) {
+        this.recurringInvoices = this.mergeRemoteEntities(this.recurringInvoices, recurringInvoices);
+      }
+      if (bulkBatches !== null) {
+        this.bulkBatches = this.mergeRemoteEntities(this.bulkBatches, bulkBatches);
+      }
+      if (approvalLogs !== null) {
+        this.approvalLogs = this.mergeRemoteEntities(this.approvalLogs, approvalLogs);
       }
 
       this.persist();
@@ -664,6 +709,18 @@ class PMSDataStore {
     if (Array.isArray(parsed.vaultAuditLogs) && parsed.vaultAuditLogs.length > 0) {
       this.vaultAuditLogs = this.mergeById(this.vaultAuditLogs, parsed.vaultAuditLogs);
     }
+    if (Array.isArray(parsed.invoiceRequests) && parsed.invoiceRequests.length > 0) {
+      this.invoiceRequests = this.mergeById(this.invoiceRequests, parsed.invoiceRequests);
+    }
+    if (Array.isArray(parsed.recurringInvoices) && parsed.recurringInvoices.length > 0) {
+      this.recurringInvoices = this.mergeById(this.recurringInvoices, parsed.recurringInvoices);
+    }
+    if (Array.isArray(parsed.bulkBatches) && parsed.bulkBatches.length > 0) {
+      this.bulkBatches = this.mergeById(this.bulkBatches, parsed.bulkBatches);
+    }
+    if (Array.isArray(parsed.approvalLogs) && parsed.approvalLogs.length > 0) {
+      this.approvalLogs = this.mergeById(this.approvalLogs, parsed.approvalLogs);
+    }
     if (typeof parsed.updatedAt === "number") {
       this.localUpdatedAt = Math.max(this.localUpdatedAt, parsed.updatedAt);
     }
@@ -701,6 +758,10 @@ class PMSDataStore {
       deletedTaskCategoryIds: this.deletedTaskCategoryIds,
       vaultCredentials: this.vaultCredentials,
       vaultAuditLogs: this.vaultAuditLogs,
+      invoiceRequests: this.invoiceRequests,
+      recurringInvoices: this.recurringInvoices,
+      bulkBatches: this.bulkBatches,
+      approvalLogs: this.approvalLogs,
       updatedAt,
     };
   }
@@ -2352,6 +2413,21 @@ class PMSDataStore {
       assigned_employee_ids = assigned_employees.map((e) => e.id);
     }
 
+    const billing_amount = Number(task.billing_amount) || 0;
+    const billed_amount = Number(task.billed_amount) || 0;
+    const remaining_amount = task.remaining_amount !== undefined && task.remaining_amount !== null
+      ? Number(task.remaining_amount)
+      : Math.max(0, billing_amount - billed_amount);
+    const pending_approval_amount = Number(task.pending_approval_amount) || 0;
+    const is_billable = Boolean(task.is_billable ?? false);
+    const billing_status: TaskBillingStatus = task.billing_status || (
+      billed_amount >= billing_amount && billing_amount > 0
+        ? 'Billed'
+        : billed_amount > 0
+        ? 'Partially Billed'
+        : 'To Be Billed'
+    );
+
     return {
       ...categorized,
       client_id: resolvedClientId,
@@ -2362,6 +2438,14 @@ class PMSDataStore {
       subtasks,
       comments_count: commentsCount,
       attachments_count: attachmentsCount,
+      is_billable,
+      billing_amount,
+      billed_amount,
+      remaining_amount,
+      pending_approval_amount,
+      billing_status,
+      billing_description: task.billing_description || "",
+      currency: task.currency || "INR",
     };
   }
 
@@ -2438,6 +2522,15 @@ class PMSDataStore {
       ? finalAssignedEmployees.map((e) => e.full_name).join(", ")
       : (primaryEmployee?.full_name || taskData.assigned_employee_name);
 
+    const is_billable = Boolean(taskData.is_billable ?? false);
+    const billing_amount = is_billable ? (Number(taskData.billing_amount) || 0) : 0;
+    const billed_amount = 0;
+    const remaining_amount = billing_amount;
+    const pending_approval_amount = 0;
+    const billing_status: TaskBillingStatus = "To Be Billed";
+    const billing_description = taskData.billing_description || "";
+    const currency = taskData.currency || "INR";
+
     const newTask: Task = {
       ...taskData,
       client_id: resolvedClientId,
@@ -2454,6 +2547,14 @@ class PMSDataStore {
       created_at: new Date().toISOString(),
       comments_count: 0,
       attachments_count: 0,
+      is_billable,
+      billing_amount,
+      billed_amount,
+      remaining_amount,
+      pending_approval_amount,
+      billing_status,
+      billing_description,
+      currency,
     };
 
     // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
@@ -2616,8 +2717,31 @@ class PMSDataStore {
       ? finalAssignedEmployees.map((e) => e.full_name).join(", ")
       : (updates.assigned_employee_name ?? current.assigned_employee_name);
 
+    const nextIsBillable = updates.is_billable !== undefined ? Boolean(updates.is_billable) : Boolean(current.is_billable);
+    const nextBillingAmount = updates.billing_amount !== undefined ? Number(updates.billing_amount) : Number(current.billing_amount || 0);
+    const nextBilledAmount = updates.billed_amount !== undefined ? Number(updates.billed_amount) : Number(current.billed_amount || 0);
+    const nextPendingApproval = updates.pending_approval_amount !== undefined ? Number(updates.pending_approval_amount) : Number(current.pending_approval_amount || 0);
+    const nextRemaining = updates.remaining_amount !== undefined
+      ? Number(updates.remaining_amount)
+      : Math.max(0, nextBillingAmount - nextBilledAmount);
+    const nextBillingStatus: TaskBillingStatus = updates.billing_status ?? (
+      nextBilledAmount >= nextBillingAmount && nextBillingAmount > 0
+        ? 'Billed'
+        : nextBilledAmount > 0
+        ? 'Partially Billed'
+        : 'To Be Billed'
+    );
+
     const mergedUpdates: Partial<Task> = {
       ...updates,
+      is_billable: nextIsBillable,
+      billing_amount: nextBillingAmount,
+      billed_amount: nextBilledAmount,
+      remaining_amount: nextRemaining,
+      pending_approval_amount: nextPendingApproval,
+      billing_status: nextBillingStatus,
+      billing_description: updates.billing_description !== undefined ? updates.billing_description : current.billing_description,
+      currency: updates.currency || current.currency || "INR",
       assigned_employee_id: primaryEmployeeId,
       assigned_employee_name: primaryEmployeeName,
       assigned_employees: finalAssignedEmployees,
@@ -3920,6 +4044,731 @@ class PMSDataStore {
     );
     this.persist();
     return newPayment;
+  }
+
+  // ============================================================================
+  // CENTRALIZED FINANCE & INVOICE MANAGEMENT BUSINESS ENGINE
+  // ============================================================================
+
+  getInvoiceRequests(): InvoiceRequest[] {
+    return [...this.invoiceRequests];
+  }
+
+  getInvoiceRequestById(id: string): InvoiceRequest | undefined {
+    return this.invoiceRequests.find((r) => r.id === id);
+  }
+
+  getRecurringInvoices(): RecurringInvoice[] {
+    return [...this.recurringInvoices];
+  }
+
+  getRecurringInvoiceById(id: string): RecurringInvoice | undefined {
+    return this.recurringInvoices.find((r) => r.id === id);
+  }
+
+  getBulkBatches(): BulkInvoiceBatch[] {
+    return [...this.bulkBatches];
+  }
+
+  getApprovalLogs(requestId?: string): InvoiceApprovalLog[] {
+    if (requestId) {
+      return this.approvalLogs.filter((l) => l.invoice_request_id === requestId);
+    }
+    return [...this.approvalLogs];
+  }
+
+  /**
+   * Returns all tasks eligible for billing:
+   * 1. Must be billable (is_billable === true)
+   * 2. Must be Completed (status === 'Completed' or isCompletedStatus)
+   * 3. Available amount (remaining_amount - pending_approval_amount) > 0
+   */
+  getCompletedBillableTasks(clientId?: string): Task[] {
+    return this.getTasks()
+      .filter((t) => {
+        if (!t.is_billable) return false;
+        if (!this.isCompletedStatus(t.status)) return false;
+        const remaining = t.remaining_amount !== undefined ? t.remaining_amount : (t.billing_amount || 0);
+        const pending = t.pending_approval_amount || 0;
+        const available = remaining - pending;
+        if (available <= 0) return false;
+        if (clientId && t.client_id !== clientId) return false;
+        return true;
+      });
+  }
+
+  /**
+   * Single Invoice Creation:
+   * Creates an invoice request for one client with one or more completed billable tasks.
+   * Mandates Admin Approval before invoice generation.
+   */
+  async createSingleInvoiceRequest(input: {
+    client_id: string;
+    items: Array<{
+      task_id: string;
+      billed_amount: number;
+      description?: string;
+      sac_code?: string;
+    }>;
+    gst_rate?: number;
+    place_of_supply?: string;
+    is_interstate?: boolean;
+    notes?: string;
+    terms_conditions?: string;
+  }): Promise<InvoiceRequest> {
+    const client = this.clients.find((c) => c.id === input.client_id);
+    if (!client) throw new Error("Client not found.");
+
+    if (!input.items || input.items.length === 0) {
+      throw new Error("At least one billable task must be selected.");
+    }
+
+    const gst_rate = input.gst_rate ?? 18;
+    const is_interstate = Boolean(input.is_interstate);
+    const place_of_supply = input.place_of_supply || "Tamil Nadu";
+
+    const requestItems: InvoiceRequestItem[] = [];
+    let subtotal = 0;
+
+    for (const item of input.items) {
+      const task = this.tasks.find((t) => t.id === item.task_id);
+      if (!task) throw new Error(`Task ${item.task_id} not found.`);
+      if (!task.is_billable) throw new Error(`Task ${task.task_code} is marked non-billable.`);
+      if (!this.isCompletedStatus(task.status)) {
+        throw new Error(`Task ${task.task_code} is not completed yet.`);
+      }
+
+      const remaining = task.remaining_amount !== undefined ? task.remaining_amount : (task.billing_amount || 0);
+      const pending = task.pending_approval_amount || 0;
+      const available = remaining - pending;
+
+      if (item.billed_amount <= 0) {
+        throw new Error(`Invalid billing amount for task ${task.task_code}.`);
+      }
+      if (item.billed_amount > available + 0.01) {
+        throw new Error(`Billing amount ₹${item.billed_amount} exceeds available unbilled amount ₹${available} for task ${task.task_code}.`);
+      }
+
+      const itemAmount = Number(item.billed_amount);
+      subtotal += itemAmount;
+
+      const taxAmount = (itemAmount * gst_rate) / 100;
+      const cgst = is_interstate ? 0 : taxAmount / 2;
+      const sgst = is_interstate ? 0 : taxAmount / 2;
+      const igst = is_interstate ? taxAmount : 0;
+
+      requestItems.push({
+        id: ensureUuid(),
+        task_id: task.id,
+        task_code: task.task_code,
+        task_title: task.title,
+        description: item.description || task.billing_description || task.title,
+        sac_code: item.sac_code || "998311",
+        billable_task_total: task.billing_amount || 0,
+        billable_task_remaining: remaining,
+        amount: itemAmount,
+        gst_rate,
+        cgst_amount: cgst,
+        sgst_amount: sgst,
+        igst_amount: igst,
+        total_amount: itemAmount + taxAmount,
+      });
+    }
+
+    const totalTax = (subtotal * gst_rate) / 100;
+    const cgstTotal = is_interstate ? 0 : totalTax / 2;
+    const sgstTotal = is_interstate ? 0 : totalTax / 2;
+    const igstTotal = is_interstate ? totalTax : 0;
+    const grandTotal = subtotal + totalTax;
+
+    const reqSeq = this.invoiceRequests.length + 1;
+    const reqNumber = `REQ-SIN-${new Date().getFullYear()}-${String(reqSeq).padStart(4, "0")}`;
+    const id = ensureUuid();
+
+    const newRequest: InvoiceRequest = {
+      id,
+      request_number: reqNumber,
+      request_type: "single",
+      client_id: client.id,
+      client_name: client.client_name,
+      client_legal_name: client.legal_name || client.client_name,
+      client_gstin: client.registration?.gstin || undefined,
+      client_address: client.addresses?.[0]?.street_address || "",
+      requested_by: this.currentUser?.id,
+      requested_by_name: this.currentUser?.full_name || "Employee",
+      subtotal,
+      gst_rate,
+      cgst_amount: cgstTotal,
+      sgst_amount: sgstTotal,
+      igst_amount: igstTotal,
+      total_gst: totalTax,
+      grand_total: grandTotal,
+      place_of_supply,
+      is_interstate,
+      notes: input.notes,
+      terms_conditions: input.terms_conditions,
+      status: "Pending Approval",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      items: requestItems,
+    };
+
+    // Save to Database
+    await insertInvoiceRequestToDb(newRequest);
+
+    // Reserve pending approval amount on the tasks so they cannot be double billed
+    for (const it of requestItems) {
+      if (it.task_id) {
+        const tIndex = this.tasks.findIndex((t) => t.id === it.task_id);
+        if (tIndex !== -1) {
+          const t = this.tasks[tIndex];
+          const newPending = (t.pending_approval_amount || 0) + it.amount;
+          this.tasks[tIndex] = { ...t, pending_approval_amount: newPending };
+          await updateTaskInDb(t.id, { pending_approval_amount: newPending });
+        }
+      }
+    }
+
+    // Add Audit Log
+    const auditLog: InvoiceApprovalLog = {
+      id: ensureUuid(),
+      invoice_request_id: id,
+      action: "SUBMITTED",
+      actor_id: this.currentUser?.id,
+      actor_name: this.currentUser?.full_name || "Employee",
+      notes: `Single invoice request initiated for ${client.client_name} (₹${grandTotal.toLocaleString("en-IN")}) awaiting Admin Approval.`,
+      created_at: new Date().toISOString(),
+    };
+    await insertApprovalLogToDb(auditLog);
+
+    this.invoiceRequests.unshift(newRequest);
+    this.approvalLogs.unshift(auditLog);
+    this.addActivityLog(`Submitted invoice approval request ${reqNumber} for ${client.client_name}`, "invoice", id);
+    this.persist();
+    return newRequest;
+  }
+
+  /**
+   * Bulk Invoice Creation:
+   * Select multiple completed tasks across multiple clients in one batch.
+   * Groups tasks by client and generates separate invoice requests per client.
+   */
+  async createBulkInvoiceRequest(input: {
+    items: Array<{
+      task_id: string;
+      billed_amount: number;
+      client_id: string;
+      description?: string;
+      sac_code?: string;
+    }>;
+    gst_rate?: number;
+    place_of_supply?: string;
+    notes?: string;
+  }): Promise<{ batch: BulkInvoiceBatch; requests: InvoiceRequest[] }> {
+    if (!input.items || input.items.length === 0) {
+      throw new Error("No tasks selected for bulk invoice generation.");
+    }
+
+    const batchSeq = this.bulkBatches.length + 1;
+    const batchCode = `BATCH-${new Date().getFullYear()}-${String(batchSeq).padStart(4, "0")}`;
+    const batchId = ensureUuid();
+    const gst_rate = input.gst_rate ?? 18;
+
+    // Group items by client_id
+    const clientGroups = new Map<string, typeof input.items>();
+    for (const item of input.items) {
+      const list = clientGroups.get(item.client_id) || [];
+      list.push(item);
+      clientGroups.set(item.client_id, list);
+    }
+
+    let batchTotalAmount = 0;
+    const generatedRequests: InvoiceRequest[] = [];
+
+    for (const [clientId, clientItems] of clientGroups.entries()) {
+      const client = this.clients.find((c) => c.id === clientId);
+      if (!client) continue;
+
+      let subtotal = 0;
+      const requestItems: InvoiceRequestItem[] = [];
+
+      for (const it of clientItems) {
+        const task = this.tasks.find((t) => t.id === it.task_id);
+        if (!task || !task.is_billable || !this.isCompletedStatus(task.status)) continue;
+
+        const remaining = task.remaining_amount !== undefined ? task.remaining_amount : (task.billing_amount || 0);
+        const pending = task.pending_approval_amount || 0;
+        const available = remaining - pending;
+        const amount = Math.min(Number(it.billed_amount), available);
+
+        if (amount <= 0) continue;
+        subtotal += amount;
+
+        const taxAmount = (amount * gst_rate) / 100;
+        requestItems.push({
+          id: ensureUuid(),
+          task_id: task.id,
+          task_code: task.task_code,
+          task_title: task.title,
+          description: it.description || task.billing_description || task.title,
+          sac_code: it.sac_code || "998311",
+          billable_task_total: task.billing_amount || 0,
+          billable_task_remaining: remaining,
+          amount,
+          gst_rate,
+          cgst_amount: taxAmount / 2,
+          sgst_amount: taxAmount / 2,
+          igst_amount: 0,
+          total_amount: amount + taxAmount,
+        });
+
+        // Reserve amount on task
+        const tIndex = this.tasks.findIndex((t) => t.id === task.id);
+        if (tIndex !== -1) {
+          const newPending = (task.pending_approval_amount || 0) + amount;
+          this.tasks[tIndex] = { ...this.tasks[tIndex], pending_approval_amount: newPending };
+          await updateTaskInDb(task.id, { pending_approval_amount: newPending });
+        }
+      }
+
+      if (requestItems.length === 0) continue;
+
+      const totalTax = (subtotal * gst_rate) / 100;
+      const grandTotal = subtotal + totalTax;
+      batchTotalAmount += grandTotal;
+
+      const reqSeq = this.invoiceRequests.length + generatedRequests.length + 1;
+      const reqNumber = `REQ-BLK-${new Date().getFullYear()}-${String(reqSeq).padStart(4, "0")}`;
+      const reqId = ensureUuid();
+
+      const req: InvoiceRequest = {
+        id: reqId,
+        request_number: reqNumber,
+        request_type: "bulk",
+        bulk_batch_id: batchId,
+        client_id: client.id,
+        client_name: client.client_name,
+        client_legal_name: client.legal_name || client.client_name,
+        client_gstin: client.registration?.gstin || undefined,
+        client_address: client.addresses?.[0]?.street_address || "",
+        requested_by: this.currentUser?.id,
+        requested_by_name: this.currentUser?.full_name || "Employee",
+        subtotal,
+        gst_rate,
+        cgst_amount: totalTax / 2,
+        sgst_amount: totalTax / 2,
+        igst_amount: 0,
+        total_gst: totalTax,
+        grand_total: grandTotal,
+        place_of_supply: input.place_of_supply || "Tamil Nadu",
+        is_interstate: false,
+        notes: input.notes,
+        status: "Pending Approval",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        items: requestItems,
+      };
+
+      await insertInvoiceRequestToDb(req);
+
+      const log: InvoiceApprovalLog = {
+        id: ensureUuid(),
+        invoice_request_id: reqId,
+        action: "SUBMITTED",
+        actor_id: this.currentUser?.id,
+        actor_name: this.currentUser?.full_name || "Employee",
+        notes: `Bulk invoice request ${reqNumber} generated for ${client.client_name} under batch ${batchCode}.`,
+        created_at: new Date().toISOString(),
+      };
+      await insertApprovalLogToDb(log);
+
+      generatedRequests.push(req);
+      this.approvalLogs.unshift(log);
+    }
+
+    const newBatch: BulkInvoiceBatch = {
+      id: batchId,
+      batch_code: batchCode,
+      created_by: this.currentUser?.id,
+      created_by_name: this.currentUser?.full_name || "Employee",
+      total_clients: clientGroups.size,
+      total_tasks: input.items.length,
+      total_amount: batchTotalAmount,
+      status: "Pending Approval",
+      created_at: new Date().toISOString(),
+    };
+
+    await insertBulkBatchToDb(newBatch);
+
+    this.bulkBatches.unshift(newBatch);
+    this.invoiceRequests.unshift(...generatedRequests);
+    this.addActivityLog(`Created bulk invoice batch ${batchCode} with ${generatedRequests.length} client requests`, "invoice", batchId);
+    this.persist();
+    return { batch: newBatch, requests: generatedRequests };
+  }
+
+  /**
+   * Recurring Invoice Template Management:
+   * Retainer billing independent of tasks.
+   */
+  async createRecurringInvoice(input: {
+    client_id: string;
+    service_id?: string;
+    title: string;
+    description?: string;
+    frequency: RecurringFrequency;
+    base_amount: number;
+    gst_rate?: number;
+    start_date?: string;
+    end_date?: string;
+    next_billing_date?: string;
+    auto_submit_for_approval?: boolean;
+    notes?: string;
+  }): Promise<RecurringInvoice> {
+    const client = this.clients.find((c) => c.id === input.client_id);
+    if (!client) throw new Error("Client not found.");
+
+    const service = input.service_id ? this.services.find((s) => s.id === input.service_id) : undefined;
+    const base_amount = Number(input.base_amount);
+    const gst_rate = input.gst_rate ?? 18;
+    const tax_amount = (base_amount * gst_rate) / 100;
+    const total_amount = base_amount + tax_amount;
+
+    const start_date = input.start_date || new Date().toISOString().slice(0, 10);
+    const next_billing_date = input.next_billing_date || start_date;
+
+    const seq = this.recurringInvoices.length + 1;
+    const schedule_code = `REC-${new Date().getFullYear()}-${String(seq).padStart(4, "0")}`;
+    const id = ensureUuid();
+
+    const recurring: RecurringInvoice = {
+      id,
+      schedule_code,
+      client_id: client.id,
+      client_name: client.client_name,
+      service_id: service?.id,
+      service_name: service?.service_name,
+      title: input.title,
+      description: input.description,
+      frequency: input.frequency,
+      base_amount,
+      gst_rate,
+      tax_amount,
+      total_amount,
+      start_date,
+      end_date: input.end_date,
+      next_billing_date,
+      invoices_generated_count: 0,
+      status: "Active",
+      auto_submit_for_approval: input.auto_submit_for_approval ?? true,
+      notes: input.notes,
+      created_by: this.currentUser?.id,
+      created_by_name: this.currentUser?.full_name || "Employee",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    await insertRecurringInvoiceToDb(recurring);
+    this.recurringInvoices.unshift(recurring);
+    this.addActivityLog(`Configured recurring retainer schedule ${schedule_code} for ${client.client_name}`, "finance", id);
+    this.persist();
+    return recurring;
+  }
+
+  async updateRecurringInvoice(id: string, updates: Partial<RecurringInvoice>): Promise<void> {
+    const index = this.recurringInvoices.findIndex((r) => r.id === id);
+    if (index === -1) return;
+
+    await updateRecurringInvoiceInDb(id, updates);
+    this.recurringInvoices[index] = {
+      ...this.recurringInvoices[index],
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+    this.persist();
+  }
+
+  async deleteRecurringInvoice(id: string): Promise<void> {
+    await deleteRecurringInvoiceFromDb(id);
+    this.recurringInvoices = this.recurringInvoices.filter((r) => r.id !== id);
+    this.persist();
+  }
+
+  /**
+   * Recurring Invoice Scheduler Trigger:
+   * Inspects all active schedules due on or before today, generates invoice requests,
+   * advances the next billing date, and puts them into the Admin Approval queue.
+   */
+  async triggerRecurringScheduler(): Promise<InvoiceRequest[]> {
+    const today = new Date().toISOString().slice(0, 10);
+    const dueSchedules = this.recurringInvoices.filter((r) => {
+      if (r.status !== "Active") return false;
+      return r.next_billing_date <= today;
+    });
+
+    const createdRequests: InvoiceRequest[] = [];
+
+    for (const schedule of dueSchedules) {
+      const client = this.clients.find((c) => c.id === schedule.client_id);
+      if (!client) continue;
+
+      const reqSeq = this.invoiceRequests.length + createdRequests.length + 1;
+      const reqNumber = `REQ-REC-${new Date().getFullYear()}-${String(reqSeq).padStart(4, "0")}`;
+      const reqId = ensureUuid();
+
+      const item: InvoiceRequestItem = {
+        id: ensureUuid(),
+        description: `${schedule.title} (${schedule.frequency} Retainer)`,
+        sac_code: "998311",
+        amount: schedule.base_amount,
+        gst_rate: schedule.gst_rate,
+        cgst_amount: schedule.tax_amount / 2,
+        sgst_amount: schedule.tax_amount / 2,
+        igst_amount: 0,
+        total_amount: schedule.total_amount,
+      };
+
+      const req: InvoiceRequest = {
+        id: reqId,
+        request_number: reqNumber,
+        request_type: "recurring",
+        recurring_invoice_id: schedule.id,
+        client_id: client.id,
+        client_name: client.client_name,
+        client_legal_name: client.legal_name || client.client_name,
+        client_gstin: client.registration?.gstin || undefined,
+        client_address: client.addresses?.[0]?.street_address || "",
+        requested_by: this.currentUser?.id,
+        requested_by_name: "Automated Retainer Scheduler",
+        subtotal: schedule.base_amount,
+        gst_rate: schedule.gst_rate,
+        cgst_amount: schedule.tax_amount / 2,
+        sgst_amount: schedule.tax_amount / 2,
+        igst_amount: 0,
+        total_gst: schedule.tax_amount,
+        grand_total: schedule.total_amount,
+        place_of_supply: "Tamil Nadu",
+        is_interstate: false,
+        notes: schedule.notes || `Scheduled ${schedule.frequency} retainer cycle`,
+        status: "Pending Approval",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        items: [item],
+      };
+
+      await insertInvoiceRequestToDb(req);
+
+      // Compute next billing date
+      const currentDate = new Date(schedule.next_billing_date);
+      if (schedule.frequency === "Weekly") currentDate.setDate(currentDate.getDate() + 7);
+      else if (schedule.frequency === "Monthly") currentDate.setMonth(currentDate.getMonth() + 1);
+      else if (schedule.frequency === "Quarterly") currentDate.setMonth(currentDate.getMonth() + 3);
+      else if (schedule.frequency === "Half-Yearly") currentDate.setMonth(currentDate.getMonth() + 6);
+      else if (schedule.frequency === "Yearly") currentDate.setFullYear(currentDate.getFullYear() + 1);
+
+      const nextDateIso = currentDate.toISOString().slice(0, 10);
+      await this.updateRecurringInvoice(schedule.id, {
+        next_billing_date: nextDateIso,
+        last_generated_date: today,
+        invoices_generated_count: (schedule.invoices_generated_count || 0) + 1,
+      });
+
+      const log: InvoiceApprovalLog = {
+        id: ensureUuid(),
+        invoice_request_id: reqId,
+        action: "SUBMITTED",
+        actor_name: "Recurring Billing Scheduler",
+        notes: `Automated cycle triggered for retainer schedule ${schedule.schedule_code}. Next cycle: ${nextDateIso}.`,
+        created_at: new Date().toISOString(),
+      };
+      await insertApprovalLogToDb(log);
+
+      createdRequests.push(req);
+      this.approvalLogs.unshift(log);
+    }
+
+    if (createdRequests.length > 0) {
+      this.invoiceRequests.unshift(...createdRequests);
+      this.addActivityLog(`Recurring scheduler triggered ${createdRequests.length} retainer invoice approval requests`, "finance");
+      this.persist();
+    }
+
+    return createdRequests;
+  }
+
+  /**
+   * Admin Approval Engine:
+   * Approves an invoice request:
+   * 1. Generates an official invoice in the central invoice register.
+   * 2. Deducts reserved pending amount from tasks, increments billed amount, updates task billing status.
+   * 3. Sets request status to Approved with generated invoice references.
+   * 4. Logs audit trail.
+   */
+  async approveInvoiceRequest(requestId: string, adminComment?: string): Promise<Invoice> {
+    const request = this.invoiceRequests.find((r) => r.id === requestId);
+    if (!request) throw new Error("Invoice request not found.");
+    if (request.status !== "Pending Approval") {
+      throw new Error(`Request cannot be approved because status is ${request.status}.`);
+    }
+
+    // 1. Create the official Invoice in the central invoice register
+    const invoiceItems = request.items.map((it) => ({
+      id: ensureUuid(),
+      description: it.description,
+      sac_code: it.sac_code || "998311",
+      quantity: 1,
+      rate: it.amount,
+      discount_amount: 0,
+      taxable_amount: it.amount,
+      gst_rate: it.gst_rate,
+      cgst_amount: it.cgst_amount,
+      sgst_amount: it.sgst_amount,
+      igst_amount: it.igst_amount,
+      total_amount: it.total_amount,
+    }));
+
+    const generatedInvoice = await this.addInvoice({
+      financial_year: "2026-27",
+      client_id: request.client_id,
+      client_name: request.client_name,
+      client_legal_name: request.client_legal_name || request.client_name,
+      client_address: request.client_address || "",
+      client_gstin: request.client_gstin,
+      invoice_date: new Date().toISOString().slice(0, 10),
+      due_date: this.addDaysIso(new Date().toISOString().slice(0, 10), 15),
+      place_of_supply: request.place_of_supply,
+      is_interstate: request.is_interstate,
+      reverse_charge: false,
+      subtotal: request.subtotal,
+      discount_amount: 0,
+      taxable_amount: request.subtotal,
+      cgst_amount: request.cgst_amount,
+      sgst_amount: request.sgst_amount,
+      igst_amount: request.igst_amount,
+      total_gst: request.total_gst,
+      grand_total: request.grand_total,
+      status: "Finalized",
+      notes: request.notes,
+      terms_conditions: request.terms_conditions,
+      created_by_name: request.requested_by_name,
+      items: invoiceItems,
+    });
+
+    // 2. Update task billing status & amounts
+    for (const it of request.items) {
+      if (it.task_id) {
+        const tIndex = this.tasks.findIndex((t) => t.id === it.task_id);
+        if (tIndex !== -1) {
+          const t = this.tasks[tIndex];
+          const newPending = Math.max(0, (t.pending_approval_amount || 0) - it.amount);
+          const newBilled = (t.billed_amount || 0) + it.amount;
+          const billingAmt = t.billing_amount || 0;
+          const newRemaining = Math.max(0, billingAmt - newBilled);
+          const newStatus: TaskBillingStatus = newRemaining <= 0.01 ? "Billed" : "Partially Billed";
+
+          const taskUpdates = {
+            pending_approval_amount: newPending,
+            billed_amount: newBilled,
+            remaining_amount: newRemaining,
+            billing_status: newStatus,
+          };
+
+          this.tasks[tIndex] = { ...t, ...taskUpdates };
+          await updateTaskInDb(t.id, taskUpdates);
+        }
+      }
+    }
+
+    // 3. Mark request Approved
+    const approvedAt = new Date().toISOString();
+    const approvedByName = this.currentUser?.full_name || "Admin";
+    const approvedBy = this.currentUser?.id;
+
+    request.status = "Approved";
+    request.approved_by = approvedBy;
+    request.approved_by_name = approvedByName;
+    request.approved_at = approvedAt;
+    request.generated_invoice_id = generatedInvoice.id;
+    request.generated_invoice_number = generatedInvoice.invoice_number;
+    request.updated_at = approvedAt;
+
+    await updateInvoiceRequestInDb(request.id, {
+      status: "Approved",
+      approved_by: approvedBy,
+      approved_by_name: approvedByName,
+      approved_at: approvedAt,
+      generated_invoice_id: generatedInvoice.id,
+      generated_invoice_number: generatedInvoice.invoice_number,
+    });
+
+    // 4. Record Approval and Generation Audit Logs
+    const approvalLog: InvoiceApprovalLog = {
+      id: ensureUuid(),
+      invoice_request_id: request.id,
+      action: "APPROVED",
+      actor_id: approvedBy,
+      actor_name: approvedByName,
+      notes: adminComment || `Approved by ${approvedByName}. Generated invoice ${generatedInvoice.invoice_number}.`,
+      created_at: approvedAt,
+    };
+    await insertApprovalLogToDb(approvalLog);
+    this.approvalLogs.unshift(approvalLog);
+
+    this.addActivityLog(`Admin approved invoice request ${request.request_number} -> Generated ${generatedInvoice.invoice_number}`, "invoice", generatedInvoice.id);
+    this.persist();
+    return generatedInvoice;
+  }
+
+  /**
+   * Admin Rejection Engine:
+   * Rejects an invoice request, releasing the reserved pending approval amounts on tasks.
+   */
+  async rejectInvoiceRequest(requestId: string, reason: string): Promise<void> {
+    const request = this.invoiceRequests.find((r) => r.id === requestId);
+    if (!request) throw new Error("Invoice request not found.");
+    if (request.status !== "Pending Approval") {
+      throw new Error(`Request cannot be rejected because status is ${request.status}.`);
+    }
+
+    // Release reserved amounts on tasks
+    for (const it of request.items) {
+      if (it.task_id) {
+        const tIndex = this.tasks.findIndex((t) => t.id === it.task_id);
+        if (tIndex !== -1) {
+          const t = this.tasks[tIndex];
+          const newPending = Math.max(0, (t.pending_approval_amount || 0) - it.amount);
+          this.tasks[tIndex] = { ...t, pending_approval_amount: newPending };
+          await updateTaskInDb(t.id, { pending_approval_amount: newPending });
+        }
+      }
+    }
+
+    const rejectedAt = new Date().toISOString();
+    const rejectedByName = this.currentUser?.full_name || "Admin";
+
+    request.status = "Rejected";
+    request.rejection_reason = reason;
+    request.updated_at = rejectedAt;
+
+    await updateInvoiceRequestInDb(request.id, {
+      status: "Rejected",
+      rejection_reason: reason,
+    });
+
+    const rejectionLog: InvoiceApprovalLog = {
+      id: ensureUuid(),
+      invoice_request_id: request.id,
+      action: "REJECTED",
+      actor_id: this.currentUser?.id,
+      actor_name: rejectedByName,
+      notes: reason,
+      created_at: rejectedAt,
+    };
+    await insertApprovalLogToDb(rejectionLog);
+    this.approvalLogs.unshift(rejectionLog);
+
+    this.addActivityLog(`Rejected invoice request ${request.request_number}: ${reason}`, "invoice", request.id);
+    this.persist();
   }
 
   // Employees & Staff Directory

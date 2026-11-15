@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   ArrowLeft,
   Calendar,
@@ -10,6 +11,8 @@ import {
   Building2,
   FolderTree,
   Folder,
+  Receipt,
+  ArrowUpRight,
 } from "lucide-react";
 import { whatsappClient } from "@/lib/whatsapp-client";
 import { WhatsAppChatDialog } from "@/components/whatsapp/whatsapp-chat-dialog";
@@ -607,6 +610,156 @@ export function TaskDetailDialog({
                 />
               </div>
             </div>
+          </div>
+
+          {/* BOX 1B: Finance & Billing Integration */}
+          <div className={`rounded-[20px] border-[1.5px] p-4 space-y-3.5 transition-all ${
+            task.is_billable
+              ? "border-amber-300 bg-gradient-to-br from-amber-50/70 via-white to-amber-50/20"
+              : "border-slate-300 bg-white"
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200/80">
+              <div className="flex items-center gap-2">
+                <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${
+                  task.is_billable ? "bg-amber-600 text-white" : "bg-slate-200 text-slate-700"
+                }`}>
+                  <Receipt className="h-3.5 w-3.5" />
+                </div>
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
+                  Finance &amp; Billing Integration
+                </h4>
+                <Badge
+                  variant="outline"
+                  className={task.is_billable
+                    ? "border-amber-400 bg-amber-100/80 text-amber-950 font-extrabold text-[10px]"
+                    : "border-slate-300 bg-slate-100 text-slate-600 font-bold text-[10px]"
+                  }
+                >
+                  {task.is_billable ? (task.billing_status || "To Be Billed") : "Non-Billable"}
+                </Badge>
+              </div>
+
+              {!isReadOnly && (
+                <div className="flex items-center gap-1.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => handleTaskUpdate({ is_billable: false }, "Task set to Non-Billable")}
+                    className={`px-2 py-0.5 text-[11px] font-extrabold rounded transition-all ${
+                      !task.is_billable ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    Non-Billable
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTaskUpdate({
+                      is_billable: true,
+                      billing_amount: task.billing_amount || 5000,
+                      remaining_amount: task.remaining_amount ?? (task.billing_amount || 5000),
+                      billing_status: task.billing_status || "To Be Billed",
+                    }, "Task set to Billable")}
+                    className={`px-2 py-0.5 text-[11px] font-extrabold rounded transition-all ${
+                      task.is_billable ? "bg-amber-600 text-white shadow-xs" : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    Billable
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {task.is_billable ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="rounded-xl border border-amber-200 bg-white p-2.5">
+                    <span className="text-[10px] font-extrabold uppercase text-amber-800">Total Billable</span>
+                    {isReadOnly ? (
+                      <div className="text-sm font-extrabold text-[#111827]">
+                        ₹{(task.billing_amount || 0).toLocaleString("en-IN")}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-xs font-bold text-slate-500">₹</span>
+                        <input
+                          type="number"
+                          min={0}
+                          defaultValue={task.billing_amount || 0}
+                          onBlur={(e) => {
+                            const val = Number(e.target.value) || 0;
+                            if (val !== task.billing_amount) {
+                              const billed = task.billed_amount || 0;
+                              handleTaskUpdate({
+                                billing_amount: val,
+                                remaining_amount: Math.max(0, val - billed),
+                                billing_status: (billed >= val && val > 0) ? "Billed" : (billed > 0 ? "Partially Billed" : "To Be Billed"),
+                              }, "Billable amount updated");
+                            }
+                          }}
+                          className="w-full h-7 rounded border border-amber-300 bg-white px-1.5 text-xs font-extrabold text-[#111827]"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-2.5">
+                    <span className="text-[10px] font-extrabold uppercase text-emerald-800">Approved Billed</span>
+                    <div className="text-sm font-extrabold text-emerald-950 mt-0.5">
+                      ₹{(task.billed_amount || 0).toLocaleString("en-IN")}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-2.5">
+                    <span className="text-[10px] font-extrabold uppercase text-blue-800">Remaining Available</span>
+                    <div className="text-sm font-extrabold text-blue-950 mt-0.5">
+                      ₹{(task.remaining_amount !== undefined ? task.remaining_amount : Math.max(0, (task.billing_amount || 0) - (task.billed_amount || 0))).toLocaleString("en-IN")}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-2.5">
+                    <span className="text-[10px] font-extrabold uppercase text-rose-800">Pending Approvals</span>
+                    <div className="text-sm font-extrabold text-rose-950 mt-0.5">
+                      ₹{(task.pending_approval_amount || 0).toLocaleString("en-IN")}
+                    </div>
+                  </div>
+                </div>
+
+                {task.billing_description && (
+                  <div className="text-[11px] text-[#4b5563] bg-white/70 p-2 rounded-xl border border-amber-200/60">
+                    <span className="font-extrabold text-slate-700">Billing Notes: </span>
+                    {task.billing_description}
+                  </div>
+                )}
+
+                {/* Initiate Invoice CTA for Completed Billable Tasks with balance */}
+                {(task.status === "Completed" || pmsStore.isCompletedStatus(task.status)) &&
+                 ((task.remaining_amount ?? task.billing_amount ?? 0) - (task.pending_approval_amount ?? 0) > 0) && (
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-xs">
+                    <div>
+                      <p className="text-xs font-extrabold">Deliverable is Completed &amp; Ready for Billing</p>
+                      <p className="text-[11px] text-emerald-100">
+                        Available unbilled amount: ₹{((task.remaining_amount ?? task.billing_amount ?? 0) - (task.pending_approval_amount ?? 0)).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <Link
+                      to={`/finance?tab=single-invoice&clientId=${task.client_id || allottedClient?.id || ""}&taskId=${task.id}`}
+                      onClick={() => onOpenChange(false)}
+                    >
+                      <Button
+                        size="sm"
+                        className="bg-white text-emerald-900 hover:bg-emerald-50 font-extrabold text-xs rounded-xl shadow-xs gap-1"
+                      >
+                        <span>Initiate Invoice</span>
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">
+                This deliverable is marked Non-Billable. Switch to &quot;Billable&quot; above to set fee amounts and enable automated client invoicing upon completion.
+              </p>
+            )}
           </div>
 
           {/* BOX 2: Subtasks (Clean list; click any row / Overview to open its own full Overview) */}

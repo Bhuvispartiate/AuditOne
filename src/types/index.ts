@@ -285,6 +285,8 @@ export interface TaskStatusConfig {
 
 export type TaskStatus = string;
 
+export type TaskBillingStatus = 'To Be Billed' | 'Partially Billed' | 'Billed';
+
 export interface TaskSubCategory {
   id: string;
   category_id: string;
@@ -349,6 +351,16 @@ export interface Task {
   subtasks?: Task[];
   comments_count?: number;
   attachments_count?: number;
+
+  // Task Management - Finance & Billing Integration
+  is_billable?: boolean;
+  billing_amount?: number;
+  billed_amount?: number;
+  remaining_amount?: number;
+  pending_approval_amount?: number;
+  billing_status?: TaskBillingStatus;
+  billing_description?: string;
+  currency?: string;
 }
 
 export interface CommentReadReceipt {
@@ -620,6 +632,119 @@ export interface Payment {
   receipt_file_object_id?: string;
   remarks?: string;
   status: 'Pending' | 'Completed' | 'Bounced' | 'Refunded';
+  created_at: string;
+}
+
+// ============================================================================
+// PMS CENTRAL FINANCE & INVOICE MANAGEMENT TYPES
+// ============================================================================
+
+export type InvoiceRequestType = 'single' | 'bulk' | 'recurring';
+export type InvoiceApprovalStatus = 'Pending Approval' | 'Approved' | 'Rejected';
+export type RecurringFrequency = 'Weekly' | 'Monthly' | 'Quarterly' | 'Half-Yearly' | 'Yearly';
+export type RecurringInvoiceStatus = 'Active' | 'Paused' | 'Terminated';
+
+export interface BulkInvoiceBatch {
+  id: string;
+  batch_code: string;
+  created_by?: string;
+  created_by_name?: string;
+  total_clients: number;
+  total_tasks: number;
+  total_amount: number;
+  status: InvoiceApprovalStatus;
+  created_at: string;
+}
+
+export interface InvoiceRequestItem {
+  id: string;
+  invoice_request_id?: string;
+  task_id?: string;
+  task_code?: string;
+  task_title?: string;
+  description: string;
+  sac_code?: string;
+  billable_task_total?: number;
+  billable_task_remaining?: number;
+  amount: number;
+  gst_rate: number;
+  cgst_amount: number;
+  sgst_amount: number;
+  igst_amount: number;
+  total_amount: number;
+}
+
+export interface InvoiceRequest {
+  id: string;
+  request_number: string;
+  request_type: InvoiceRequestType;
+  bulk_batch_id?: string;
+  recurring_invoice_id?: string;
+  client_id: string;
+  client_name: string;
+  client_legal_name?: string;
+  client_gstin?: string;
+  client_address?: string;
+  requested_by?: string;
+  requested_by_name?: string;
+  subtotal: number;
+  gst_rate: number;
+  cgst_amount: number;
+  sgst_amount: number;
+  igst_amount: number;
+  total_gst: number;
+  grand_total: number;
+  place_of_supply: string;
+  is_interstate: boolean;
+  notes?: string;
+  terms_conditions?: string;
+  status: InvoiceApprovalStatus;
+  approved_by?: string;
+  approved_by_name?: string;
+  approved_at?: string;
+  rejection_reason?: string;
+  generated_invoice_id?: string;
+  generated_invoice_number?: string;
+  created_at: string;
+  updated_at: string;
+  items: InvoiceRequestItem[];
+}
+
+export interface RecurringInvoice {
+  id: string;
+  schedule_code: string;
+  client_id: string;
+  client_name: string;
+  service_id?: string;
+  service_name?: string;
+  title: string;
+  description?: string;
+  frequency: RecurringFrequency;
+  base_amount: number;
+  gst_rate: number;
+  tax_amount: number;
+  total_amount: number;
+  start_date: string;
+  end_date?: string;
+  next_billing_date: string;
+  last_generated_date?: string;
+  invoices_generated_count: number;
+  status: RecurringInvoiceStatus;
+  auto_submit_for_approval: boolean;
+  notes?: string;
+  created_by?: string;
+  created_by_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceApprovalLog {
+  id: string;
+  invoice_request_id: string;
+  action: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'INVOICE_GENERATED';
+  actor_id?: string;
+  actor_name: string;
+  notes?: string;
   created_at: string;
 }
 
