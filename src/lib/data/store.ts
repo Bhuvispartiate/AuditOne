@@ -1868,57 +1868,7 @@ class PMSDataStore {
 
   // Task Categories & Sub-categories
   getTaskCategories(): TaskCategory[] {
-    if (!this.taskCategories || this.taskCategories.length === 0) {
-      if (this.deletedTaskCategoryIds.length === 0) {
-        this.taskCategories = DEFAULT_TASK_CATEGORIES.map((c) => ({
-          ...c,
-          sub_categories: (c.sub_categories || []).map((s) => ({ ...s })),
-        }));
-        this.persist();
-      } else {
-        this.taskCategories = [];
-      }
-    } else {
-      let changed = false;
-
-      // Ensure every category has its sub-groups populated
-      this.taskCategories = this.taskCategories.map((c) => {
-        const defaultMatch = DEFAULT_TASK_CATEGORIES.find(
-          (dc) =>
-            dc.id === c.id ||
-            dc.code === c.code ||
-            dc.name.toLowerCase() === c.name.toLowerCase()
-        );
-        let subs = c.sub_categories;
-        if (!Array.isArray(subs) || subs.length === 0) {
-          changed = true;
-          subs =
-            defaultMatch &&
-            Array.isArray(defaultMatch.sub_categories) &&
-            defaultMatch.sub_categories.length > 0
-              ? defaultMatch.sub_categories.map((s) => ({ ...s, category_id: c.id }))
-              : [
-                  {
-                    id: `subcat-${c.id}-general`,
-                    category_id: c.id,
-                    name: "General",
-                    code: "GEN",
-                    description: `General task group under ${c.name}`,
-                    created_at: new Date().toISOString(),
-                  },
-                ];
-        }
-        return {
-          ...c,
-          sub_categories: subs,
-        };
-      });
-
-      if (changed) {
-        this.persist();
-      }
-    }
-    return this.taskCategories;
+    return this.taskCategories || [];
   }
 
   getTaskCategoryById(categoryId: string): TaskCategory | undefined {
@@ -2609,7 +2559,9 @@ class PMSDataStore {
   }
 
   async updateTask(taskId: string, updates: Partial<Task>): Promise<Task | null> {
-    const index = this.tasks.findIndex((t) => t.id === taskId);
+    const index = this.tasks.findIndex(
+      (t) => t.id === taskId || (t.task_code && t.task_code.toUpperCase() === taskId.toUpperCase())
+    );
     if (index === -1) return null;
 
     const current = this.tasks[index];
@@ -2748,10 +2700,17 @@ class PMSDataStore {
   }
 
   async allotClientToTask(taskId: string, clientId: string): Promise<Task | null> {
-    const cl = this.clients.find((c) => c.id === clientId);
+    const cl = this.clients.find(
+      (c) =>
+        c.id === clientId ||
+        c.client_code === clientId ||
+        (c.client_name && c.client_name.trim().toLowerCase() === clientId.trim().toLowerCase())
+    );
     if (!cl) return null;
 
-    const taskIndex = this.tasks.findIndex((t) => t.id === taskId);
+    const taskIndex = this.tasks.findIndex(
+      (t) => t.id === taskId || (t.task_code && t.task_code.toUpperCase() === taskId.toUpperCase())
+    );
     if (taskIndex === -1) return null;
 
     const currentTask = this.tasks[taskIndex];

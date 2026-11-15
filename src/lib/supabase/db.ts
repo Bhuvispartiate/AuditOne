@@ -721,8 +721,8 @@ export async function fetchTasksFromDb(): Promise<Task[]> {
     task_code: row.task_code,
     project_id: row.project_id,
     project_name: row.projects?.project_name || "Project",
-    client_id: (row.projects as any)?.client_id || undefined,
-    client_name: (row.projects as any)?.clients?.client_name || undefined,
+    client_id: row.client_id || (row.projects as any)?.client_id || undefined,
+    client_name: row.client_name || (row.projects as any)?.clients?.client_name || undefined,
     parent_task_id: row.parent_task_id || undefined,
     title: row.title,
     description: row.description || "",
@@ -777,6 +777,8 @@ export async function insertTaskToDb(task: Task): Promise<Task> {
     status: task.status || "To Do",
     category_id: task.category_id || null,
     sub_category_id: task.sub_category_id || null,
+    client_id: isUuid(task.client_id) ? task.client_id : null,
+    client_name: task.client_name || null,
     whatsapp_enabled: task.whatsapp_enabled ?? true,
     created_at: task.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -827,6 +829,12 @@ export async function updateTaskInDb(id: string, updates: Partial<Task>): Promis
   }
   if (updates.project_id !== undefined && isUuid(updates.project_id)) {
     dbUpdates.project_id = updates.project_id;
+  }
+  if (updates.client_id !== undefined) {
+    dbUpdates.client_id = isUuid(updates.client_id) ? updates.client_id : null;
+  }
+  if (updates.client_name !== undefined) {
+    dbUpdates.client_name = updates.client_name || null;
   }
 
   const { error } = await supabase.from("tasks").update(dbUpdates).eq("id", targetId);
@@ -969,6 +977,16 @@ export async function insertWorkflowToDb(wf: WorkflowTemplate): Promise<Workflow
 
 export async function updateWorkflowInDb(id: string, updates: Partial<WorkflowTemplate>): Promise<void> {
   const supabase = createClient();
+  let targetId = id;
+  if (!isUuid(targetId)) {
+    const { data: found } = await supabase.from("workflow_templates").select("id").eq("workflow_code", id.toUpperCase()).maybeSingle();
+    if (found?.id) {
+      targetId = found.id;
+    } else {
+      return;
+    }
+  }
+
   const dbUpdates: Record<string, any> = {
     updated_at: new Date().toISOString(),
   };
@@ -979,13 +997,22 @@ export async function updateWorkflowInDb(id: string, updates: Partial<WorkflowTe
   if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
   if (updates.whatsapp_enabled !== undefined) dbUpdates.whatsapp_enabled = updates.whatsapp_enabled;
 
-  const { error } = await supabase.from("workflow_templates").update(dbUpdates).eq("id", id);
+  const { error } = await supabase.from("workflow_templates").update(dbUpdates).eq("id", targetId);
   if (error) throw new Error(error.message);
 }
 
 export async function deleteWorkflowFromDb(id: string): Promise<void> {
   const supabase = createClient();
-  const { error } = await supabase.from("workflow_templates").delete().eq("id", id);
+  let targetId = id;
+  if (!isUuid(targetId)) {
+    const { data: found } = await supabase.from("workflow_templates").select("id").eq("workflow_code", id.toUpperCase()).maybeSingle();
+    if (found?.id) {
+      targetId = found.id;
+    } else {
+      return;
+    }
+  }
+  const { error } = await supabase.from("workflow_templates").delete().eq("id", targetId);
   if (error) throw new Error(error.message);
 }
 

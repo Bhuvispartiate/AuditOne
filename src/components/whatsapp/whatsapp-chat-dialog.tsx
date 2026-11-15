@@ -57,6 +57,11 @@ export function WhatsAppChatDialog({
   category,
   subCategory,
 }: WhatsAppChatDialogProps) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    return pmsStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
+
   const allClients = pmsStore.getClients();
   const allProjects = pmsStore.getProjects();
   const allEmployees = pmsStore.getEmployees();
@@ -85,30 +90,37 @@ export function WhatsAppChatDialog({
     return null;
   }, [directProject, liveTask?.project_id, liveTask?.project_name, allProjects]);
 
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
+
   const resolvedClient = useMemo(() => {
+    if (selectedClientId) {
+      const match = allClients.find((c) => c.id === selectedClientId || c.client_code === selectedClientId);
+      if (match) return match;
+    }
     if (directClient) return directClient;
-    const t = liveTask;
+    const t = liveTask || task;
 
     // 1. Direct match from task client_id
     if (t?.client_id) {
-      const match = allClients.find((c) => c.id === t.client_id);
+      const match = allClients.find((c) => c.id === t.client_id || c.client_code === t.client_id);
       if (match) return match;
     }
-    // 2. Direct match from task client_name (case/whitespace insensitive + nickname/legal name)
+    // 2. Direct match from task client_name (case/whitespace insensitive + nickname/legal name + substring)
     if (t?.client_name) {
       const cleanName = t.client_name.trim().toLowerCase();
       const match = allClients.find(
         (c) =>
           c.client_name?.trim().toLowerCase() === cleanName ||
           c.nick_name?.trim().toLowerCase() === cleanName ||
-          c.legal_name?.trim().toLowerCase() === cleanName
+          c.legal_name?.trim().toLowerCase() === cleanName ||
+          (cleanName.length >= 3 && (c.client_name?.trim().toLowerCase().includes(cleanName) || cleanName.includes(c.client_name?.trim().toLowerCase())))
       );
       if (match) return match;
     }
 
     // 3. Match from associated project client_id
     if (resolvedProject?.client_id) {
-      const match = allClients.find((c) => c.id === resolvedProject.client_id);
+      const match = allClients.find((c) => c.id === resolvedProject.client_id || c.client_code === resolvedProject.client_id);
       if (match) return match;
     }
     // 4. Match from associated project client_name
@@ -118,7 +130,8 @@ export function WhatsAppChatDialog({
         (c) =>
           c.client_name?.trim().toLowerCase() === cleanProjClient ||
           c.nick_name?.trim().toLowerCase() === cleanProjClient ||
-          c.legal_name?.trim().toLowerCase() === cleanProjClient
+          c.legal_name?.trim().toLowerCase() === cleanProjClient ||
+          (cleanProjClient.length >= 3 && (c.client_name?.trim().toLowerCase().includes(cleanProjClient) || cleanProjClient.includes(c.client_name?.trim().toLowerCase())))
       );
       if (match) return match;
     }
@@ -150,7 +163,7 @@ export function WhatsAppChatDialog({
     }
 
     return null;
-  }, [directClient, liveTask, resolvedProject, allClients]);
+  }, [selectedClientId, directClient, liveTask, task, resolvedProject, allClients]);
 
   const assignedEmployee = useMemo(() => {
     const t = liveTask;
@@ -227,7 +240,6 @@ export function WhatsAppChatDialog({
 
   // Recipient selection state
   const [recipientType, setRecipientType] = useState<"client" | "assignee" | "custom">("client");
-  const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [recipientName, setRecipientName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("custom");
@@ -408,6 +420,21 @@ export function WhatsAppChatDialog({
     category?.id,
     subCategory?.id,
   ]);
+
+  // When resolvedClient changes or becomes available while open, ensure client details are populated
+  useEffect(() => {
+    if (!open) return;
+    if (resolvedClient && recipientType !== "client") {
+      setRecipientType("client");
+      setRecipientName(clientContactPerson || resolvedClient.client_name);
+      if (clientPhone) setPhoneNumber(clientPhone);
+      const defaultTpl = templates[0];
+      if (defaultTpl) {
+        setSelectedTemplateId(defaultTpl.id);
+        applyTemplate(defaultTpl, clientContactPerson || resolvedClient.client_name, liveTask || task, resolvedClient);
+      }
+    }
+  }, [open, resolvedClient, clientContactPerson, clientPhone]);
 
   const handleSelectClient = (clientId: string) => {
     setSelectedClientId(clientId);
@@ -789,17 +816,19 @@ export function WhatsAppChatDialog({
                   onChange={async (e) => {
                     const newCId = e.target.value;
                     if (!newCId || !task) return;
+                    setSelectedClientId(newCId);
                     try {
                       await pmsStore.allotClientToTask(task.id, newCId);
                       const cl = allClients.find((c) => c.id === newCId);
                       if (cl) {
                         const person = getClientContactPerson(cl);
                         const phone = getClientPhone(cl);
+                        setRecipientType("client");
                         setRecipientName(person);
                         setPhoneNumber(phone);
-                        const tpl = templates.find((t) => t.id === selectedTemplateId);
+                        const tpl = templates.find((t) => t.id === selectedTemplateId) || templates[0];
                         if (tpl) {
-                          applyTemplate(tpl, person, task, cl);
+                          applyTemplate(tpl, person, liveTask || task, cl);
                         }
                       }
                       toast.success("Client allotted to task successfully!");

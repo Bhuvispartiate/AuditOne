@@ -21,6 +21,11 @@ CREATE TABLE IF NOT EXISTS roles (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS role_code VARCHAR(50);
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS role_name VARCHAR(100);
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system_role BOOLEAN DEFAULT false;
+
 CREATE TABLE IF NOT EXISTS permissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     module VARCHAR(50) NOT NULL,
@@ -509,6 +514,8 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS stage_title VARCHAR(200);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sub_stage_id VARCHAR(100);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sub_stage_title VARCHAR(200);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS whatsapp_enabled BOOLEAN DEFAULT true;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id) ON DELETE SET NULL;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS client_name VARCHAR(200);
 
 CREATE TABLE IF NOT EXISTS task_assignments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -929,86 +936,9 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- 15. ESSENTIAL CORE LOOKUPS ONLY (NO MOCK / NO FAKE DATA)
 -- ============================================================================
-
--- Core System Roles
-INSERT INTO roles (role_code, role_name, description, is_system_role)
-VALUES 
-    ('super_admin', 'Super Admin / Managing Partner', 'Unrestricted administrative access across entire firm', true),
-    ('firm_admin', 'Firm Administrator', 'Administrative firm management without system-level override', true),
-    ('employee', 'Professional Staff / Employee', 'Standard employee role for tasks, workflows, and attendance', true)
-ON CONFLICT (role_code) DO NOTHING;
-
--- Standard Deliverable Task Statuses
-INSERT INTO task_statuses (status_order, name, label, color, is_terminal)
-VALUES
-    (1, 'To Do', 'To Do', 'slate', false),
-    (2, 'In Progress', 'In Progress', 'blue', false),
-    (3, 'Pending', 'Pending', 'amber', false),
-    (4, 'Under Review', 'Under Review', 'purple', false),
-    (5, 'Completed', 'Completed', 'emerald', true),
-    (6, 'Blocked', 'Blocked', 'rose', false)
-ON CONFLICT (name) DO UPDATE SET 
-    label = EXCLUDED.label, 
-    color = EXCLUDED.color,
-    status_order = EXCLUDED.status_order,
-    is_terminal = EXCLUDED.is_terminal;
-
--- Standard Firm Practice Categories
-INSERT INTO task_categories (id, name, code, description, color, icon, whatsapp_enabled)
-VALUES
-    ('cat-tax', 'Taxation & Compliance', 'TAX', 'Direct & Indirect Tax Filings, GST & Returns', 'violet', 'FileText', true),
-    ('cat-audit', 'Audit & Assurance', 'AUD', 'Statutory, Internal, Tax & Special Audits', 'sky', 'ShieldCheck', true),
-    ('cat-roc', 'Corporate & Secretarial', 'ROC', 'MCA, ROC, Entity Formations & Filings', 'amber', 'Briefcase', true),
-    ('cat-acc', 'Accounting & Bookkeeping', 'ACC', 'Monthly Bookkeeping, Finalization & Payroll', 'emerald', 'Receipt', true)
-ON CONFLICT (id) DO UPDATE SET 
-    name = EXCLUDED.name, 
-    code = EXCLUDED.code, 
-    color = EXCLUDED.color,
-    icon = EXCLUDED.icon;
-
--- Standard Sub-categories
-INSERT INTO task_sub_categories (id, category_id, name, code, description, whatsapp_enabled)
-VALUES
-    ('subcat-tax-gst', 'cat-tax', 'Indirect Tax (GST)', 'GST', 'GSTR-1, GSTR-3B, GSTR-9/9C Filings', true),
-    ('subcat-income-tax', 'cat-tax', 'Direct Tax / Income Tax', 'ITR', 'ITR Filings, Advance Tax, Scrutiny', true),
-    ('subcat-tds', 'cat-tax', 'TDS & TCS Returns', 'TDS', 'Form 24Q, 26Q, 27Q, 15CA/CB', true),
-    ('subcat-stat-audit', 'cat-audit', 'Statutory Financial Audit', 'STAT', 'Companies Act Statutory Financial Audit', true),
-    ('subcat-tax-audit', 'cat-audit', 'Tax Audit (Form 3CD)', '3CD', 'Income Tax Act 44AB Tax Audit', true),
-    ('subcat-internal-audit', 'cat-audit', 'Internal & Operations Audit', 'INT', 'Risk, Internal Controls & Management Audits', true),
-    ('subcat-roc-annual', 'cat-roc', 'Annual ROC Filings', 'ROCA', 'AOC-4, MGT-7, KYC Filings', true),
-    ('subcat-roc-incorp', 'cat-roc', 'Entity Formation & Restructuring', 'INCP', 'Private Limited, LLP & Partnership Formation', true),
-    ('subcat-bookkeeping', 'cat-acc', 'Monthly Bookkeeping & Finalization', 'BOOK', 'Ledger Finalization, P&L, Balance Sheet', true),
-    ('subcat-payroll', 'cat-acc', 'Payroll, PF & ESI Processing', 'PAY', 'Monthly Payroll & Statutory Deductions', true)
-ON CONFLICT (id) DO UPDATE SET 
-    name = EXCLUDED.name, 
-    code = EXCLUDED.code;
-
--- Standard WhatsApp Templates (Placeholders ready for live production use)
-INSERT INTO whatsapp_templates (id, name, content, template_type, variables, is_default)
-VALUES
-    ('tpl-due-reminder', 'Deliverable Due Reminder', '⏰ *REMINDER: TASK DUE SOON*
-Dear {{client_name}},
-This is an alert from our office regarding deliverable: *{{task_title}}*.
-Scheduled Due Date: *{{due_date}}*.
-Please share any remaining documents or approvals to ensure timely compliance.', 'task', '["client_name", "task_title", "due_date"]'::jsonb, true),
-    ('tpl-doc-request', 'Document Submission Request', '📁 *PENDING DOCUMENTS REQUIRED*
-Dear {{client_name}},
-To proceed with your scheduled filing *{{task_title}}*, we kindly request the pending records.
-Kindly send them via WhatsApp or email at your earliest convenience.', 'task', '["client_name", "task_title"]'::jsonb, false),
-    ('tpl-filing-done', 'Filing & Deliverable Completed', '✅ *FILING COMPLETED SUCCESSFULLY*
-Dear {{client_name}},
-We are pleased to inform you that *{{task_title}}* has been successfully filed and completed.
-Acknowledgment receipt has been archived to your client folder.', 'task', '["client_name", "task_title"]'::jsonb, false),
-    ('tpl-general-comm', 'General Client Communication', '💼 *OFFICIAL FIRM COMMUNICATION*
-Dear {{client_name}},
-We hope this message finds you well. Regarding your ongoing practice services:
-Please let us know if you need any assistance.', 'general', '["client_name"]'::jsonb, false)
-ON CONFLICT (id) DO UPDATE SET 
-    content = EXCLUDED.content, 
-    variables = EXCLUDED.variables;
-
--- ============================================================================
--- END OF CLEAN PRODUCTION SCHEMA (ZERO MOCK DATA)
+-- 15. PURE DDL SCHEMA COMPLETE (NO INSERT / ZERO SEED DATA)
+-- This schema contains only tables, constraints, indexes, triggers and RLS policies.
+-- Zero mock data, zero dummy clients, zero mock tasks, and zero seed records.
+-- Add roles, statuses, categories, templates, and records through the application.
 -- ============================================================================
