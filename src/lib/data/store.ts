@@ -44,6 +44,7 @@ import {
   ClientBankAccount,
   VaultCredential,
   VaultCategory,
+  VaultCategoryItem,
   VaultPasswordHistoryEntry,
   VaultAuditLog,
   VaultAuditAction,
@@ -176,6 +177,79 @@ export const DEFAULT_TASK_STATUSES: TaskStatusConfig[] = [
 
 export const DEFAULT_TASK_CATEGORIES: TaskCategory[] = [];
 
+export const DEFAULT_VAULT_CATEGORIES: VaultCategoryItem[] = [
+  {
+    id: "vcat-tax",
+    name: "Taxation",
+    code: "TAX",
+    description: "GST, Income Tax, TRACES, TDS portals & credentials",
+    color: "violet",
+    icon: "Receipt",
+    created_at: new Date().toISOString(),
+    is_system: true,
+  },
+  {
+    id: "vcat-mca",
+    name: "Corporate / MCA",
+    code: "MCA",
+    description: "MCA21 V3, ROC, Director KYC, DIN logins",
+    color: "sky",
+    icon: "Building2",
+    created_at: new Date().toISOString(),
+    is_system: true,
+  },
+  {
+    id: "vcat-bank",
+    name: "Banking & Finance",
+    code: "BNK",
+    description: "Corporate net banking, payment gateways, DEMAT accounts",
+    color: "emerald",
+    icon: "Briefcase",
+    created_at: new Date().toISOString(),
+    is_system: true,
+  },
+  {
+    id: "vcat-pay",
+    name: "Payroll & Labour",
+    code: "PAY",
+    description: "EPFO Unified Portal, ESIC, Professional Tax, Labour welfare",
+    color: "amber",
+    icon: "Users",
+    created_at: new Date().toISOString(),
+    is_system: true,
+  },
+  {
+    id: "vcat-gov",
+    name: "Government & DGFT",
+    code: "GOV",
+    description: "DGFT, Icegate Customs, MSME/Udyam, Startup India",
+    color: "rose",
+    icon: "ShieldCheck",
+    created_at: new Date().toISOString(),
+    is_system: true,
+  },
+  {
+    id: "vcat-cloud",
+    name: "Cloud & Software",
+    code: "CLD",
+    description: "Tally on Cloud, Zoho, QuickBooks, ERP, AWS, Hosting",
+    color: "indigo",
+    icon: "Folder",
+    created_at: new Date().toISOString(),
+    is_system: true,
+  },
+  {
+    id: "vcat-other",
+    name: "Other",
+    code: "OTH",
+    description: "General vendor portals, utility accounts, custom logins",
+    color: "slate",
+    icon: "Layers",
+    created_at: new Date().toISOString(),
+    is_system: true,
+  },
+];
+
 export const DEFAULT_DOCUMENT_FOLDERS: DocumentFolder[] = [
   {
     id: "fld-client-kyc",
@@ -304,6 +378,7 @@ class PMSDataStore {
   private taskStatuses: TaskStatusConfig[] = [...DEFAULT_TASK_STATUSES];
   private taskCategories: TaskCategory[] = [...DEFAULT_TASK_CATEGORIES];
   private vaultCredentials: VaultCredential[] = [];
+  private vaultCategories: VaultCategoryItem[] = [...DEFAULT_VAULT_CATEGORIES];
   private vaultAuditLogs: VaultAuditLog[] = [];
   private invoiceRequests: InvoiceRequest[] = [];
   private recurringInvoices: RecurringInvoice[] = [];
@@ -5432,6 +5507,68 @@ class PMSDataStore {
       client_name: target.client_name,
     });
     this.persist();
+    return true;
+  }
+
+  getVaultCategories(): VaultCategoryItem[] {
+    return [...this.vaultCategories];
+  }
+
+  getVaultCategoryById(id: string): VaultCategoryItem | undefined {
+    return this.vaultCategories.find((c) => c.id === id);
+  }
+
+  async addVaultCategory(data: {
+    name: string;
+    code?: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+  }): Promise<VaultCategoryItem> {
+    const id = ensureUuid();
+    const code = (data.code || data.name.slice(0, 4)).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const now = new Date().toISOString();
+    const newCat: VaultCategoryItem = {
+      id,
+      name: data.name.trim(),
+      code: code || "CAT",
+      description: data.description?.trim() || "",
+      color: data.color || "violet",
+      icon: data.icon || "KeyRound",
+      created_at: now,
+      updated_at: now,
+      is_system: false,
+    };
+    this.vaultCategories.push(newCat);
+    this.persist();
+    this.notify();
+    return newCat;
+  }
+
+  async updateVaultCategory(
+    id: string,
+    updates: Partial<VaultCategoryItem>
+  ): Promise<VaultCategoryItem | null> {
+    const index = this.vaultCategories.findIndex((c) => c.id === id);
+    if (index === -1) return null;
+    const current = this.vaultCategories[index];
+    const updated: VaultCategoryItem = {
+      ...current,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+    this.vaultCategories[index] = updated;
+    this.persist();
+    this.notify();
+    return updated;
+  }
+
+  async deleteVaultCategory(id: string): Promise<boolean> {
+    const index = this.vaultCategories.findIndex((c) => c.id === id);
+    if (index === -1) return false;
+    this.vaultCategories = this.vaultCategories.filter((c) => c.id !== id);
+    this.persist();
+    this.notify();
     return true;
   }
 

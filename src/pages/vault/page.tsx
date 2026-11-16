@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   KeyRound,
   ShieldCheck,
@@ -35,6 +35,14 @@ import {
   Mail,
   Phone,
   ArrowUpRight,
+  ArrowLeft,
+  ChevronRight,
+  Receipt,
+  Briefcase,
+  Landmark,
+  Folder,
+  Layers,
+  FolderPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,11 +57,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { pmsStore } from "@/lib/data/store";
 import { isEmployeeRestricted, isSuperAdmin } from "@/lib/access";
 import {
   VaultCredential,
   VaultCategory,
+  VaultCategoryItem,
   VaultAuditLog,
   VaultAuditAction,
   VaultPasswordHistoryEntry,
@@ -71,32 +81,103 @@ import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import { EmployeeMultiSelect } from "@/components/tasks/employee-multi-select";
 
-const VAULT_CATEGORIES: VaultCategory[] = [
-  "Taxation",
-  "Corporate / MCA",
-  "Banking & Finance",
-  "Payroll & Labour",
-  "Government & DGFT",
-  "Cloud & Software",
-  "Other",
-];
+function getCategoryColorTheme(color?: string) {
+  switch (color) {
+    case "violet":
+      return {
+        badge: "bg-violet-50 text-violet-700 border-violet-200",
+        iconBg: "bg-violet-100 text-violet-700",
+        border: "hover:border-violet-400",
+        accent: "text-violet-700",
+        bar: "bg-violet-600",
+        cardBg: "bg-violet-50/20",
+      };
+    case "sky":
+      return {
+        badge: "bg-sky-50 text-sky-700 border-sky-200",
+        iconBg: "bg-sky-100 text-sky-700",
+        border: "hover:border-sky-400",
+        accent: "text-sky-700",
+        bar: "bg-sky-600",
+        cardBg: "bg-sky-50/20",
+      };
+    case "emerald":
+      return {
+        badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        iconBg: "bg-emerald-100 text-emerald-700",
+        border: "hover:border-emerald-400",
+        accent: "text-emerald-700",
+        bar: "bg-emerald-600",
+        cardBg: "bg-emerald-50/20",
+      };
+    case "amber":
+      return {
+        badge: "bg-amber-50 text-amber-700 border-amber-200",
+        iconBg: "bg-amber-100 text-amber-700",
+        border: "hover:border-amber-400",
+        accent: "text-amber-700",
+        bar: "bg-amber-600",
+        cardBg: "bg-amber-50/20",
+      };
+    case "rose":
+      return {
+        badge: "bg-rose-50 text-rose-700 border-rose-200",
+        iconBg: "bg-rose-100 text-rose-700",
+        border: "hover:border-rose-400",
+        accent: "text-rose-700",
+        bar: "bg-rose-600",
+        cardBg: "bg-rose-50/20",
+      };
+    case "indigo":
+      return {
+        badge: "bg-indigo-50 text-indigo-700 border-indigo-200",
+        iconBg: "bg-indigo-100 text-indigo-700",
+        border: "hover:border-indigo-400",
+        accent: "text-indigo-700",
+        bar: "bg-indigo-600",
+        cardBg: "bg-indigo-50/20",
+      };
+    default:
+      return {
+        badge: "bg-slate-100 text-slate-700 border-slate-300",
+        iconBg: "bg-slate-200 text-slate-700",
+        border: "hover:border-slate-400",
+        accent: "text-slate-800",
+        bar: "bg-slate-600",
+        cardBg: "bg-slate-50/40",
+      };
+  }
+}
+
+function getCategoryIcon(nameOrIcon?: string) {
+  const lower = (nameOrIcon || "").toLowerCase();
+  if (lower.includes("tax") || lower.includes("gst") || lower.includes("itr") || lower.includes("receipt")) return Receipt;
+  if (lower.includes("mca") || lower.includes("corp") || lower.includes("roc") || lower.includes("building")) return Building2;
+  if (lower.includes("bank") || lower.includes("fin") || lower.includes("landmark")) return Landmark;
+  if (lower.includes("pay") || lower.includes("labour") || lower.includes("epf") || lower.includes("users")) return Users;
+  if (lower.includes("gov") || lower.includes("dgft") || lower.includes("custom") || lower.includes("shield")) return ShieldCheck;
+  if (lower.includes("cloud") || lower.includes("soft") || lower.includes("it") || lower.includes("folder")) return Folder;
+  if (lower.includes("briefcase")) return Briefcase;
+  return KeyRound;
+}
 
 const PORTAL_PRESETS = [
-  { name: "GST Portal", url: "https://www.gst.gov.in", category: "Taxation" as VaultCategory },
-  { name: "Income Tax e-Filing", url: "https://www.incometax.gov.in", category: "Taxation" as VaultCategory },
-  { name: "TRACES TDS Portal", url: "https://contents.tdscpc.gov.in", category: "Taxation" as VaultCategory },
-  { name: "MCA21 V3 Portal", url: "https://www.mca.gov.in", category: "Corporate / MCA" as VaultCategory },
-  { name: "EPFO Unified Portal", url: "https://unifiedportal-emp.epfindia.gov.in", category: "Payroll & Labour" as VaultCategory },
-  { name: "ESIC Portal", url: "https://www.esic.in", category: "Payroll & Labour" as VaultCategory },
-  { name: "DGFT Portal", url: "https://www.dgft.gov.in", category: "Government & DGFT" as VaultCategory },
-  { name: "Icegate Customs", url: "https://www.icegate.gov.in", category: "Government & DGFT" as VaultCategory },
-  { name: "HDFC NetBanking", url: "https://netbanking.hdfcbank.com", category: "Banking & Finance" as VaultCategory },
-  { name: "ICICI Corporate", url: "https://cibnext.icicibank.com", category: "Banking & Finance" as VaultCategory },
-  { name: "SBI Corporate", url: "https://corp.onlinesbi.sbi", category: "Banking & Finance" as VaultCategory },
+  { name: "GST Portal", url: "https://www.gst.gov.in", category: "Taxation" },
+  { name: "Income Tax e-Filing", url: "https://www.incometax.gov.in", category: "Taxation" },
+  { name: "TRACES TDS Portal", url: "https://contents.tdscpc.gov.in", category: "Taxation" },
+  { name: "MCA21 V3 Portal", url: "https://www.mca.gov.in", category: "Corporate / MCA" },
+  { name: "EPFO Unified Portal", url: "https://unifiedportal-emp.epfindia.gov.in", category: "Payroll & Labour" },
+  { name: "ESIC Portal", url: "https://www.esic.in", category: "Payroll & Labour" },
+  { name: "DGFT Portal", url: "https://www.dgft.gov.in", category: "Government & DGFT" },
+  { name: "Icegate Customs", url: "https://www.icegate.gov.in", category: "Government & DGFT" },
+  { name: "HDFC NetBanking", url: "https://netbanking.hdfcbank.com", category: "Banking & Finance" },
+  { name: "ICICI Corporate", url: "https://cibnext.icicibank.com", category: "Banking & Finance" },
+  { name: "SBI Corporate", url: "https://corp.onlinesbi.sbi", category: "Banking & Finance" },
 ];
 
 export default function VaultPage() {
   const [, setTick] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Subscribe to central store
   useEffect(() => {
@@ -110,13 +191,29 @@ export default function VaultPage() {
   const employees = pmsStore.getEmployees();
   const credentials = pmsStore.getVaultCredentials();
   const auditLogs = pmsStore.getVaultAuditLogs();
+  const categories = pmsStore.getVaultCategories();
 
-  // Filter & Search states
+  // Drilldown Navigation states:
+  // Level 1: selectedCategoryId === null (Shows all Categories)
+  // Level 2: selectedCategoryId !== null && selectedClientKey === null (Shows Clients inside selected Category)
+  // Level 3: selectedCategoryId !== null && selectedClientKey !== null (Shows Logins for selected Client in Category)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(searchParams.get("category") || null);
+  const [selectedClientKey, setSelectedClientKey] = useState<string | null>(searchParams.get("client") || null);
+  const [viewMode, setViewMode] = useState<"drilldown" | "table">("drilldown");
+
+  // Keep URL in sync
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (selectedCategoryId) nextParams.set("category", selectedCategoryId);
+    else nextParams.delete("category");
+    if (selectedClientKey) nextParams.set("client", selectedClientKey);
+    else nextParams.delete("client");
+    setSearchParams(nextParams, { replace: true });
+  }, [selectedCategoryId, selectedClientKey]);
+
+  // Search & Filter states
   const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
-  const [selectedClientId, setSelectedClientId] = useState<string>("ALL");
   const [filterRotationOnly, setFilterRotationOnly] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   // Temporary in-memory decrypted passwords map: { [credentialId]: { plaintext: string; expiryMs: number } }
   const [decryptedCache, setDecryptedCache] = useState<{ [id: string]: { plaintext: string; expiryMs: number } }>({});
@@ -142,7 +239,28 @@ export default function VaultPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Modals state
+  // Category Modal State (Create / Edit)
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<VaultCategoryItem | null>(null);
+  const [catName, setCatName] = useState("");
+  const [catCode, setCatCode] = useState("");
+  const [catDesc, setCatDesc] = useState("");
+  const [catColor, setCatColor] = useState("violet");
+
+  // Add Client to Category Modal State
+  const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
+  const [clientAddMode, setClientAddMode] = useState<"existing" | "new">("existing");
+  const [selectedExistingClientId, setSelectedExistingClientId] = useState("");
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientNickName, setNewClientNickName] = useState("");
+  const [newClientFolderName, setNewClientFolderName] = useState("");
+  // Optional initial login fields inside Add Client modal
+  const [addClientPortal, setAddClientPortal] = useState("");
+  const [addClientUrl, setAddClientUrl] = useState("");
+  const [addClientUsername, setAddClientUsername] = useState("");
+  const [addClientPassword, setAddClientPassword] = useState("");
+
+  // Credential Modal State (Create / Edit)
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingCred, setEditingCred] = useState<VaultCredential | null>(null);
 
@@ -161,8 +279,9 @@ export default function VaultPage() {
   const [formRegEmail, setFormRegEmail] = useState("");
   const [formRegMobile, setFormRegMobile] = useState("");
   const [formAccountHolder, setFormAccountHolder] = useState("");
-  const [formCategory, setFormCategory] = useState<VaultCategory>("Taxation");
+  const [formCategory, setFormCategory] = useState<string>("Taxation");
   const [formClientId, setFormClientId] = useState("");
+  const [formCustomClientName, setFormCustomClientName] = useState("");
   const [formAssignedEmpIds, setFormAssignedEmpIds] = useState<string[]>([]);
   const [formNotes, setFormNotes] = useState("");
   const [formRotationDays, setFormRotationDays] = useState<number>(90);
@@ -213,13 +332,144 @@ export default function VaultPage() {
     return Math.max(0, Math.floor((Date.now() - lastChanged) / (1000 * 60 * 60 * 24)));
   };
 
-  // Filtered credentials list
-  const filteredCredentials = useMemo(() => {
-    return credentials.filter((cred) => {
-      // Permission filtering for restricted employees
-      if (!isAdmin && !canAccessCredential(cred)) {
-        return false;
+  // Category matching helper
+  const isCredInCategory = (cred: VaultCredential, cat: VaultCategoryItem) => {
+    const catName = cat.name.trim().toLowerCase();
+    const credCat = (cred.category || "").trim().toLowerCase();
+    return credCat === catName || credCat === cat.id.toLowerCase() || credCat === cat.code.toLowerCase();
+  };
+
+  // Selected Category Object
+  const currentCategory = useMemo(() => {
+    if (!selectedCategoryId) return null;
+    return categories.find((c) => c.id === selectedCategoryId || c.name === selectedCategoryId) || null;
+  }, [categories, selectedCategoryId]);
+
+  // Clients inside current category
+  const clientsInCategory = useMemo(() => {
+    if (!currentCategory) return [];
+
+    const catCreds = credentials.filter((cred) => {
+      if (!isAdmin && !canAccessCredential(cred)) return false;
+      return isCredInCategory(cred, currentCategory);
+    });
+
+    const clientMap = new Map<
+      string,
+      {
+        key: string;
+        client_id?: string;
+        client_name: string;
+        client_code?: string;
+        folder_name?: string;
+        credentials: VaultCredential[];
+        portals: string[];
+        hasRotationDue: boolean;
       }
+    >();
+
+    catCreds.forEach((cred) => {
+      const registeredClient = cred.client_id ? clients.find((c) => c.id === cred.client_id) : undefined;
+      const clientName = registeredClient?.client_name || cred.client_name || "General Client / Miscellaneous";
+      const key = registeredClient?.id || clientName.toLowerCase().trim();
+
+      const existing = clientMap.get(key) || {
+        key,
+        client_id: registeredClient?.id,
+        client_name: clientName,
+        client_code: registeredClient?.client_code,
+        folder_name:
+          registeredClient?.folder_name ||
+          (registeredClient?.nick_name ? `${registeredClient.nick_name} ${registeredClient.client_code}` : undefined),
+        credentials: [],
+        portals: [],
+        hasRotationDue: false,
+      };
+
+      existing.credentials.push(cred);
+      if (!existing.portals.includes(cred.portal_name)) {
+        existing.portals.push(cred.portal_name);
+      }
+      if (isRotationDue(cred)) {
+        existing.hasRotationDue = true;
+      }
+
+      clientMap.set(key, existing);
+    });
+
+    // Also include currently selected client if it was created/added but has no credentials yet
+    if (selectedClientKey && !clientMap.has(selectedClientKey)) {
+      const reg = clients.find((c) => c.id === selectedClientKey);
+      clientMap.set(selectedClientKey, {
+        key: selectedClientKey,
+        client_id: reg?.id,
+        client_name: reg?.client_name || selectedClientKey,
+        client_code: reg?.client_code,
+        folder_name: reg?.folder_name,
+        credentials: [],
+        portals: [],
+        hasRotationDue: false,
+      });
+    }
+
+    const list = Array.from(clientMap.values());
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      return list.filter(
+        (cl) =>
+          cl.client_name.toLowerCase().includes(q) ||
+          (cl.client_code && cl.client_code.toLowerCase().includes(q)) ||
+          (cl.folder_name && cl.folder_name.toLowerCase().includes(q)) ||
+          cl.portals.some((p) => p.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [currentCategory, credentials, clients, search, isAdmin, selectedClientKey]);
+
+  // Selected Client Object
+  const currentClient = useMemo(() => {
+    if (!selectedClientKey) return null;
+    return clientsInCategory.find((c) => c.key === selectedClientKey) || {
+      key: selectedClientKey,
+      client_name: selectedClientKey,
+      credentials: [],
+      portals: [],
+      hasRotationDue: false,
+    };
+  }, [clientsInCategory, selectedClientKey]);
+
+  // Credentials for selected Client in current Category
+  const clientCredentials = useMemo(() => {
+    if (!currentCategory || !selectedClientKey) return [];
+    return credentials.filter((cred) => {
+      if (!isAdmin && !canAccessCredential(cred)) return false;
+      if (!isCredInCategory(cred, currentCategory)) return false;
+
+      const registeredClient = cred.client_id ? clients.find((c) => c.id === cred.client_id) : undefined;
+      const key = registeredClient?.id || (cred.client_name || "General Client / Miscellaneous").toLowerCase().trim();
+      if (key !== selectedClientKey) return false;
+
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        return (
+          cred.portal_name.toLowerCase().includes(q) ||
+          cred.username.toLowerCase().includes(q) ||
+          (cred.account_holder_name && cred.account_holder_name.toLowerCase().includes(q)) ||
+          (cred.registered_email && cred.registered_email.toLowerCase().includes(q))
+        );
+      }
+
+      if (filterRotationOnly && !isRotationDue(cred)) return false;
+      return true;
+    });
+  }, [currentCategory, selectedClientKey, credentials, clients, search, filterRotationOnly, isAdmin]);
+
+  // Filtered credentials list for full Table View
+  const allFilteredCredentials = useMemo(() => {
+    return credentials.filter((cred) => {
+      if (!isAdmin && !canAccessCredential(cred)) return false;
 
       const q = search.trim().toLowerCase();
       const matchesSearch =
@@ -233,22 +483,174 @@ export default function VaultPage() {
         (cred.notes && cred.notes.toLowerCase().includes(q));
 
       if (!matchesSearch) return false;
-
-      if (selectedCategory !== "ALL" && cred.category !== selectedCategory) return false;
-      if (selectedClientId !== "ALL" && cred.client_id !== selectedClientId) return false;
       if (filterRotationOnly && !isRotationDue(cred)) return false;
-
       return true;
     });
-  }, [credentials, search, selectedCategory, selectedClientId, filterRotationOnly, isAdmin, currentUser.id]);
+  }, [credentials, search, filterRotationOnly, isAdmin]);
 
   // Rotation due counter
   const rotationDueCount = useMemo(() => {
     return credentials.filter((c) => isRotationDue(c)).length;
   }, [credentials]);
 
-  // Open Create Modal
-  const handleOpenCreateModal = () => {
+  // Open Create Category Modal
+  const handleOpenCreateCategoryModal = () => {
+    setEditingCategory(null);
+    setCatName("");
+    setCatCode("");
+    setCatDesc("");
+    setCatColor("violet");
+    setIsCategoryModalOpen(true);
+  };
+
+  // Open Edit Category Modal
+  const handleOpenEditCategoryModal = (cat: VaultCategoryItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingCategory(cat);
+    setCatName(cat.name);
+    setCatCode(cat.code);
+    setCatDesc(cat.description || "");
+    setCatColor(cat.color || "violet");
+    setIsCategoryModalOpen(true);
+  };
+
+  // Save Category
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!catName.trim()) {
+      toast.error("Please enter a category name.");
+      return;
+    }
+
+    try {
+      if (editingCategory) {
+        await pmsStore.updateVaultCategory(editingCategory.id, {
+          name: catName.trim(),
+          code: catCode.trim() || catName.slice(0, 4).toUpperCase(),
+          description: catDesc.trim(),
+          color: catColor,
+        });
+        toast.success(`Updated category "${catName}".`);
+      } else {
+        await pmsStore.addVaultCategory({
+          name: catName.trim(),
+          code: catCode.trim() || catName.slice(0, 4).toUpperCase(),
+          description: catDesc.trim(),
+          color: catColor,
+          icon: "KeyRound",
+        });
+        toast.success(`Created category "${catName}".`);
+      }
+      setIsCategoryModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save category.");
+    }
+  };
+
+  // Delete Category
+  const handleDeleteCategory = async (cat: VaultCategoryItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (cat.is_system) {
+      toast.error("System default categories cannot be removed.");
+      return;
+    }
+    if (confirm(`Delete category "${cat.name}"? Credentials in this category will remain preserved.`)) {
+      await pmsStore.deleteVaultCategory(cat.id);
+      if (selectedCategoryId === cat.id) {
+        setSelectedCategoryId(null);
+        setSelectedClientKey(null);
+      }
+      toast.success(`Removed category "${cat.name}".`);
+    }
+  };
+
+  // Open Add Client to Category Modal
+  const handleOpenAddClientModal = () => {
+    setClientAddMode("existing");
+    setSelectedExistingClientId(clients[0]?.id || "");
+    setNewClientName("");
+    setNewClientNickName("");
+    setNewClientFolderName("");
+    setAddClientPortal("");
+    setAddClientUrl("");
+    setAddClientUsername("");
+    setAddClientPassword(generateStrongPassword({ length: 16 }));
+    setIsAddClientModalOpen(true);
+  };
+
+  // Submit Add Client to Category
+  const handleSaveClientToCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentCategory) {
+      toast.error("No category selected.");
+      return;
+    }
+
+    let targetClientId: string | undefined = undefined;
+    let targetClientName = "";
+
+    if (clientAddMode === "existing") {
+      const matched = clients.find((c) => c.id === selectedExistingClientId);
+      if (!matched) {
+        toast.error("Please select a registered client.");
+        return;
+      }
+      targetClientId = matched.id;
+      targetClientName = matched.client_name;
+    } else {
+      if (!newClientName.trim()) {
+        toast.error("Please enter a client name.");
+        return;
+      }
+      targetClientName = newClientName.trim();
+      try {
+        const nextCode = pmsStore.getNextClientCode();
+        const createdClient = await pmsStore.addClient({
+          client_name: targetClientName,
+          legal_name: targetClientName,
+          nick_name: newClientNickName.trim() || undefined,
+          folder_name:
+            newClientFolderName.trim() ||
+            (newClientNickName.trim() ? `${newClientNickName.trim()} ${nextCode}` : `${targetClientName} ${nextCode}`),
+          constitution: "Private Limited",
+          status: "Active",
+        });
+        targetClientId = createdClient.id;
+        targetClientName = createdClient.client_name;
+      } catch (err: any) {
+        toast.warning("Saved client reference inside Vault.");
+      }
+    }
+
+    // If initial login fields were provided, create credential immediately
+    if (addClientPortal.trim() && addClientUsername.trim() && addClientPassword.trim()) {
+      try {
+        const encrypted = await encryptVaultPassword(addClientPassword.trim());
+        await pmsStore.addVaultCredential({
+          portal_name: addClientPortal.trim(),
+          login_url: addClientUrl.trim() || undefined,
+          username: addClientUsername.trim(),
+          password_encrypted: encrypted,
+          category: currentCategory.name,
+          client_id: targetClientId,
+          client_name: targetClientName,
+          last_password_changed_at: new Date().toISOString(),
+          rotation_reminder_days: 90,
+        });
+        toast.success(`Created initial login for "${targetClientName}" in ${currentCategory.name}.`);
+      } catch (err: any) {
+        toast.error(`Password encryption error: ${err.message}`);
+      }
+    } else {
+      toast.success(`Added client "${targetClientName}" to ${currentCategory.name}.`);
+    }
+
+    setIsAddClientModalOpen(false);
+    setSelectedClientKey(targetClientId || targetClientName.toLowerCase().trim());
+  };
+
+  // Open Create Credential Modal (Optionally pre-filled with category and client)
+  const handleOpenCreateModal = (prefillClientId?: string, prefillClientName?: string) => {
     setEditingCred(null);
     setFormPortalName("");
     setFormLoginUrl("");
@@ -258,8 +660,25 @@ export default function VaultPage() {
     setFormRegEmail("");
     setFormRegMobile("");
     setFormAccountHolder("");
-    setFormCategory("Taxation");
-    setFormClientId("");
+    setFormCategory(currentCategory ? currentCategory.name : "Taxation");
+
+    if (prefillClientId) {
+      setFormClientId(prefillClientId);
+      setFormCustomClientName("");
+    } else if (prefillClientName) {
+      setFormClientId("");
+      setFormCustomClientName(prefillClientName);
+    } else if (currentClient?.client_id) {
+      setFormClientId(currentClient.client_id);
+      setFormCustomClientName("");
+    } else if (currentClient?.client_name) {
+      setFormClientId("");
+      setFormCustomClientName(currentClient.client_name);
+    } else {
+      setFormClientId("");
+      setFormCustomClientName("");
+    }
+
     setFormAssignedEmpIds([]);
     setFormNotes("");
     setFormRotationDays(90);
@@ -267,7 +686,7 @@ export default function VaultPage() {
     setIsFormModalOpen(true);
   };
 
-  // Open Edit Modal
+  // Open Edit Credential Modal
   const handleOpenEditModal = async (cred: VaultCredential) => {
     if (!canAccessCredential(cred)) {
       toast.error("Security policy: You are not authorized to edit this credential.");
@@ -282,12 +701,12 @@ export default function VaultPage() {
     setFormAccountHolder(cred.account_holder_name || "");
     setFormCategory(cred.category || "Taxation");
     setFormClientId(cred.client_id || "");
+    setFormCustomClientName(cred.client_name || "");
     setFormAssignedEmpIds(cred.assigned_employee_ids || []);
     setFormNotes(cred.notes || "");
     setFormRotationDays(cred.rotation_reminder_days || 90);
     setFormShowPassword(false);
 
-    // Try to decrypt current password for editing
     try {
       const decrypted = await decryptVaultPassword(cred.password_encrypted);
       setFormPasswordPlaintext(decrypted);
@@ -316,17 +735,16 @@ export default function VaultPage() {
 
     setIsSaving(true);
     try {
-      // 1. Encrypt with AES-256-GCM
       const encrypted = await encryptVaultPassword(formPasswordPlaintext.trim());
-
       const chosenClient = clients.find((c) => c.id === formClientId);
+      const effectiveClientName = chosenClient?.client_name || formCustomClientName.trim() || undefined;
+
       const assignedNames = formAssignedEmpIds
         .map((id) => employees.find((e) => e.id === id)?.full_name)
         .filter(Boolean)
         .join(", ");
 
       if (editingCred) {
-        // Update
         await pmsStore.updateVaultCredential(editingCred.id, {
           portal_name: formPortalName.trim(),
           login_url: formLoginUrl.trim(),
@@ -337,7 +755,7 @@ export default function VaultPage() {
           account_holder_name: formAccountHolder.trim() || undefined,
           category: formCategory,
           client_id: chosenClient?.id,
-          client_name: chosenClient?.client_name,
+          client_name: effectiveClientName,
           assigned_employee_ids: formAssignedEmpIds,
           assigned_employee_names: assignedNames || undefined,
           notes: formNotes.trim() || undefined,
@@ -345,7 +763,6 @@ export default function VaultPage() {
         });
         toast.success(`Updated "${formPortalName}" with AES-256-GCM encryption.`);
       } else {
-        // Create
         await pmsStore.addVaultCredential({
           portal_name: formPortalName.trim(),
           login_url: formLoginUrl.trim(),
@@ -356,7 +773,7 @@ export default function VaultPage() {
           account_holder_name: formAccountHolder.trim() || undefined,
           category: formCategory,
           client_id: chosenClient?.id,
-          client_name: chosenClient?.client_name,
+          client_name: effectiveClientName,
           assigned_employee_ids: formAssignedEmpIds,
           assigned_employee_names: assignedNames || undefined,
           notes: formNotes.trim() || undefined,
@@ -381,7 +798,6 @@ export default function VaultPage() {
       return;
     }
 
-    // If currently decrypted and visible, hide it
     if (decryptedCache[cred.id]) {
       setDecryptedCache((prev) => {
         const next = { ...prev };
@@ -391,19 +807,15 @@ export default function VaultPage() {
       return;
     }
 
-    // Decrypt on-demand with AES-256-GCM
     setDecryptingId(cred.id);
     try {
       const plaintext = await decryptVaultPassword(cred.password_encrypted);
-
-      // Cache for 30 seconds only, then automatically wipe
       const expiryMs = Date.now() + 30 * 1000;
       setDecryptedCache((prev) => ({
         ...prev,
         [cred.id]: { plaintext, expiryMs },
       }));
 
-      // Record in security audit log
       pmsStore.logVaultActivity({
         credential_id: cred.id,
         portal_name: cred.portal_name,
@@ -437,7 +849,6 @@ export default function VaultPage() {
 
       await navigator.clipboard.writeText(plaintext);
 
-      // Record in security audit log
       pmsStore.logVaultActivity({
         credential_id: cred.id,
         portal_name: cred.portal_name,
@@ -473,7 +884,7 @@ export default function VaultPage() {
     }
   };
 
-  // Delete Credential (move to Universal Recycle Bin)
+  // Delete Credential
   const handleDeleteCredential = async (cred: VaultCredential) => {
     if (!isAdmin) {
       toast.error("Only Administrators can delete vault credentials.");
@@ -500,112 +911,118 @@ export default function VaultPage() {
       portal_name: c.portal_name,
       login_url: c.login_url,
       username: c.username,
+      client_name: c.client_name || "—",
       category: c.category,
-      client_name: c.client_name || "",
-      account_holder_name: c.account_holder_name || "",
-      registered_email: c.registered_email || "",
-      registered_mobile: c.registered_mobile || "",
-      assigned_employees: c.assigned_employee_names || "All Team",
+      account_holder: c.account_holder_name || "—",
+      registered_email: c.registered_email || "—",
+      registered_mobile: c.registered_mobile || "—",
+      last_changed: c.last_password_changed_at,
+      rotation_days: c.rotation_reminder_days,
+      assigned_to: c.assigned_employee_names || "All Authorized",
       notes: c.notes || "",
-      last_changed_date: c.last_password_changed_at || c.created_at,
-      created_at: c.created_at,
     }));
 
-    const jsonStr = JSON.stringify(exportRows, null, 2);
-    const blob = new Blob([jsonStr], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(exportRows, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pms_vault_audit_export_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
+    a.download = `oxis_vault_metadata_backup_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
-
-    pmsStore.logVaultActivity({
-      credential_id: "export-all",
-      portal_name: "FULL_VAULT_EXPORT",
-      action: "EXPORT",
-      performed_by_id: currentUser.id,
-      performed_by_name: currentUser.full_name,
-      details: `Exported metadata of ${credentials.length} vault credential entries`,
-    });
-
-    setIsExportModalOpen(false);
-    toast.success(`Vault metadata exported securely. (Audit logged)`);
+    toast.success("Exported encrypted vault metadata structure.");
   };
 
-  // Strength score of the password currently in form
-  const formPwStrength = useMemo(() => {
-    return calculatePasswordStrength(formPasswordPlaintext);
-  }, [formPasswordPlaintext]);
-
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in">
-      {/* 1. TOP HEADER & VAULT BADGES */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+    <div className="space-y-6">
+      {/* Top Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/20">
-              <KeyRound className="h-5 w-5" />
+            <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
+              <KeyRound className="h-5 w-5 text-amber-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">
-                  Client &amp; Firm Credential Vault
+                <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                  Credential Vault
                 </h1>
-                <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] font-extrabold uppercase tracking-wider">
+                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-300 gap-1 font-semibold">
+                  <ShieldCheck className="h-3 w-3 text-emerald-600" />
                   AES-256-GCM
                 </Badge>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Zero-plaintext password repository with strict role access, automated rotation alerts &amp; audit logging.
+                Organize client logins by category, manage portal credentials, and enforce password rotation.
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* View Mode Switcher */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
+            <button
+              onClick={() => {
+                setViewMode("drilldown");
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                viewMode === "drilldown" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>Category View</span>
+            </button>
+            <button
+              onClick={() => {
+                setViewMode("table");
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                viewMode === "table" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <TableIcon className="h-3.5 w-3.5" />
+              <span>All Credentials</span>
+            </button>
+          </div>
+
           <Button
-            type="button"
             variant="outline"
             size="sm"
             onClick={() => setIsGeneratorModalOpen(true)}
-            className="rounded-xl border-slate-300 text-xs font-bold gap-1.5 h-9 text-slate-700 hover:text-purple-700 hover:border-purple-300"
+            className="rounded-2xl gap-1 text-xs border-slate-300"
           >
-            <Sparkles className="h-3.5 w-3.5 text-purple-600" />
-            <span>Password Generator</span>
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setIsAuditModalOpen(true)}
-            className="rounded-xl border-slate-300 text-xs font-bold gap-1.5 h-9 text-slate-700 hover:text-blue-700 hover:border-blue-300"
-          >
-            <History className="h-3.5 w-3.5 text-blue-600" />
-            <span>Audit Trail ({auditLogs.length})</span>
+            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+            <span>Generator</span>
           </Button>
 
           {isAdmin && (
             <Button
-              type="button"
               variant="outline"
               size="sm"
-              onClick={() => setIsExportModalOpen(true)}
-              className="rounded-xl border-slate-300 text-xs font-bold gap-1.5 h-9 text-slate-700 hover:text-slate-900"
+              onClick={() => setIsAuditModalOpen(true)}
+              className="rounded-2xl gap-1 text-xs border-slate-300"
             >
-              <Download className="h-3.5 w-3.5 text-slate-500" />
-              <span>Export</span>
+              <History className="h-3.5 w-3.5 text-blue-600" />
+              <span>Audit Log</span>
+            </Button>
+          )}
+
+          {isAdmin && (
+            <Button
+              onClick={handleOpenCreateCategoryModal}
+              variant="outline"
+              size="sm"
+              className="rounded-2xl gap-1.5 text-xs font-bold border-slate-300 hover:border-slate-800"
+            >
+              <FolderPlus className="h-3.5 w-3.5 text-violet-600" />
+              <span>+ Create Category</span>
             </Button>
           )}
 
           <Button
-            type="button"
+            onClick={() => handleOpenCreateModal()}
             size="sm"
-            onClick={handleOpenCreateModal}
-            className="rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold gap-1.5 h-9 shadow-sm"
+            className="bg-neutral-900 hover:bg-black text-white rounded-2xl gap-1.5 text-xs font-bold shadow-xs"
           >
             <Plus className="h-4 w-4" />
             <span>Add Credential</span>
@@ -613,1108 +1030,1453 @@ export default function VaultPage() {
         </div>
       </div>
 
-      {/* 2. STRICT SECURITY COMPLIANCE BANNER */}
-      <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50/90 via-amber-50/50 to-orange-50/80 p-4 text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-start gap-3">
-          <div className="h-8 w-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0 mt-0.5">
-            <ShieldCheck className="h-4 w-4" />
-          </div>
-          <div>
-            <span className="font-extrabold text-amber-950 block text-[13px]">
-              Firm Security &amp; Compliance Safeguards
-            </span>
-            <p className="text-amber-900/90 text-xs leading-relaxed mt-0.5">
-              Passwords are encrypted with industry-standard <strong>AES-256-GCM</strong>. Every reveal or copy event is logged in the permanent audit trail.
-              <strong className="text-rose-900 ml-1">
-                Notice: Do not store OTPs, UPI MPINs, or bank transaction authorization codes as ordinary credentials.
-              </strong>
-            </p>
-          </div>
-        </div>
+      {/* Summary KPI Strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="rounded-2xl border-slate-200 shadow-xs">
+          <CardContent className="p-3.5 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 block">Total Categories</span>
+              <span className="text-xl font-bold text-slate-900 mt-0.5 block">{categories.length}</span>
+            </div>
+            <div className="h-9 w-9 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+              <Folder className="h-4 w-4" />
+            </div>
+          </CardContent>
+        </Card>
 
-        <Link
-          to="/recycle-bin?type=VAULT"
-          className="shrink-0 text-amber-900 hover:text-amber-950 font-bold underline flex items-center gap-1 text-[11px] bg-white/70 border border-amber-200 px-3 py-1.5 rounded-xl shadow-2xs hover:bg-white transition-colors"
+        <Card className="rounded-2xl border-slate-200 shadow-xs">
+          <CardContent className="p-3.5 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 block">Total Logins</span>
+              <span className="text-xl font-bold text-slate-900 mt-0.5 block">{credentials.length}</span>
+            </div>
+            <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <KeyRound className="h-4 w-4" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl border-slate-200 shadow-xs">
+          <CardContent className="p-3.5 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 block">Active Clients</span>
+              <span className="text-xl font-bold text-slate-900 mt-0.5 block">
+                {new Set(credentials.map((c) => c.client_name || c.client_id).filter(Boolean)).size}
+              </span>
+            </div>
+            <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Building2 className="h-4 w-4" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          onClick={() => setFilterRotationOnly(!filterRotationOnly)}
+          className={`rounded-2xl border-slate-200 shadow-xs cursor-pointer transition-all ${
+            filterRotationOnly ? "border-amber-500 bg-amber-50/30" : "hover:border-slate-400"
+          }`}
         >
-          <Trash2 className="h-3.5 w-3.5 text-amber-700" />
-          <span>Vault Recycle Bin</span>
-        </Link>
+          <CardContent className="p-3.5 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 block">Rotation Due (&gt;90d)</span>
+              <span className="text-xl font-bold text-amber-600 mt-0.5 block">{rotationDueCount}</span>
+            </div>
+            <div className="h-9 w-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Clock className="h-4 w-4" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* 3. METRIC COUNTERS & ROTATION STATUS BAR */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <Card className="rounded-2xl border-slate-200 bg-white p-3.5 shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-            Total Vault Credentials
-          </span>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-extrabold text-[#111827]">{credentials.length}</span>
-            <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
-              All Portals
-            </Badge>
-          </div>
-        </Card>
-
-        <Card className="rounded-2xl border-slate-200 bg-white p-3.5 shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-            Client Accounts Linked
-          </span>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-extrabold text-emerald-700">
-              {new Set(credentials.map((c) => c.client_id).filter(Boolean)).size}
-            </span>
-            <span className="text-xs text-slate-400 font-medium">Clients</span>
-          </div>
-        </Card>
-
-        <Card className={`rounded-2xl border p-3.5 shadow-xs ${rotationDueCount > 0 ? "border-amber-300 bg-amber-50/50" : "border-slate-200 bg-white"}`}>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-            Password Rotation Due
-          </span>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className={`text-2xl font-extrabold ${rotationDueCount > 0 ? "text-amber-700" : "text-slate-800"}`}>
-              {rotationDueCount}
-            </span>
-            {rotationDueCount > 0 ? (
-              <button
-                type="button"
-                onClick={() => setFilterRotationOnly((v) => !v)}
-                className="text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-lg transition-colors"
+      {/* ===================================================================== */}
+      {/* VIEW 1: FULL CREDENTIALS TABLE VIEW */}
+      {/* ===================================================================== */}
+      {viewMode === "table" ? (
+        <Card className="rounded-2xl border-slate-200 shadow-xs">
+          <CardHeader className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Input
+                type="search"
+                placeholder="Search portal, username, client, email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-9 text-xs rounded-xl"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={filterRotationOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterRotationOnly(!filterRotationOnly)}
+                className="h-8 text-xs rounded-xl gap-1"
               >
-                {filterRotationOnly ? "Show All" : "Filter Due"}
-              </button>
-            ) : (
-              <span className="text-xs text-emerald-600 font-bold">All Healthy</span>
-            )}
-          </div>
-        </Card>
-
-        <Card className="rounded-2xl border-slate-200 bg-white p-3.5 shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-            Audit Activity Count
-          </span>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-extrabold text-blue-700">{auditLogs.length}</span>
-            <span className="text-xs text-slate-400 font-medium">Events</span>
-          </div>
-        </Card>
-      </div>
-
-      {/* 4. SEARCH, FILTER & VIEW CONTROLS */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-50/80 p-3 rounded-2xl border border-slate-200">
-        <div className="flex flex-wrap items-center gap-2 flex-1">
-          <div className="relative min-w-[220px] max-w-sm flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            <Input
-              type="search"
-              placeholder="Search by portal, username, client, email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 text-xs h-9 rounded-xl border-slate-300 bg-white"
-            />
-          </div>
-
-          {/* Category Filter */}
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 focus:outline-none"
-          >
-            <option value="ALL">All Categories</option>
-            {VAULT_CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-
-          {/* Client Filter */}
-          <select
-            value={selectedClientId}
-            onChange={(e) => setSelectedClientId(e.target.value)}
-            className="h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 focus:outline-none max-w-[180px]"
-          >
-            <option value="ALL">All Clients ({clients.length})</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.client_name}
-              </option>
-            ))}
-          </select>
-
-          {/* Rotation Toggle */}
-          <button
-            type="button"
-            onClick={() => setFilterRotationOnly((v) => !v)}
-            className={`h-9 px-3 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${
-              filterRotationOnly
-                ? "bg-amber-600 border-amber-600 text-white shadow-xs"
-                : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            <Clock className="h-3.5 w-3.5" />
-            <span>Rotation Due ({rotationDueCount})</span>
-          </button>
-        </div>
-
-        {/* View Switcher */}
-        <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-300 shrink-0 self-end md:self-auto">
-          <button
-            type="button"
-            onClick={() => setViewMode("cards")}
-            className={`p-1.5 rounded-lg text-xs font-bold transition-colors ${
-              viewMode === "cards" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-            }`}
-            title="Card Grid View"
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("table")}
-            className={`p-1.5 rounded-lg text-xs font-bold transition-colors ${
-              viewMode === "table" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-            }`}
-            title="Dense Table View"
-          >
-            <TableIcon className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* 5. CREDENTIALS LIST (GRID OR TABLE) */}
-      {filteredCredentials.length === 0 ? (
-        <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50/50 p-12 text-center space-y-3">
-          <div className="h-12 w-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mx-auto text-slate-400 shadow-xs">
-            <KeyRound className="h-6 w-6 text-purple-600" />
-          </div>
-          <div className="max-w-md mx-auto space-y-1">
-            <h3 className="text-base font-extrabold text-slate-900">No Credentials Found</h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              {search || selectedCategory !== "ALL" || selectedClientId !== "ALL" || filterRotationOnly
-                ? "No credentials match your active filters. Try clearing your search query or filters."
-                : "Store your practice & client portal logins securely with AES-256-GCM encryption."}
-            </p>
-          </div>
-          <Button
-            type="button"
-            onClick={handleOpenCreateModal}
-            size="sm"
-            className="bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-xl shadow-xs font-bold"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Store First Credential</span>
-          </Button>
-        </div>
-      ) : viewMode === "cards" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCredentials.map((cred) => {
-            const isVisible = Boolean(decryptedCache[cred.id]);
-            const plaintextPw = decryptedCache[cred.id]?.plaintext || "";
-            const isDue = isRotationDue(cred);
-            const daysSince = getDaysSinceRotation(cred);
-
-            return (
-              <Card
-                key={cred.id}
-                className="rounded-2xl border-slate-200 hover:border-purple-300 transition-all bg-white shadow-xs overflow-hidden flex flex-col justify-between"
-              >
-                <div className="p-4 space-y-3">
-                  {/* Top: Portal Name, Category & Quick Launch */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-extrabold text-sm text-[#111827] truncate" title={cred.portal_name}>
-                          {cred.portal_name}
-                        </h3>
-                        {cred.login_url && (
-                          <a
-                            href={cred.login_url.startsWith("http") ? cred.login_url : `https://${cred.login_url}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-slate-400 hover:text-purple-600 transition-colors shrink-0"
-                            title={`Open ${cred.portal_name}`}
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] bg-purple-50 text-purple-800 border-purple-200 font-bold px-2 py-0"
-                        >
-                          {cred.category}
-                        </Badge>
-                        {cred.client_name && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] bg-slate-50 text-slate-700 border-slate-200 truncate max-w-[140px]"
-                            title={cred.client_name}
-                          >
-                            <Building2 className="h-2.5 w-2.5 mr-1 text-emerald-600" />
-                            {cred.client_name}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    {isDue && (
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-lg shrink-0 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Rotation Due
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Username Box */}
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 flex items-center justify-between text-xs">
-                    <div className="min-w-0">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                        Username / User ID
-                      </span>
-                      <span className="font-mono font-bold text-slate-800 truncate block">
-                        {cred.username}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyUsername(cred)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors shrink-0"
-                      title="Copy Username"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Password Secure Box */}
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 flex items-center justify-between text-xs">
-                    <div className="min-w-0 flex-1 mr-2">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                        Password (AES-256-GCM)
-                      </span>
-                      <span className="font-mono font-bold text-slate-800 block truncate">
-                        {isVisible ? plaintextPw : "••••••••••••••••"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleReveal(cred)}
-                        disabled={decryptingId === cred.id}
-                        className="p-1.5 rounded-lg text-slate-600 hover:text-purple-700 hover:bg-purple-50 transition-colors"
-                        title={isVisible ? "Hide Password" : "View Password (30s auto-hide)"}
-                      >
-                        {isVisible ? <EyeOff className="h-3.5 w-3.5 text-purple-600" /> : <Eye className="h-3.5 w-3.5" />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyPassword(cred)}
-                        className="p-1.5 rounded-lg text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
-                        title="Copy Password"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Additional Metadata: Email, Mobile, Account Holder */}
-                  {(cred.registered_email || cred.registered_mobile || cred.account_holder_name) && (
-                    <div className="text-[11px] text-slate-500 space-y-1 pt-1 border-t border-slate-100">
-                      {cred.account_holder_name && (
-                        <div className="flex items-center gap-1.5 truncate">
-                          <User className="h-3 w-3 text-slate-400 shrink-0" />
-                          <span className="truncate">Holder: <strong className="text-slate-700">{cred.account_holder_name}</strong></span>
-                        </div>
-                      )}
-                      {cred.registered_email && (
-                        <div className="flex items-center gap-1.5 truncate">
-                          <Mail className="h-3 w-3 text-slate-400 shrink-0" />
-                          <span className="truncate font-mono">{cred.registered_email}</span>
-                        </div>
-                      )}
-                      {cred.registered_mobile && (
-                        <div className="flex items-center gap-1.5 truncate">
-                          <Phone className="h-3 w-3 text-slate-400 shrink-0" />
-                          <span className="font-mono">{cred.registered_mobile}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Notes & Security Instruction */}
-                  {cred.notes && (
-                    <p className="text-[11px] text-slate-600 italic bg-slate-50 rounded-lg p-2 border border-slate-200/60 line-clamp-2">
-                      &ldquo;{cred.notes}&rdquo;
-                    </p>
-                  )}
-                </div>
-
-                {/* Card Footer: Rotation Age & Actions */}
-                <div className="px-4 py-2.5 bg-slate-50/70 border-t border-slate-200 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 flex items-center gap-1">
-                    <Clock className="h-3 w-3 text-slate-400" />
-                    <span>Changed {daysSince}d ago</span>
-                  </span>
-
-                  <div className="flex items-center gap-1">
-                    {cred.password_history && cred.password_history.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setHistoryTargetCred(cred);
-                          setIsHistoryModalOpen(true);
-                        }}
-                        className="p-1 rounded-md text-slate-500 hover:text-blue-600 hover:bg-white text-[10px] font-bold flex items-center gap-1 px-1.5 border border-slate-200"
-                        title="View Password History"
-                      >
-                        <History className="h-3 w-3" />
-                        <span>{cred.password_history.length}</span>
-                      </button>
-                    )}
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenEditModal(cred)}
-                      className="h-7 w-7 p-0 rounded-lg text-slate-600 hover:text-slate-900"
-                      title="Edit Credential"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-
-                    {isAdmin && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteCredential(cred)}
-                        className="h-7 w-7 p-0 rounded-lg text-rose-600 hover:bg-rose-50"
-                        title="Move to Recycle Bin"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      ) : (
-        /* STRUCTURED DENSE TABLE VIEW */
-        <div className="rounded-2xl border border-slate-300 bg-white overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 text-slate-600 font-extrabold uppercase tracking-wider text-[10px] border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Portal / Application</th>
-                  <th className="py-3 px-4">Client</th>
-                  <th className="py-3 px-4">Username</th>
-                  <th className="py-3 px-4">Password</th>
-                  <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4">Last Changed</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredCredentials.map((cred) => {
-                  const isVisible = Boolean(decryptedCache[cred.id]);
-                  const plaintextPw = decryptedCache[cred.id]?.plaintext || "";
-                  const isDue = isRotationDue(cred);
-
-                  return (
-                    <tr key={cred.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-slate-900">{cred.portal_name}</span>
-                          {cred.login_url && (
-                            <a
-                              href={cred.login_url.startsWith("http") ? cred.login_url : `https://${cred.login_url}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-slate-400 hover:text-purple-600"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
-                        {cred.account_holder_name && (
-                          <span className="text-[10px] text-slate-500 block">Holder: {cred.account_holder_name}</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        {cred.client_name ? (
-                          <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700">
-                            {cred.client_name}
-                          </Badge>
-                        ) : (
-                          <span className="text-slate-400 italic">Firm Internal</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800">
-                          <span>{cred.username}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyUsername(cred)}
-                            className="text-slate-400 hover:text-slate-700"
-                            title="Copy Username"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5 font-mono">
-                          <span className="font-bold text-slate-800">
-                            {isVisible ? plaintextPw : "••••••••••••"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleReveal(cred)}
-                            className="p-1 rounded text-slate-500 hover:text-purple-700"
-                            title={isVisible ? "Hide" : "View"}
-                          >
-                            {isVisible ? <EyeOff className="h-3 w-3 text-purple-600" /> : <Eye className="h-3 w-3" />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyPassword(cred)}
-                            className="p-1 rounded text-slate-500 hover:text-emerald-700"
-                            title="Copy Password"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant="secondary" className="text-[10px] bg-purple-50 text-purple-800 border-purple-200">
-                          {cred.category}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-slate-600">{formatDate(cred.last_password_changed_at || cred.created_at)}</span>
-                          {isDue && (
-                            <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                              Due
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenEditModal(cred)}
-                            className="h-7 w-7 p-0"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          {isAdmin && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteCredential(cred)}
-                              className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-50"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
+                <Clock className="h-3 w-3" />
+                <span>Rotation Due ({rotationDueCount})</span>
+              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportVault}
+                  className="h-8 text-xs rounded-xl gap-1"
+                >
+                  <Download className="h-3 w-3" />
+                  <span>Export</span>
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-600">
+                <thead className="bg-slate-50 text-[11px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">Portal / URL</th>
+                    <th className="py-3 px-4">Client</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Username</th>
+                    <th className="py-3 px-4">Password</th>
+                    <th className="py-3 px-4">Rotation</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {allFilteredCredentials.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        No credentials matching your search filter.
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+                  ) : (
+                    allFilteredCredentials.map((cred) => {
+                      const isRevealed = Boolean(decryptedCache[cred.id]);
+                      const rotationDays = getDaysSinceRotation(cred);
+                      const isDue = isRotationDue(cred);
 
-      {/* ========================================================================= */}
-      {/* MODAL 1: ADD / EDIT CREDENTIAL                                            */}
-      {/* ========================================================================= */}
-      <Dialog open={isFormModalOpen} onOpenChange={setIsFormModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto rounded-3xl border-slate-300 p-6">
-          <DialogHeader className="pb-3 border-b border-slate-200">
-            <div className="flex items-center gap-2 text-purple-700">
-              <KeyRound className="h-5 w-5" />
-              <DialogTitle className="text-lg font-extrabold text-[#111827]">
-                {editingCred ? `Edit Credential — ${editingCred.portal_name}` : "Store New Portal Login"}
-              </DialogTitle>
+                      return (
+                        <tr key={cred.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-slate-900">{cred.portal_name}</div>
+                            {cred.login_url && (
+                              <a
+                                href={cred.login_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 mt-0.5"
+                              >
+                                <span>{cred.login_url.replace(/^https?:\/\//, "").slice(0, 30)}</span>
+                                <ExternalLink className="h-2.5 w-2.5" />
+                              </a>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-medium text-slate-900">{cred.client_name || "—"}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant="outline" className="text-[10px]">
+                              {cred.category}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-medium text-slate-800">{cred.username}</span>
+                              <button
+                                onClick={() => handleCopyUsername(cred)}
+                                className="text-slate-400 hover:text-slate-700 p-1"
+                                title="Copy username"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs text-slate-900">
+                                {isRevealed ? decryptedCache[cred.id]?.plaintext : "••••••••••••"}
+                              </span>
+                              <button
+                                onClick={() => handleToggleReveal(cred)}
+                                className="text-slate-400 hover:text-slate-700 p-1"
+                                title={isRevealed ? "Hide password" : "Show password (30s)"}
+                              >
+                                {isRevealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                              </button>
+                              <button
+                                onClick={() => handleCopyPassword(cred)}
+                                className="text-slate-400 hover:text-slate-700 p-1"
+                                title="Copy password"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge
+                              className={`text-[10px] ${
+                                isDue
+                                  ? "bg-amber-100 text-amber-800 border-amber-300"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {rotationDays}d ago
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {cred.password_history && cred.password_history.length > 0 && (
+                                <button
+                                  onClick={() => {
+                                    setHistoryTargetCred(cred);
+                                    setIsHistoryModalOpen(true);
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-100"
+                                  title="Password History"
+                                >
+                                  <History className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenEditModal(cred)}
+                                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
+                                title="Edit"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleDeleteCredential(cred)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
-            <DialogDescription className="text-xs text-slate-500">
-              Passwords are encrypted client-side with AES-256-GCM before database storage.
-            </DialogDescription>
-          </DialogHeader>
+          </CardContent>
+        </Card>
+      ) : (
+        /* ===================================================================== */
+        /* VIEW 2: CATEGORY & CLIENT 2-LEVEL DRILLDOWN */
+        /* ===================================================================== */
+        <div className="space-y-6">
+          {/* LEVEL 1: ALL CATEGORIES VIEW */}
+          {!selectedCategoryId && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    type="search"
+                    placeholder="Search categories by name, code, description..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 h-9 text-xs rounded-2xl border-slate-300"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 font-medium">
+                    Select a category to view its clients and credentials
+                  </span>
+                </div>
+              </div>
 
-          {/* Quick Portal Preset Chips */}
-          {!editingCred && (
-            <div className="py-2 border-b border-slate-100 space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 block">Quick Portal Presets:</span>
-              <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
-                {PORTAL_PRESETS.map((preset) => (
-                  <button
-                    key={preset.name}
-                    type="button"
-                    onClick={() => {
-                      setFormPortalName(preset.name);
-                      setFormLoginUrl(preset.url);
-                      setFormCategory(preset.category);
-                    }}
-                    className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-purple-100 hover:text-purple-800 text-[11px] font-semibold text-slate-700 transition-colors"
-                  >
-                    + {preset.name}
-                  </button>
-                ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {categories
+                  .filter((cat) => {
+                    if (!search.trim()) return true;
+                    const q = search.trim().toLowerCase();
+                    return (
+                      cat.name.toLowerCase().includes(q) ||
+                      cat.code.toLowerCase().includes(q) ||
+                      (cat.description && cat.description.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((cat) => {
+                    const theme = getCategoryColorTheme(cat.color);
+                    const IconComponent = getCategoryIcon(cat.icon || cat.name);
+
+                    // Count credentials & clients in this category
+                    const credsInCat = credentials.filter((c) => isCredInCategory(c, cat));
+                    const clientCount = new Set(credsInCat.map((c) => c.client_name || c.client_id).filter(Boolean)).size;
+                    const rotationDueInCat = credsInCat.filter((c) => isRotationDue(c)).length;
+
+                    return (
+                      <div
+                        key={cat.id}
+                        onClick={() => {
+                          setSelectedCategoryId(cat.id);
+                          setSelectedClientKey(null);
+                        }}
+                        className={`rounded-2xl border-[1.5px] border-slate-200 bg-white p-5 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between group ${theme.border}`}
+                      >
+                        <div>
+                          {/* Top Row: Icon, Code Badge, Actions */}
+                          <div className="flex items-start justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className={`h-10 w-10 rounded-2xl flex items-center justify-center font-bold ${theme.iconBg}`}>
+                                <IconComponent className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <Badge variant="outline" className={`text-[10px] font-mono font-bold ${theme.badge}`}>
+                                  {cat.code}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            {/* Custom Category Edit / Delete Actions */}
+                            {isAdmin && !cat.is_system && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => handleOpenEditCategoryModal(cat, e)}
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                                  title="Edit category"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={(e) => handleDeleteCategory(cat, e)}
+                                  className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                  title="Delete category"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Category Title & Description */}
+                          <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                            {cat.name}
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                            {cat.description || "Secure portals and client logins"}
+                          </p>
+                        </div>
+
+                        {/* Bottom Stats Footer */}
+                        <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-slate-700">
+                              {clientCount} {clientCount === 1 ? "Client" : "Clients"}
+                            </span>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-slate-500 font-medium">
+                              {credsInCat.length} {credsInCat.length === 1 ? "Login" : "Logins"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all">
+                            {rotationDueInCat > 0 && (
+                              <Badge className="bg-amber-100 text-amber-800 text-[10px] mr-1">
+                                {rotationDueInCat} due
+                              </Badge>
+                            )}
+                            <ChevronRight className="h-4 w-4" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}
 
-          <form onSubmit={handleSaveCredential} className="space-y-4 pt-2 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Portal / Application Name */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">
-                  Portal / Application Name <span className="text-rose-500">*</span>
-                </label>
-                <Input
-                  required
-                  placeholder="e.g. GST Portal, Income Tax, MCA21"
-                  value={formPortalName}
-                  onChange={(e) => setFormPortalName(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300"
-                />
-              </div>
-
-              {/* Login URL */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Login URL</label>
-                <Input
-                  placeholder="https://services.gst.gov.in/services/login"
-                  value={formLoginUrl}
-                  onChange={(e) => setFormLoginUrl(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300 font-mono text-[11px]"
-                />
-              </div>
-
-              {/* Category */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Category</label>
-                <select
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value as VaultCategory)}
-                  className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2.5 font-semibold text-slate-800"
-                >
-                  {VAULT_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Related Client or Company */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Related Client or Company</label>
-                <select
-                  value={formClientId}
-                  onChange={(e) => setFormClientId(e.target.value)}
-                  className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2.5 font-semibold text-slate-800"
-                >
-                  <option value="">-- Internal Firm / Generic Login --</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.client_name} ({c.client_code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Username / User ID */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">
-                  Username / User ID <span className="text-rose-500">*</span>
-                </label>
-                <Input
-                  required
-                  placeholder="e.g. 27AAAAA0000A1Z5, admin_firm"
-                  value={formUsername}
-                  onChange={(e) => setFormUsername(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300 font-mono font-bold"
-                />
-              </div>
-
-              {/* Password & Generator */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-700">
-                    Password <span className="text-rose-500">*</span>
-                  </label>
-                  <button
-                    type="button"
+          {/* LEVEL 2: CLIENTS INSIDE SELECTED CATEGORY VIEW */}
+          {selectedCategoryId && !selectedClientKey && currentCategory && (
+            <div className="space-y-5">
+              {/* Breadcrumb Navigation Bar */}
+              <div className="flex items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
-                      const pw = generateStrongPassword({ length: 16 });
-                      setFormPasswordPlaintext(pw);
-                      setFormShowPassword(true);
-                      toast.info("Generated high-entropy secure password!");
+                      setSelectedCategoryId(null);
+                      setSelectedClientKey(null);
                     }}
-                    className="text-[10px] font-bold text-purple-700 hover:underline flex items-center gap-1"
+                    className="h-8 px-2 text-slate-600 hover:text-slate-900 gap-1 rounded-xl"
                   >
-                    <Sparkles className="h-3 w-3" />
-                    <span>Generate Strong</span>
-                  </button>
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    <span>Back to Categories</span>
+                  </Button>
+                  <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-blue-600" />
+                    {currentCategory.name} ({currentCategory.code})
+                  </span>
                 </div>
-                <div className="relative">
-                  <Input
-                    required
-                    type={formShowPassword ? "text" : "password"}
-                    value={formPasswordPlaintext}
-                    onChange={(e) => setFormPasswordPlaintext(e.target.value)}
-                    placeholder="Enter or generate strong password"
-                    className="h-9 rounded-xl border-slate-300 pr-9 font-mono font-bold"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setFormShowPassword((v) => !v)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={handleOpenAddClientModal}
+                    size="sm"
+                    className="bg-neutral-900 hover:bg-black text-white rounded-xl gap-1.5 text-xs font-bold"
                   >
-                    {formShowPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>+ Add Client to Category</span>
+                  </Button>
                 </div>
-                {formPasswordPlaintext && (
-                  <div className="flex items-center justify-between text-[10px] pt-0.5">
-                    <span className="text-slate-500">Strength:</span>
-                    <span className={`px-1.5 py-0.5 rounded font-bold ${formPwStrength.color}`}>
-                      {formPwStrength.label} ({formPwStrength.score}%)
+              </div>
+
+              {/* Category Header Banner */}
+              <div className="rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-white p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs bg-white/10 text-white border-white/20">
+                      {currentCategory.code}
+                    </Badge>
+                    <h2 className="text-xl font-bold">{currentCategory.name}</h2>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                    {currentCategory.description || "Manage all client credentials stored under this category."}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4 bg-white/10 px-4 py-2.5 rounded-xl border border-white/10 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Clients</span>
+                    <span className="text-base font-bold text-white">{clientsInCategory.length}</span>
+                  </div>
+                  <div className="h-7 w-[1px] bg-white/20" />
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Total Logins</span>
+                    <span className="text-base font-bold text-white">
+                      {credentials.filter((c) => isCredInCategory(c, currentCategory)).length}
                     </span>
                   </div>
-                )}
+                </div>
               </div>
 
-              {/* Account Holder Name */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Account Holder Name</label>
-                <Input
-                  placeholder="e.g. Rohit Sharma / ABC Corp"
-                  value={formAccountHolder}
-                  onChange={(e) => setFormAccountHolder(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300"
-                />
-              </div>
-
-              {/* Rotation Reminder Frequency */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Rotation Reminder (Days)</label>
-                <select
-                  value={formRotationDays}
-                  onChange={(e) => setFormRotationDays(Number(e.target.value))}
-                  className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2.5 font-semibold text-slate-800"
-                >
-                  <option value={30}>Every 30 Days (High Security)</option>
-                  <option value={60}>Every 60 Days</option>
-                  <option value={90}>Every 90 Days (Standard Recommended)</option>
-                  <option value={180}>Every 180 Days</option>
-                  <option value={365}>Annual (365 Days)</option>
-                </select>
-              </div>
-
-              {/* Registered Email */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Registered Email</label>
-                <Input
-                  type="email"
-                  placeholder="accounts@clientcompany.com"
-                  value={formRegEmail}
-                  onChange={(e) => setFormRegEmail(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300 font-mono text-[11px]"
-                />
-              </div>
-
-              {/* Registered Mobile Number */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Registered Mobile Number</label>
-                <Input
-                  placeholder="+91 98000 00000"
-                  value={formRegMobile}
-                  onChange={(e) => setFormRegMobile(e.target.value)}
-                  className="h-9 rounded-xl border-slate-300 font-mono text-[11px]"
-                />
-              </div>
-            </div>
-
-            {/* Assigned Employees (Role-based access limitation) */}
-            <div className="space-y-1.5 pt-1">
-              <div className="flex items-center justify-between">
-                <label className="font-bold text-slate-700 text-xs flex items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5 text-purple-600" />
-                  <span>Assign Employee Access</span>
-                </label>
-                <span className="text-[10px] text-slate-400 font-normal">
-                  Leave empty to allow all authorized team members
+              {/* Search Clients Bar */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    type="search"
+                    placeholder={`Search clients in ${currentCategory.name}...`}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 h-9 text-xs rounded-2xl border-slate-300"
+                  />
+                </div>
+                <span className="text-xs text-slate-500 font-medium">
+                  {clientsInCategory.length} {clientsInCategory.length === 1 ? "Client" : "Clients"} found
                 </span>
               </div>
-              <EmployeeMultiSelect
-                employees={employees}
-                selectedEmployeeIds={formAssignedEmpIds}
-                onChange={(selectedIds) => setFormAssignedEmpIds(selectedIds)}
-                label=""
-                placeholder="Search employees by name, designation, or code..."
+
+              {/* Clients Grid in Category */}
+              {clientsInCategory.length === 0 ? (
+                <Card className="rounded-2xl border-slate-200 shadow-xs">
+                  <CardContent className="py-16 text-center space-y-3">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                      <Building2 className="h-6 w-6" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-900">No clients added to {currentCategory.name} yet</p>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Click below to add a registered client or create a new client inside this category.
+                    </p>
+                    <div className="pt-2">
+                      <Button
+                        onClick={handleOpenAddClientModal}
+                        size="sm"
+                        className="bg-neutral-900 hover:bg-black text-white rounded-xl gap-1.5 text-xs font-bold"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Add First Client</span>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {clientsInCategory.map((cl) => (
+                    <div
+                      key={cl.key}
+                      onClick={() => setSelectedClientKey(cl.key)}
+                      className="rounded-2xl border-[1.5px] border-slate-200 bg-white p-5 shadow-xs hover:border-slate-800 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between group"
+                    >
+                      <div>
+                        {/* Top Row: Client Code / Status */}
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {cl.client_code && (
+                              <span className="font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded text-[10px]">
+                                {cl.client_code}
+                              </span>
+                            )}
+                            {cl.folder_name && (
+                              <span className="font-mono text-slate-600 text-[10px] bg-slate-100 px-2 py-0.5 rounded">
+                                {cl.folder_name}
+                              </span>
+                            )}
+                          </div>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {cl.credentials.length} {cl.credentials.length === 1 ? "login" : "logins"}
+                          </Badge>
+                        </div>
+
+                        {/* Client Name */}
+                        <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug line-clamp-2">
+                          {cl.client_name}
+                        </h4>
+
+                        {/* Portals Previews */}
+                        <div className="mt-3 flex flex-wrap gap-1">
+                          {cl.portals.length === 0 ? (
+                            <span className="text-[11px] text-slate-400 italic">No logins added yet</span>
+                          ) : (
+                            cl.portals.slice(0, 3).map((p, idx) => (
+                              <span
+                                key={idx}
+                                className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium truncate max-w-[150px]"
+                              >
+                                {p}
+                              </span>
+                            ))
+                          )}
+                          {cl.portals.length > 3 && (
+                            <span className="text-[10px] text-slate-400 px-1 py-0.5 font-medium">
+                              +{cl.portals.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom Footer */}
+                      <div className="pt-3 mt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+                        {cl.hasRotationDue ? (
+                          <span className="text-[10px] font-semibold text-amber-600 flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> Rotation Due
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Secure
+                          </span>
+                        )}
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenCreateModal(cl.client_id, cl.client_name);
+                            }}
+                            className="p-1 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-md"
+                            title="Add Login for this client"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                          <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* LEVEL 3: CREDENTIALS FOR SELECTED CLIENT IN CATEGORY */}
+          {selectedCategoryId && selectedClientKey && currentCategory && currentClient && (
+            <div className="space-y-5">
+              {/* Breadcrumb Navigation Bar */}
+              <div className="flex items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedClientKey(null)}
+                    className="h-8 px-2 text-slate-600 hover:text-slate-900 gap-1 rounded-xl"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    <span>Back to {currentCategory.name}</span>
+                  </Button>
+                  <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                  <span className="text-slate-500">{currentCategory.name}</span>
+                  <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                  <span className="font-bold text-slate-900">{currentClient.client_name}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => handleOpenCreateModal(currentClient.client_id, currentClient.client_name)}
+                    size="sm"
+                    className="bg-neutral-900 hover:bg-black text-white rounded-xl gap-1.5 text-xs font-bold"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Login for {currentClient.client_name}</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Client Info Banner */}
+              <Card className="rounded-2xl border-slate-200 shadow-xs">
+                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-extrabold text-slate-900">{currentClient.client_name}</h2>
+                      {currentClient.client_code && (
+                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+                          {currentClient.client_code}
+                        </span>
+                      )}
+                      {currentClient.folder_name && (
+                        <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                          📁 {currentClient.folder_name}
+                        </span>
+                      )}
+                      <Badge variant="outline" className="text-xs">
+                        {currentCategory.name}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Credentials and secure portal logins under {currentCategory.name}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1 sm:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                      <Input
+                        type="search"
+                        placeholder="Search logins..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-9 h-8 text-xs rounded-xl"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Credentials Cards List */}
+              {clientCredentials.length === 0 ? (
+                <Card className="rounded-2xl border-slate-200 shadow-xs">
+                  <CardContent className="py-14 text-center space-y-3">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                      <KeyRound className="h-6 w-6" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-900">No credentials stored yet</p>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Add login credentials (portal URL, username, password) for {currentClient.client_name} under {currentCategory.name}.
+                    </p>
+                    <div className="pt-2">
+                      <Button
+                        onClick={() => handleOpenCreateModal(currentClient.client_id, currentClient.client_name)}
+                        size="sm"
+                        className="bg-neutral-900 hover:bg-black text-white rounded-xl gap-1.5 text-xs font-bold"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Add First Login</span>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {clientCredentials.map((cred) => {
+                    const isRevealed = Boolean(decryptedCache[cred.id]);
+                    const rotationDays = getDaysSinceRotation(cred);
+                    const isDue = isRotationDue(cred);
+
+                    return (
+                      <Card
+                        key={cred.id}
+                        className={`rounded-2xl border-[1.5px] bg-white shadow-xs transition-all ${
+                          isDue ? "border-amber-300" : "border-slate-200 hover:border-slate-400"
+                        }`}
+                      >
+                        <CardHeader className="p-4 pb-2 border-b border-slate-100 flex flex-row items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold text-sm text-slate-900 truncate">{cred.portal_name}</h4>
+                            {cred.login_url && (
+                              <a
+                                href={cred.login_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 mt-0.5 truncate"
+                              >
+                                <span className="truncate">{cred.login_url.replace(/^https?:\/\//, "")}</span>
+                                <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                              </a>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {cred.password_history && cred.password_history.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  setHistoryTargetCred(cred);
+                                  setIsHistoryModalOpen(true);
+                                }}
+                                className="p-1 text-slate-400 hover:text-blue-600 rounded-md hover:bg-slate-100"
+                                title="Password History"
+                              >
+                                <History className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleOpenEditModal(cred)}
+                              className="p-1 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100"
+                              title="Edit"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDeleteCredential(cred)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="p-4 space-y-3">
+                          {/* Username */}
+                          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                            <div className="min-w-0 flex-1 mr-2">
+                              <span className="text-[10px] text-slate-400 block font-semibold">Username / User ID</span>
+                              <span className="font-mono font-bold text-slate-900 truncate block mt-0.5">
+                                {cred.username}
+                              </span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCopyUsername(cred)}
+                              className="h-7 px-2 text-xs rounded-lg gap-1 border-slate-300"
+                            >
+                              <Copy className="h-3 w-3" />
+                              <span>Copy</span>
+                            </Button>
+                          </div>
+
+                          {/* Password */}
+                          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                            <div className="min-w-0 flex-1 mr-2">
+                              <span className="text-[10px] text-slate-400 block font-semibold">Password</span>
+                              <span className="font-mono font-bold text-slate-900 truncate block mt-0.5">
+                                {isRevealed ? decryptedCache[cred.id]?.plaintext : "••••••••••••"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleToggleReveal(cred)}
+                                className="h-7 w-7 p-0 rounded-lg border-slate-300 text-slate-600"
+                                title={isRevealed ? "Hide" : "Reveal (30s)"}
+                              >
+                                {isRevealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCopyPassword(cred)}
+                                className="h-7 px-2 text-xs rounded-lg gap-1 border-slate-300"
+                              >
+                                <Copy className="h-3 w-3" />
+                                <span>Copy</span>
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Extra info (email, mobile, rotation) */}
+                          <div className="space-y-1 text-[11px] text-slate-500 pt-1">
+                            {cred.registered_email && (
+                              <div className="flex items-center gap-1.5 truncate">
+                                <Mail className="h-3 w-3 text-slate-400 shrink-0" />
+                                <span className="truncate">{cred.registered_email}</span>
+                              </div>
+                            )}
+                            {cred.registered_mobile && (
+                              <div className="flex items-center gap-1.5 truncate">
+                                <Phone className="h-3 w-3 text-slate-400 shrink-0" />
+                                <span className="truncate">{cred.registered_mobile}</span>
+                              </div>
+                            )}
+                            {cred.notes && (
+                              <p className="text-[11px] text-slate-500 italic mt-1 line-clamp-2">
+                                &quot;{cred.notes}&quot;
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Footer: Rotation Status */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400">
+                              Changed {formatDate(cred.last_password_changed_at)}
+                            </span>
+                            {isDue ? (
+                              <Badge className="bg-amber-100 text-amber-800 text-[10px] font-semibold border-amber-300">
+                                Rotation Due ({rotationDays}d)
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {rotationDays}d old
+                              </Badge>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL: CREATE / EDIT CATEGORY */}
+      {/* ===================================================================== */}
+      <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">
+              {editingCategory ? "Edit Category" : "Create New Vault Category"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Categories help group client credentials by practice area, regulatory authority, or domain.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveCategory} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">Category Name *</label>
+              <Input
+                placeholder="e.g. Real Estate & RERA, Audit Portals"
+                value={catName}
+                onChange={(e) => setCatName(e.target.value)}
+                required
+                className="text-xs"
               />
             </div>
 
-            {/* Notes & Special Instructions */}
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Notes / Security Instructions</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">Category Code (Short)</label>
+              <Input
+                placeholder="e.g. RERA, AUD"
+                value={catCode}
+                onChange={(e) => setCatCode(e.target.value.toUpperCase())}
+                maxLength={6}
+                className="font-mono text-xs uppercase"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">Description</label>
               <Textarea
-                placeholder="e.g. Security question hint, secondary auth steps. (Do NOT enter OTPs here)"
-                value={formNotes}
-                onChange={(e) => setFormNotes(e.target.value)}
-                className="rounded-xl border-slate-300 text-xs min-h-[60px]"
+                placeholder="Brief summary of portals and credentials under this category..."
+                value={catDesc}
+                onChange={(e) => setCatDesc(e.target.value)}
+                className="text-xs min-h-[60px]"
               />
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-slate-200">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsFormModalOpen(false)}
-                className="rounded-xl border-slate-300 text-xs font-bold h-9"
-              >
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">Color Theme</label>
+              <div className="flex flex-wrap gap-2">
+                {["violet", "sky", "emerald", "amber", "rose", "indigo", "slate"].map((col) => (
+                  <button
+                    key={col}
+                    type="button"
+                    onClick={() => setCatColor(col)}
+                    className={`h-7 px-3 rounded-lg text-xs font-bold capitalize transition-all border ${
+                      catColor === col ? "border-slate-900 shadow-xs ring-1 ring-slate-900" : "border-slate-200"
+                    }`}
+                  >
+                    {col}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsCategoryModalOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={isSaving}
-                className="rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold h-9 gap-1.5"
-              >
-                <ShieldCheck className="h-4 w-4" />
-                <span>{isSaving ? "Encrypting & Storing..." : editingCred ? "Update Credential" : "Encrypt & Store"}</span>
+              <Button type="submit" className="bg-neutral-900 text-white">
+                {editingCategory ? "Save Changes" : "Create Category"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* ========================================================================= */}
-      {/* MODAL 2: STANDALONE PASSWORD GENERATOR TOOL                               */}
-      {/* ========================================================================= */}
-      <Dialog open={isGeneratorModalOpen} onOpenChange={setIsGeneratorModalOpen}>
-        <DialogContent className="max-w-md rounded-3xl border-slate-300 p-6">
-          <DialogHeader className="pb-2 border-b border-slate-200">
-            <div className="flex items-center gap-2 text-purple-700">
-              <Sparkles className="h-5 w-5" />
-              <DialogTitle className="text-base font-extrabold text-[#111827]">
-                Strong Password Generator
-              </DialogTitle>
+      {/* ===================================================================== */}
+      {/* MODAL: ADD CLIENT TO CATEGORY */}
+      {/* ===================================================================== */}
+      <Dialog open={isAddClientModalOpen} onOpenChange={setIsAddClientModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">
+              Add Client to {currentCategory?.name}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Select an existing client or enter a new client directly inside this category.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveClientToCategory} className="space-y-4 py-2">
+            {/* Mode Toggle Tabs */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setClientAddMode("existing")}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  clientAddMode === "existing" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                Choose Existing Client
+              </button>
+              <button
+                type="button"
+                onClick={() => setClientAddMode("new")}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  clientAddMode === "new" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                Create New Client Directly
+              </button>
             </div>
-            <DialogDescription className="text-xs text-slate-500">
-              Generate non-ambiguous, high-entropy cryptographic passwords.
+
+            {clientAddMode === "existing" ? (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">Select Client *</label>
+                <select
+                  value={selectedExistingClientId}
+                  onChange={(e) => setSelectedExistingClientId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                  required
+                >
+                  <option value="">Select a registered client...</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.client_name} ({c.client_code}) {c.folder_name ? `• ${c.folder_name}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Client Name *</label>
+                  <Input
+                    placeholder="e.g. Zenith Tech Solutions Pvt Ltd"
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    required={clientAddMode === "new"}
+                    className="text-xs"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700">Nick Name (Short)</label>
+                    <Input
+                      placeholder="e.g. Zenith"
+                      value={newClientNickName}
+                      onChange={(e) => setNewClientNickName(e.target.value)}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700">Folder Name (Optional)</label>
+                    <Input
+                      placeholder="Auto-generated if blank"
+                      value={newClientFolderName}
+                      onChange={(e) => setNewClientFolderName(e.target.value)}
+                      className="text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Optional Initial Credential Section */}
+            <div className="pt-3 border-t border-slate-100 space-y-3">
+              <span className="text-xs font-bold text-slate-800 block">
+                Initial Login Credential (Optional)
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600">Portal Name</label>
+                  <Input
+                    list="vault-portal-presets"
+                    placeholder="e.g. GST Portal, Income Tax"
+                    value={addClientPortal}
+                    onChange={(e) => {
+                      setAddClientPortal(e.target.value);
+                      const match = PORTAL_PRESETS.find((p) => p.name.toLowerCase() === e.target.value.toLowerCase());
+                      if (match) setAddClientUrl(match.url);
+                    }}
+                    className="text-xs h-8"
+                  />
+                  <datalist id="vault-portal-presets">
+                    {PORTAL_PRESETS.map((p, idx) => (
+                      <option key={idx} value={p.name} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600">Login URL</label>
+                  <Input
+                    placeholder="https://..."
+                    value={addClientUrl}
+                    onChange={(e) => setAddClientUrl(e.target.value)}
+                    className="text-xs h-8"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600">Username / User ID</label>
+                  <Input
+                    placeholder="e.g. 07AAACH1234F1Z5"
+                    value={addClientUsername}
+                    onChange={(e) => setAddClientUsername(e.target.value)}
+                    className="text-xs h-8 font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600">Password</label>
+                  <Input
+                    placeholder="Auto-generated strong password"
+                    value={addClientPassword}
+                    onChange={(e) => setAddClientPassword(e.target.value)}
+                    className="text-xs h-8 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsAddClientModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-neutral-900 text-white">
+                Confirm & Add Client
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===================================================================== */}
+      {/* MODAL: CREATE / EDIT CREDENTIAL */}
+      {/* ===================================================================== */}
+      <Dialog open={isFormModalOpen} onOpenChange={setIsFormModalOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">
+              {editingCred ? "Edit Vault Credential" : "Store New Portal Credential"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              All passwords are encrypted with military-grade AES-256-GCM before saving to Supabase.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveCredential} className="space-y-4 py-2 text-xs">
+            {/* Category Selection */}
+            <div className="space-y-1.5">
+              <label className="font-semibold text-slate-700">Category *</label>
+              <select
+                value={formCategory}
+                onChange={(e) => setFormCategory(e.target.value)}
+                className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                required
+              >
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name} ({cat.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Client Selection */}
+            <div className="space-y-1.5">
+              <label className="font-semibold text-slate-700">Client</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <select
+                  value={formClientId}
+                  onChange={(e) => {
+                    setFormClientId(e.target.value);
+                    if (e.target.value) setFormCustomClientName("");
+                  }}
+                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                >
+                  <option value="">Choose registered client...</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.client_name} ({c.client_code})
+                    </option>
+                  ))}
+                </select>
+
+                <Input
+                  placeholder="Or type custom client name..."
+                  value={formCustomClientName}
+                  onChange={(e) => {
+                    setFormCustomClientName(e.target.value);
+                    if (e.target.value) setFormClientId("");
+                  }}
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Portal Name & URL */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700">Portal / Application Name *</label>
+                <Input
+                  list="portal-name-presets"
+                  placeholder="e.g. GST Portal"
+                  value={formPortalName}
+                  onChange={(e) => {
+                    setFormPortalName(e.target.value);
+                    const match = PORTAL_PRESETS.find((p) => p.name.toLowerCase() === e.target.value.toLowerCase());
+                    if (match) {
+                      setFormLoginUrl(match.url);
+                    }
+                  }}
+                  required
+                  className="text-xs h-9"
+                />
+                <datalist id="portal-name-presets">
+                  {PORTAL_PRESETS.map((p, idx) => (
+                    <option key={idx} value={p.name} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700">Login URL</label>
+                <Input
+                  placeholder="https://services.gst.gov.in/..."
+                  value={formLoginUrl}
+                  onChange={(e) => setFormLoginUrl(e.target.value)}
+                  className="text-xs h-9"
+                />
+              </div>
+            </div>
+
+            {/* Username & Password */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700">Username / User ID *</label>
+                <Input
+                  placeholder="e.g. 07AAAAA0000A1Z5"
+                  value={formUsername}
+                  onChange={(e) => setFormUsername(e.target.value)}
+                  required
+                  className="font-mono text-xs h-9"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-700">Password *</label>
+                  <button
+                    type="button"
+                    onClick={() => setFormPasswordPlaintext(generateStrongPassword({ length: 16 }))}
+                    className="text-[10px] text-blue-600 font-bold hover:underline"
+                  >
+                    Generate Strong
+                  </button>
+                </div>
+                <div className="relative">
+                  <Input
+                    type={formShowPassword ? "text" : "password"}
+                    placeholder="Enter password"
+                    value={formPasswordPlaintext}
+                    onChange={(e) => setFormPasswordPlaintext(e.target.value)}
+                    required
+                    className="font-mono text-xs h-9 pr-9"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormShowPassword(!formShowPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {formShowPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Registered Email & Mobile */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700">Registered Email</label>
+                <Input
+                  type="email"
+                  placeholder="director@acme.com"
+                  value={formRegEmail}
+                  onChange={(e) => setFormRegEmail(e.target.value)}
+                  className="text-xs h-9"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700">Registered Mobile (OTP)</label>
+                <Input
+                  placeholder="+91 98765 43210"
+                  value={formRegMobile}
+                  onChange={(e) => setFormRegMobile(e.target.value)}
+                  className="text-xs h-9"
+                />
+              </div>
+            </div>
+
+            {/* Rotation Reminder Days */}
+            <div className="space-y-1.5">
+              <label className="font-semibold text-slate-700">Password Rotation Reminder</label>
+              <select
+                value={formRotationDays}
+                onChange={(e) => setFormRotationDays(Number(e.target.value))}
+                className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+              >
+                <option value={30}>Every 30 Days (High Security / Banking)</option>
+                <option value={60}>Every 60 Days</option>
+                <option value={90}>Every 90 Days (Standard MCA / Tax)</option>
+                <option value={180}>Every 180 Days</option>
+                <option value={365}>Annual (365 Days)</option>
+              </select>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <label className="font-semibold text-slate-700">Internal Security Notes & Instructions</label>
+              <Textarea
+                placeholder="Security questions, OTP forwarding instructions, backup codes..."
+                value={formNotes}
+                onChange={(e) => setFormNotes(e.target.value)}
+                className="text-xs min-h-[60px]"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsFormModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSaving} className="bg-neutral-900 text-white">
+                {isSaving ? "Encrypting & Storing..." : editingCred ? "Update Credential" : "Save Credential"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===================================================================== */}
+      {/* MODAL: STANDALONE PASSWORD GENERATOR */}
+      {/* ===================================================================== */}
+      <Dialog open={isGeneratorModalOpen} onOpenChange={setIsGeneratorModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-amber-500" />
+              Cryptographic Password Generator
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Generate enterprise-grade passwords resistant to rainbow tables and brute-force attacks.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-xs">
-            {/* Generated Password Box */}
-            <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-2xl flex items-center justify-between gap-2">
-              <span className="font-mono text-sm font-extrabold text-purple-950 break-all select-all">
+            <div className="bg-slate-900 p-4 rounded-xl text-center relative group">
+              <span className="font-mono text-base font-bold text-amber-400 select-all tracking-wider break-all">
                 {generatedPassword}
               </span>
-              <button
-                type="button"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(generatedPassword);
-                  toast.success("Password copied to clipboard!");
-                }}
-                className="p-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-xs shrink-0"
-                title="Copy Password"
-              >
-                <Copy className="h-4 w-4" />
-              </button>
+              <div className="mt-2 flex justify-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedPassword);
+                    toast.success("Generated password copied to clipboard!");
+                  }}
+                  className="h-7 text-xs bg-white text-slate-900 hover:bg-slate-100 gap-1"
+                >
+                  <Copy className="h-3 w-3" /> Copy
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRegenerateStandalone}
+                  className="h-7 text-xs border-slate-700 text-white hover:bg-slate-800 gap-1"
+                >
+                  <RefreshCw className="h-3 w-3" /> Regenerate
+                </Button>
+              </div>
             </div>
 
-            {/* Length Slider */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between font-bold text-slate-700">
-                <span>Password Length</span>
-                <span className="font-mono text-purple-700 font-extrabold text-sm">{genLength} chars</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-700">Length: {genLength} characters</span>
               </div>
               <input
                 type="range"
                 min={8}
-                max={48}
+                max={32}
                 value={genLength}
                 onChange={(e) => {
                   setGenLength(Number(e.target.value));
-                  handleRegenerateStandalone();
+                  setGeneratedPassword(
+                    generateStrongPassword({
+                      length: Number(e.target.value),
+                      uppercase: genUpper,
+                      lowercase: genLower,
+                      numbers: genNums,
+                      symbols: genSyms,
+                    })
+                  );
                 }}
-                className="w-full accent-purple-600"
+                className="w-full accent-neutral-900"
               />
             </div>
 
-            {/* Character Set Toggles */}
-            <div className="grid grid-cols-2 gap-2 pt-1 font-semibold text-slate-700">
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+              <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
                   checked={genUpper}
-                  onChange={(e) => {
-                    setGenUpper(e.target.checked);
-                    handleRegenerateStandalone();
-                  }}
-                  className="rounded text-purple-600"
+                  onChange={(e) => setGenUpper(e.target.checked)}
+                  className="rounded accent-neutral-900"
                 />
-                <span>Uppercase (A-Z)</span>
+                Uppercase (A-Z)
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
                   checked={genLower}
-                  onChange={(e) => {
-                    setGenLower(e.target.checked);
-                    handleRegenerateStandalone();
-                  }}
-                  className="rounded text-purple-600"
+                  onChange={(e) => setGenLower(e.target.checked)}
+                  className="rounded accent-neutral-900"
                 />
-                <span>Lowercase (a-z)</span>
+                Lowercase (a-z)
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
                   checked={genNums}
-                  onChange={(e) => {
-                    setGenNums(e.target.checked);
-                    handleRegenerateStandalone();
-                  }}
-                  className="rounded text-purple-600"
+                  onChange={(e) => setGenNums(e.target.checked)}
+                  className="rounded accent-neutral-900"
                 />
-                <span>Numbers (0-9)</span>
+                Numbers (0-9)
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
                   checked={genSyms}
-                  onChange={(e) => {
-                    setGenSyms(e.target.checked);
-                    handleRegenerateStandalone();
-                  }}
-                  className="rounded text-purple-600"
+                  onChange={(e) => setGenSyms(e.target.checked)}
+                  className="rounded accent-neutral-900"
                 />
-                <span>Symbols (!@#$)</span>
+                Symbols (!@#$%)
               </label>
             </div>
           </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-200">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleRegenerateStandalone}
-              className="rounded-xl border-slate-300 text-xs font-bold gap-1.5 h-9"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              <span>Regenerate</span>
-            </Button>
-            <Button
-              type="button"
-              onClick={async () => {
-                await navigator.clipboard.writeText(generatedPassword);
-                toast.success("Password copied to clipboard!");
-                setIsGeneratorModalOpen(false);
-              }}
-              className="rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold h-9 gap-1.5"
-            >
-              <Check className="h-4 w-4" />
-              <span>Copy &amp; Done</span>
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ========================================================================= */}
-      {/* MODAL 3: PASSWORD ROTATION HISTORY                                        */}
-      {/* ========================================================================= */}
+      {/* ===================================================================== */}
+      {/* MODAL: PASSWORD HISTORY */}
+      {/* ===================================================================== */}
       <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-        <DialogContent className="max-w-lg rounded-3xl border-slate-300 p-6">
-          <DialogHeader className="pb-2 border-b border-slate-200">
-            <div className="flex items-center gap-2 text-blue-700">
-              <History className="h-5 w-5" />
-              <DialogTitle className="text-base font-extrabold text-[#111827]">
-                Password Rotation History — {historyTargetCred?.portal_name}
-              </DialogTitle>
-            </div>
-            <DialogDescription className="text-xs text-slate-500">
-              Previous passwords stored before updates, with timestamps and author records.
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <History className="h-4 w-4 text-blue-600" />
+              Password History — {historyTargetCred?.portal_name}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Audit record of previously configured passwords for this portal.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2 py-2 max-h-64 overflow-y-auto text-xs">
-            {!historyTargetCred?.password_history || historyTargetCred.password_history.length === 0 ? (
-              <p className="text-slate-500 text-center py-6">No previous password history for this credential.</p>
-            ) : (
-              historyTargetCred.password_history.map((hist, idx) => (
-                <div key={hist.id || idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+          <div className="space-y-3 py-2 text-xs max-h-72 overflow-y-auto">
+            {historyTargetCred?.password_history && historyTargetCred.password_history.length > 0 ? (
+              historyTargetCred.password_history.map((entry, idx) => (
+                <div key={entry.id || idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-slate-800 text-[11px]">
-                      Revision #{historyTargetCred.password_history!.length - idx}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {formatDate(hist.changed_at)}
-                    </span>
+                    <span className="font-bold text-slate-800">Version #{historyTargetCred.password_history!.length - idx}</span>
+                    <span className="text-[10px] text-slate-400">{formatDate(entry.changed_at)}</span>
                   </div>
-                  <div className="text-[11px] text-slate-600 flex items-center justify-between">
-                    <span>Changed by: <strong>{hist.changed_by_name}</strong></span>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          const pw = await decryptVaultPassword(hist.password_encrypted);
-                          await navigator.clipboard.writeText(pw);
-                          toast.success("Historical password copied to clipboard! (Audit logged)");
-                        } catch {
-                          toast.error("Decryption failed.");
-                        }
-                      }}
-                      className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1"
-                    >
-                      <Copy className="h-3 w-3" />
-                      <span>Copy Historical PW</span>
-                    </button>
-                  </div>
+                  <p className="text-[11px] text-slate-600">Changed by: {entry.changed_by_name || "Admin"}</p>
+                  <p className="font-mono text-[11px] text-slate-400">Encrypted token: {entry.password_encrypted.slice(0, 24)}...</p>
                 </div>
               ))
+            ) : (
+              <p className="text-center py-6 text-slate-400">No historical passwords logged for this record.</p>
             )}
           </div>
-
-          <DialogFooter className="pt-2 border-t border-slate-200">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsHistoryModalOpen(false)}
-              className="rounded-xl text-xs font-bold h-9"
-            >
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ========================================================================= */}
-      {/* MODAL 4: SECURITY AUDIT TRAIL LOG                                         */}
-      {/* ========================================================================= */}
+      {/* ===================================================================== */}
+      {/* MODAL: VAULT AUDIT LOG */}
+      {/* ===================================================================== */}
       <Dialog open={isAuditModalOpen} onOpenChange={setIsAuditModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-3xl border-slate-300 p-6">
-          <DialogHeader className="pb-2 border-b border-slate-200">
-            <div className="flex items-center gap-2 text-blue-700">
-              <History className="h-5 w-5" />
-              <DialogTitle className="text-base font-extrabold text-[#111827]">
-                Vault Security Audit Trail ({auditLogs.length} Events)
-              </DialogTitle>
-            </div>
-            <DialogDescription className="text-xs text-slate-500">
-              Immutable log of every credential reveal, copy, modification, and export event.
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              Vault Security Access & Audit Trail
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Every reveal, copy, create, update, and delete operation is immutably logged for compliance.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2 py-2 text-xs">
+          <div className="space-y-2 py-2">
             {auditLogs.length === 0 ? (
-              <p className="text-slate-500 text-center py-6">No audit log entries recorded yet.</p>
+              <p className="text-center py-12 text-slate-400 text-xs">No audit events logged yet.</p>
             ) : (
-              auditLogs.slice(0, 100).map((log) => {
-                let badgeClass = "bg-slate-100 text-slate-700";
-                if (log.action === "VIEW") badgeClass = "bg-purple-100 text-purple-800";
-                if (log.action === "COPY_PASSWORD") badgeClass = "bg-emerald-100 text-emerald-800";
-                if (log.action === "CREATE") badgeClass = "bg-blue-100 text-blue-800";
-                if (log.action === "UPDATE") badgeClass = "bg-amber-100 text-amber-800";
-                if (log.action === "DELETE") badgeClass = "bg-rose-100 text-rose-800";
-                if (log.action === "EXPORT") badgeClass = "bg-indigo-100 text-indigo-800";
-
-                return (
-                  <div key={log.id} className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-start justify-between gap-3 shadow-2xs">
-                    <div className="space-y-0.5">
+              <div className="divide-y divide-slate-100 text-xs">
+                {auditLogs.map((log) => (
+                  <div key={log.id} className="py-2.5 flex items-start justify-between gap-3">
+                    <div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className={`text-[9px] font-mono font-extrabold px-1.5 py-0 ${badgeClass}`}>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${
+                            log.action === "VIEW"
+                              ? "bg-amber-50 text-amber-800 border-amber-300"
+                              : log.action === "DELETE"
+                              ? "bg-rose-50 text-rose-800 border-rose-300"
+                              : "bg-blue-50 text-blue-800 border-blue-300"
+                          }`}
+                        >
                           {log.action}
                         </Badge>
-                        <span className="font-extrabold text-slate-900">{log.portal_name}</span>
-                        {log.client_name && (
-                          <span className="text-[10px] text-slate-500">({log.client_name})</span>
-                        )}
+                        <span className="font-bold text-slate-900">{log.portal_name}</span>
+                        {log.client_name && <span className="text-slate-500">({log.client_name})</span>}
                       </div>
-                      <p className="text-[11px] text-slate-600">{log.details || "Activity performed"}</p>
+                      <p className="text-slate-600 text-[11px] mt-0.5">{log.details}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="font-bold text-slate-800 block text-[11px]">{log.performed_by_name}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">{formatDate(log.timestamp)}</span>
+                      <span className="font-semibold text-slate-800 text-[11px] block">{log.performed_by_name}</span>
+                      <span className="text-slate-400 text-[10px]">{formatDate(log.timestamp)}</span>
                     </div>
                   </div>
-                );
-              })
+                ))}
+              </div>
             )}
           </div>
-
-          <DialogFooter className="pt-2 border-t border-slate-200">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsAuditModalOpen(false)}
-              className="rounded-xl text-xs font-bold h-9"
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ========================================================================= */}
-      {/* MODAL 5: ADMIN EXPORT CONFIRMATION                                        */}
-      {/* ========================================================================= */}
-      <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
-        <DialogContent className="max-w-md rounded-3xl border-slate-300 p-6">
-          <DialogHeader className="pb-2 border-b border-slate-200">
-            <div className="flex items-center gap-2 text-rose-600">
-              <AlertTriangle className="h-5 w-5" />
-              <DialogTitle className="text-base font-extrabold text-slate-900">
-                Confirm Vault Export
-              </DialogTitle>
-            </div>
-            <DialogDescription className="text-xs text-slate-500">
-              Exporting vault metadata requires Administrator credentials and is logged in the permanent audit trail.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-2 text-xs space-y-2 text-slate-600">
-            <p>
-              You are about to export {credentials.length} vault entries. For safety, encrypted password hashes are excluded from plain text exports unless decrypted individually.
-            </p>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-slate-200">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsExportModalOpen(false)}
-              className="rounded-xl border-slate-300 text-xs font-bold h-9"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleExportVault}
-              className="rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold h-9 gap-1.5"
-            >
-              <Download className="h-4 w-4" />
-              <span>Confirm &amp; Download</span>
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
-

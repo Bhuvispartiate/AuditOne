@@ -933,7 +933,20 @@ export type VaultCategory =
   | 'Payroll & Labour'
   | 'Government & DGFT'
   | 'Cloud & Software'
-  | 'Other';
+  | 'Other'
+  | string;
+
+export interface VaultCategoryItem {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  created_at: string;
+  updated_at?: string;
+  is_system?: boolean;
+}
 
 export interface VaultPasswordHistoryEntry {
   id: string;
