@@ -436,6 +436,15 @@ export async function upsertClientAddressInDb(address: ClientAddress): Promise<C
   };
 }
 
+export async function deleteClientAddressFromDb(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("client_addresses").delete().eq("id", id);
+  if (error) {
+    console.error("Supabase delete client_addresses error:", error);
+    throw new Error(error.message);
+  }
+}
+
 export async function deleteClientFromDb(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("clients").delete().eq("id", id);

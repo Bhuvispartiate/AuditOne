@@ -70,6 +70,7 @@ import {
   deleteClientContactFromDb,
   upsertClientBankAccountInDb,
   deleteClientBankAccountFromDb,
+  deleteClientAddressFromDb,
   fetchServicesFromDb,
   insertServiceToDb,
   updateServiceInDb,
@@ -884,6 +885,15 @@ class PMSDataStore {
     const client = this.clients.find((c) => c.id === clientId);
     if (client && client.bank_accounts) {
       client.bank_accounts = client.bank_accounts.filter((a) => a.id !== bankAccountId);
+      this.persist();
+    }
+  }
+
+  async deleteClientAddress(clientId: string, addressId: string): Promise<void> {
+    await deleteClientAddressFromDb(addressId);
+    const client = this.clients.find((c) => c.id === clientId);
+    if (client && client.addresses) {
+      client.addresses = client.addresses.filter((a) => a.id !== addressId);
       this.persist();
     }
   }

@@ -28,8 +28,12 @@ import {
   ListChecks,
   MessageSquare,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -39,7 +43,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { pmsStore } from "@/lib/data/store";
 import {
   isEmployeeRestricted,
@@ -50,7 +62,15 @@ import {
   isDocumentVisibleToEmployee,
 } from "@/lib/access";
 import { formatCurrency, formatDate, formatDateTime, formatBytes } from "@/lib/utils";
-import { TaskStatus } from "@/types";
+import {
+  TaskStatus,
+  Client,
+  ClientConstitution,
+  ClientStatus,
+  ClientContact,
+  ClientAddress,
+  ClientBankAccount,
+} from "@/types";
 import { toast } from "sonner";
 import { ProjectTimeline } from "@/components/tasks/project-timeline";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
@@ -72,6 +92,404 @@ export default function Client360ProfilePage() {
   } | null>(null);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const clientId = params.id as string;
+  const client = pmsStore.getClientById(clientId);
+  const employees = pmsStore.getEmployees();
+
+  // Edit Client Modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTab, setEditTab] = useState("basic");
+  const [isSavingClient, setIsSavingClient] = useState(false);
+
+  // Deleted ID trackers to sync with DB
+  const [deletedContactIds, setDeletedContactIds] = useState<string[]>([]);
+  const [deletedAddressIds, setDeletedAddressIds] = useState<string[]>([]);
+  const [deletedBankAccountIds, setDeletedBankAccountIds] = useState<string[]>([]);
+
+  // Edit fields (Section A & Snapshot)
+  const [editClientName, setEditClientName] = useState("");
+  const [editLegalName, setEditLegalName] = useState("");
+  const [editNickName, setEditNickName] = useState("");
+  const [editFolderName, setEditFolderName] = useState("");
+  const [editReferenceName, setEditReferenceName] = useState("");
+  const [editConstitution, setEditConstitution] = useState<ClientConstitution>("Private Limited");
+  const [editCategory, setEditCategory] = useState("");
+  const [editNatureOfIncome, setEditNatureOfIncome] = useState("");
+  const [editRelationshipManagerId, setEditRelationshipManagerId] = useState("");
+  const [editStatus, setEditStatus] = useState<ClientStatus>("Active");
+  const [editRemarks, setEditRemarks] = useState("");
+
+  // Contacts (Section B)
+  const [editContacts, setEditContacts] = useState<ClientContact[]>([]);
+  const [newContactPerson, setNewContactPerson] = useState("");
+  const [newContactDesignation, setNewContactDesignation] = useState("");
+  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactMobile, setNewContactMobile] = useState("");
+
+  // Addresses (Section B Addresses)
+  const [editAddresses, setEditAddresses] = useState<ClientAddress[]>([]);
+  const [newAddressType, setNewAddressType] = useState<string>("Registered");
+  const [newStreetAddress, setNewStreetAddress] = useState("");
+  const [newCity, setNewCity] = useState("");
+  const [newState, setNewState] = useState("");
+  const [newPinCode, setNewPinCode] = useState("");
+
+  // Registrations (Section C)
+  const [editPan, setEditPan] = useState("");
+  const [editDobOrDoi, setEditDobOrDoi] = useState("");
+  const [editGstin, setEditGstin] = useState("");
+  const [editCin, setEditCin] = useState("");
+  const [editExtraRegs, setEditExtraRegs] = useState<
+    Array<{ type: string; value: string; date_of_registration?: string; status?: "Active" | "Inactive"; remarks?: string }>
+  >([]);
+  const [newExtraType, setNewExtraType] = useState("TAN");
+  const [newExtraValue, setNewExtraValue] = useState("");
+  const [newExtraDate, setNewExtraDate] = useState("");
+  const [newExtraRemarks, setNewExtraRemarks] = useState("");
+
+  // Bank Accounts (Section D)
+  const [editBankAccounts, setEditBankAccounts] = useState<ClientBankAccount[]>([]);
+  const [newBankName, setNewBankName] = useState("");
+  const [newAccountNumber, setNewAccountNumber] = useState("");
+  const [newAccountType, setNewAccountType] = useState("Current");
+  const [newIfscCode, setNewIfscCode] = useState("");
+  const [newBranchName, setNewBranchName] = useState("");
+  const [newUpiId, setNewUpiId] = useState("");
+
+  const handleOpenEditModal = (initialTab = "basic") => {
+    if (!client) return;
+    setEditTab(initialTab);
+    setEditClientName(client.client_name || "");
+    setEditLegalName(client.legal_name || "");
+    setEditNickName(client.nick_name || "");
+    setEditFolderName(client.folder_name || "");
+    setEditReferenceName(client.reference_name || "");
+    setEditConstitution(client.constitution || "Private Limited");
+    setEditCategory(client.category || "");
+    setEditNatureOfIncome(client.nature_of_income || "");
+    setEditRelationshipManagerId(client.relationship_manager_id || "");
+    setEditStatus(client.status || "Active");
+    setEditRemarks(client.remarks || "");
+
+    const contactsList =
+      client.contacts && client.contacts.length > 0
+        ? [...client.contacts]
+        : client.contact
+        ? [{ ...client.contact }]
+        : [];
+    setEditContacts(contactsList);
+    setDeletedContactIds([]);
+
+    setEditAddresses(client.addresses ? [...client.addresses] : []);
+    setDeletedAddressIds([]);
+
+    setEditPan(client.registration?.pan || "");
+    setEditDobOrDoi(client.registration?.dob_or_doi || "");
+    setEditGstin(client.registration?.gstin || "");
+    setEditCin(client.registration?.cin || "");
+    setEditExtraRegs(
+      client.registration?.additional_registrations
+        ? [...client.registration.additional_registrations]
+        : []
+    );
+
+    setEditBankAccounts(client.bank_accounts ? [...client.bank_accounts] : []);
+    setDeletedBankAccountIds([]);
+
+    setNewContactPerson("");
+    setNewContactDesignation("");
+    setNewContactEmail("");
+    setNewContactMobile("");
+    setNewAddressType("Registered");
+    setNewStreetAddress("");
+    setNewCity("");
+    setNewState("");
+    setNewPinCode("");
+    setNewExtraType("TAN");
+    setNewExtraValue("");
+    setNewExtraDate("");
+    setNewExtraRemarks("");
+    setNewBankName("");
+    setNewAccountNumber("");
+    setNewAccountType("Current");
+    setNewIfscCode("");
+    setNewBranchName("");
+    setNewUpiId("");
+
+    setIsEditModalOpen(true);
+  };
+
+  const handleAddContact = () => {
+    if (!newContactPerson.trim() && !newContactMobile.trim() && !newContactEmail.trim()) {
+      toast.error("Please enter at least a contact person name, mobile, or email.");
+      return;
+    }
+    const newContact: ClientContact = {
+      id: `cnt-${Date.now()}`,
+      client_id: clientId,
+      contact_person: newContactPerson.trim() || editClientName,
+      designation: newContactDesignation.trim() || undefined,
+      mobile_number: newContactMobile.trim(),
+      email: newContactEmail.trim(),
+      is_primary: editContacts.length === 0,
+    };
+    setEditContacts((prev) => [...prev, newContact]);
+    setNewContactPerson("");
+    setNewContactDesignation("");
+    setNewContactEmail("");
+    setNewContactMobile("");
+  };
+
+  const handleRemoveContact = (index: number) => {
+    const item = editContacts[index];
+    if (item?.id) {
+      setDeletedContactIds((prev) => [...prev, item.id]);
+    }
+    setEditContacts((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      if (item?.is_primary && updated.length > 0) {
+        updated[0] = { ...updated[0], is_primary: true };
+      }
+      return updated;
+    });
+  };
+
+  const handleSetPrimaryContact = (index: number) => {
+    setEditContacts((prev) =>
+      prev.map((c, i) => ({
+        ...c,
+        is_primary: i === index,
+      }))
+    );
+  };
+
+  const handleAddAddress = () => {
+    if (!newStreetAddress.trim() && !newCity.trim() && !newPinCode.trim()) {
+      toast.error("Please provide street address, city, or PIN code.");
+      return;
+    }
+    const newAddr: ClientAddress = {
+      id: `addr-${Date.now()}`,
+      client_id: clientId,
+      address_type: (newAddressType === "Registration" ? "Registered" : newAddressType) as any,
+      street_address: newStreetAddress.trim(),
+      city: newCity.trim(),
+      state: newState.trim(),
+      pin_code: newPinCode.trim(),
+      country: "India",
+      is_primary: editAddresses.length === 0,
+    };
+    setEditAddresses((prev) => [...prev, newAddr]);
+    setNewAddressType("Registered");
+    setNewStreetAddress("");
+    setNewCity("");
+    setNewState("");
+    setNewPinCode("");
+  };
+
+  const handleRemoveAddress = (index: number) => {
+    const item = editAddresses[index];
+    if (item?.id) {
+      setDeletedAddressIds((prev) => [...prev, item.id]);
+    }
+    setEditAddresses((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddExtraReg = () => {
+    if (!newExtraValue.trim()) {
+      toast.error("Please enter registration / identifier number.");
+      return;
+    }
+    setEditExtraRegs((prev) => [
+      ...prev,
+      {
+        type: newExtraType.trim(),
+        value: newExtraValue.trim(),
+        date_of_registration: newExtraDate || undefined,
+        status: "Active",
+        remarks: newExtraRemarks.trim() || undefined,
+      },
+    ]);
+    setNewExtraType("TAN");
+    setNewExtraValue("");
+    setNewExtraDate("");
+    setNewExtraRemarks("");
+  };
+
+  const handleRemoveExtraReg = (index: number) => {
+    setEditExtraRegs((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddBankAccount = () => {
+    if (!newBankName.trim() || !newAccountNumber.trim() || !newIfscCode.trim()) {
+      toast.error("Bank name, account number, and IFSC code are required.");
+      return;
+    }
+    const newBank: ClientBankAccount = {
+      id: `bnk-${Date.now()}`,
+      client_id: clientId,
+      bank_name: newBankName.trim(),
+      account_number: newAccountNumber.trim(),
+      account_type: newAccountType,
+      ifsc_code: newIfscCode.trim().toUpperCase(),
+      branch_name: newBranchName.trim() || undefined,
+      upi_id: newUpiId.trim() || undefined,
+      is_primary: editBankAccounts.length === 0,
+    };
+    setEditBankAccounts((prev) => [...prev, newBank]);
+    setNewBankName("");
+    setNewAccountNumber("");
+    setNewAccountType("Current");
+    setNewIfscCode("");
+    setNewBranchName("");
+    setNewUpiId("");
+  };
+
+  const handleRemoveBankAccount = (index: number) => {
+    const item = editBankAccounts[index];
+    if (item?.id) {
+      setDeletedBankAccountIds((prev) => [...prev, item.id]);
+    }
+    setEditBankAccounts((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      if (item?.is_primary && updated.length > 0) {
+        updated[0] = { ...updated[0], is_primary: true };
+      }
+      return updated;
+    });
+  };
+
+  const handleSetPrimaryBankAccount = (index: number) => {
+    setEditBankAccounts((prev) =>
+      prev.map((b, i) => ({
+        ...b,
+        is_primary: i === index,
+      }))
+    );
+  };
+
+  const handleSaveClientEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!client) return;
+    if (!editClientName.trim() || !editLegalName.trim()) {
+      toast.error("Client Name and Legal Name are required.");
+      return;
+    }
+    if (!editPan.trim()) {
+      toast.error("PAN Card is a mandatory required field.");
+      return;
+    }
+
+    setIsSavingClient(true);
+    try {
+      // 1. Delete removed items from Supabase
+      for (const cid of deletedContactIds) {
+        try { await pmsStore.deleteClientContact(client.id, cid); } catch {}
+      }
+      for (const aid of deletedAddressIds) {
+        try { await pmsStore.deleteClientAddress(client.id, aid); } catch {}
+      }
+      for (const bid of deletedBankAccountIds) {
+        try { await pmsStore.deleteClientBankAccount(client.id, bid); } catch {}
+      }
+
+      const rm = employees.find((e) => e.id === editRelationshipManagerId);
+
+      const finalContacts = [...editContacts];
+      if (newContactPerson.trim() || newContactMobile.trim() || newContactEmail.trim()) {
+        finalContacts.push({
+          id: `cnt-${Date.now()}`,
+          client_id: client.id,
+          contact_person: newContactPerson.trim() || editClientName,
+          designation: newContactDesignation.trim() || undefined,
+          mobile_number: newContactMobile.trim(),
+          email: newContactEmail.trim(),
+          is_primary: finalContacts.length === 0,
+        });
+      }
+
+      const finalAddresses = [...editAddresses];
+      if (newStreetAddress.trim() || newCity.trim() || newPinCode.trim()) {
+        finalAddresses.push({
+          id: `addr-${Date.now()}`,
+          client_id: client.id,
+          address_type: (newAddressType === "Registration" ? "Registered" : newAddressType) as any,
+          street_address: newStreetAddress.trim(),
+          city: newCity.trim(),
+          state: newState.trim(),
+          pin_code: newPinCode.trim(),
+          country: "India",
+          is_primary: finalAddresses.length === 0,
+        });
+      }
+
+      const finalExtraRegs = [...editExtraRegs];
+      if (newExtraType.trim() && newExtraValue.trim()) {
+        finalExtraRegs.push({
+          type: newExtraType.trim(),
+          value: newExtraValue.trim(),
+          date_of_registration: newExtraDate || undefined,
+          status: "Active",
+          remarks: newExtraRemarks.trim() || undefined,
+        });
+      }
+
+      const finalBankAccounts = [...editBankAccounts];
+      if (newBankName.trim() && newAccountNumber.trim() && newIfscCode.trim()) {
+        finalBankAccounts.push({
+          id: `bnk-${Date.now()}`,
+          client_id: client.id,
+          bank_name: newBankName.trim(),
+          account_number: newAccountNumber.trim(),
+          account_type: newAccountType,
+          ifsc_code: newIfscCode.trim().toUpperCase(),
+          branch_name: newBranchName.trim() || undefined,
+          upi_id: newUpiId.trim() || undefined,
+          is_primary: finalBankAccounts.length === 0,
+        });
+      }
+
+      const updates: Partial<Client> = {
+        client_name: editClientName.trim(),
+        legal_name: editLegalName.trim(),
+        nick_name: editNickName.trim() || undefined,
+        folder_name:
+          editFolderName.trim() ||
+          (editNickName.trim()
+            ? `${editNickName.trim()} ${client.client_code}`
+            : `${editClientName.trim()} ${client.client_code}`),
+        reference_name: editReferenceName.trim() || undefined,
+        constitution: editConstitution,
+        category: editCategory.trim() || undefined,
+        nature_of_income: editNatureOfIncome.trim() || undefined,
+        relationship_manager_id: editRelationshipManagerId || undefined,
+        relationship_manager_name: rm?.full_name,
+        status: editStatus,
+        remarks: editRemarks.trim() || undefined,
+        contact: finalContacts.find((c) => c.is_primary) || finalContacts[0],
+        contacts: finalContacts,
+        addresses: finalAddresses,
+        registration: {
+          id: client.registration?.id || `reg-${Date.now()}`,
+          client_id: client.id,
+          pan: editPan.trim().toUpperCase(),
+          dob_or_doi: editDobOrDoi || undefined,
+          gstin: editGstin.trim().toUpperCase() || undefined,
+          cin: editCin.trim().toUpperCase() || undefined,
+          additional_registrations: finalExtraRegs,
+        },
+        bank_accounts: finalBankAccounts,
+      };
+
+      await pmsStore.updateClient(client.id, updates);
+      toast.success("Client profile updated successfully in Supabase.");
+      setIsEditModalOpen(false);
+      setRefreshKey((k) => k + 1);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update client profile.");
+    } finally {
+      setIsSavingClient(false);
+    }
+  };
 
   useEffect(() => {
     const unsub = pmsStore.subscribe(() => setRefreshKey((k) => k + 1));
@@ -82,7 +500,6 @@ export default function Client360ProfilePage() {
   const isEmployee = isEmployeeRestricted(currentUser);
   const empId = currentUser?.id || "";
 
-  const client = pmsStore.getClientById(clientId);
   const allServices = pmsStore.getServices();
   const allStoreProjects = pmsStore.getProjects();
   const allStoreTasks = pmsStore.getTasks();
@@ -258,6 +675,15 @@ export default function Client360ProfilePage() {
           </Badge>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => handleOpenEditModal("basic")}
+              className="bg-neutral-900 hover:bg-black text-white gap-1.5 shadow-xs font-semibold"
+            >
+              <Pencil className="h-4 w-4" />
+              <span>Edit Profile</span>
+            </Button>
             <Link to={`/invoices/new?clientId=${client.id}`}>
               <Button size="sm" variant="outline" className="border-slate-300 gap-1.5 shadow-xs">
                 <Receipt className="h-4 w-4 text-blue-600" />
@@ -361,10 +787,22 @@ export default function Client360ProfilePage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Quick Profile Summary Card */}
             <Card className="lg:col-span-2 shadow-xs">
-              <CardHeader className="pb-3 border-b border-slate-100">
+              <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
                 <CardTitle className="text-base font-semibold text-slate-900">
                   Client Profile Snapshot
                 </CardTitle>
+                {!isEmployee && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenEditModal("basic")}
+                    className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 gap-1.5"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Edit</span>
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
@@ -423,10 +861,22 @@ export default function Client360ProfilePage() {
         {/* 2. CLIENT DETAILS TAB */}
         <TabsContent value="client-details">
           <Card className="shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
+            <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold text-slate-900">
                 Section A — Basic Master Information
               </CardTitle>
+              {!isEmployee && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleOpenEditModal("basic")}
+                  className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 gap-1.5"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Edit Basic Info</span>
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 text-sm">
               <div>
@@ -483,10 +933,22 @@ export default function Client360ProfilePage() {
         <TabsContent value="contact-info">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="shadow-xs">
-              <CardHeader className="pb-3 border-b border-slate-100">
+              <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
                 <CardTitle className="text-base font-semibold text-slate-900">
                   Contact Persons
                 </CardTitle>
+                {!isEmployee && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenEditModal("contacts")}
+                    className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 gap-1.5"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Manage Contacts</span>
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="p-6 space-y-4 text-sm">
                 {(client.contacts && client.contacts.length > 0
@@ -541,10 +1003,22 @@ export default function Client360ProfilePage() {
             </Card>
 
             <Card className="shadow-xs">
-              <CardHeader className="pb-3 border-b border-slate-100">
+              <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
                 <CardTitle className="text-base font-semibold text-slate-900">
                   Registered & Communication Addresses
                 </CardTitle>
+                {!isEmployee && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenEditModal("addresses")}
+                    className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 gap-1.5"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Manage Addresses</span>
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="p-6 space-y-4 text-sm">
                 {client.addresses?.map((addr, idx) => (
@@ -564,10 +1038,34 @@ export default function Client360ProfilePage() {
         {/* 4. REGISTRATIONS TAB */}
         <TabsContent value="registrations">
           <Card className="shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
+            <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold text-slate-900">
-                Section C — Statutory Registration Identifiers
+                Section C — Statutory Registration Identifiers & Banking
               </CardTitle>
+              {!isEmployee && (
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenEditModal("registrations")}
+                    className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 gap-1.5"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Edit Registrations</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenEditModal("banking")}
+                    className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 gap-1.5"
+                  >
+                    <Landmark className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Edit Bank Accounts</span>
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 text-sm">
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
@@ -1435,6 +1933,739 @@ export default function Client360ProfilePage() {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Edit Client Profile Modal Dialog */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-slate-50/60 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
+                {client.client_code}
+              </span>
+              <DialogTitle className="text-lg font-bold text-slate-900">
+                Edit Client Profile — {client.client_name}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-slate-500 mt-1">
+              Modify master business information, contact persons, multi-location addresses, statutory registration identifiers, and banking details.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveClientEdit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <Tabs value={editTab} onValueChange={setEditTab} className="flex-1 flex flex-col min-h-0">
+              <div className="px-6 pt-3 border-b border-slate-100 shrink-0">
+                <TabsList className="grid grid-cols-5 h-9 bg-slate-100/90 text-xs">
+                  <TabsTrigger value="basic" className="text-xs font-medium">1. Master Info</TabsTrigger>
+                  <TabsTrigger value="contacts" className="text-xs font-medium">
+                    2. Contacts ({editContacts.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="addresses" className="text-xs font-medium">
+                    3. Addresses ({editAddresses.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="registrations" className="text-xs font-medium">4. Registrations</TabsTrigger>
+                  <TabsTrigger value="banking" className="text-xs font-medium">
+                    5. Bank ({editBankAccounts.length})
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* TAB 1: MASTER INFO */}
+                <TabsContent value="basic" className="m-0 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Client / Trade Name *</Label>
+                      <Input
+                        value={editClientName}
+                        onChange={(e) => setEditClientName(e.target.value)}
+                        placeholder="e.g. Acme Corp"
+                        className="text-sm h-9"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Legal Registered Name *</Label>
+                      <Input
+                        value={editLegalName}
+                        onChange={(e) => setEditLegalName(e.target.value)}
+                        placeholder="e.g. Acme Technologies Private Limited"
+                        className="text-sm h-9"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Nick Name</Label>
+                      <Input
+                        value={editNickName}
+                        onChange={(e) => setEditNickName(e.target.value)}
+                        placeholder="e.g. Acme"
+                        className="text-sm h-9"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Folder Name</Label>
+                      <Input
+                        value={editFolderName}
+                        onChange={(e) => setEditFolderName(e.target.value)}
+                        placeholder="Auto-generated if blank"
+                        className="text-sm h-9"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Reference Name</Label>
+                      <Input
+                        value={editReferenceName}
+                        onChange={(e) => setEditReferenceName(e.target.value)}
+                        placeholder="e.g. Referred by Partner"
+                        className="text-sm h-9"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Constitution / Entity Type *</Label>
+                      <Select value={editConstitution} onValueChange={(val: ClientConstitution) => setEditConstitution(val)}>
+                        <SelectTrigger className="text-sm h-9">
+                          <SelectValue placeholder="Select constitution" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Proprietorship">Proprietorship</SelectItem>
+                          <SelectItem value="Partnership">Partnership</SelectItem>
+                          <SelectItem value="LLP">Limited Liability Partnership (LLP)</SelectItem>
+                          <SelectItem value="Private Limited">Private Limited Company</SelectItem>
+                          <SelectItem value="Public Limited">Public Limited Company</SelectItem>
+                          <SelectItem value="Trust">Trust</SelectItem>
+                          <SelectItem value="Society">Society</SelectItem>
+                          <SelectItem value="HUF">Hindu Undivided Family (HUF)</SelectItem>
+                          <SelectItem value="Individual">Individual</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Category / Sector</Label>
+                      <Input
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value)}
+                        placeholder="e.g. Information Technology"
+                        className="text-sm h-9"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Nature of Income</Label>
+                      <Input
+                        value={editNatureOfIncome}
+                        onChange={(e) => setEditNatureOfIncome(e.target.value)}
+                        placeholder="e.g. Profits and Gains from Business"
+                        className="text-sm h-9"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Relationship Manager</Label>
+                      <Select value={editRelationshipManagerId} onValueChange={setEditRelationshipManagerId}>
+                        <SelectTrigger className="text-sm h-9">
+                          <SelectValue placeholder="Select relationship manager" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {employees.map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id}>
+                              {emp.full_name} ({emp.designation_name || "Staff"})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Status</Label>
+                      <Select value={editStatus} onValueChange={(val: ClientStatus) => setEditStatus(val)}>
+                        <SelectTrigger className="text-sm h-9">
+                          <SelectValue placeholder="Select client status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Active">Active</SelectItem>
+                          <SelectItem value="Suspended">Suspended</SelectItem>
+                          <SelectItem value="Inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 pt-2">
+                    <Label className="text-xs font-semibold text-slate-700">Internal Instructions & Remarks</Label>
+                    <Textarea
+                      value={editRemarks}
+                      onChange={(e) => setEditRemarks(e.target.value)}
+                      placeholder="Special client preferences, billing notes, or workflow instructions..."
+                      rows={3}
+                      className="text-sm"
+                    />
+                  </div>
+                </TabsContent>
+
+                {/* TAB 2: CONTACTS */}
+                <TabsContent value="contacts" className="m-0 space-y-5">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                        Existing Contacts ({editContacts.length})
+                      </h4>
+                      <span className="text-[11px] text-slate-500">First contact or designated contact will be Primary</span>
+                    </div>
+
+                    {editContacts.length === 0 ? (
+                      <div className="p-4 text-center border border-dashed rounded-lg text-slate-500 text-xs">
+                        No contacts listed. Add a contact person below.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {editContacts.map((cnt, idx) => (
+                          <div
+                            key={cnt.id || idx}
+                            className={`p-3 rounded-lg border text-xs space-y-2 relative transition-colors ${
+                              cnt.is_primary ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border-slate-200"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="font-bold text-slate-900 block">{cnt.contact_person}</span>
+                                {cnt.designation && (
+                                  <span className="text-[11px] text-slate-500">{cnt.designation}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {cnt.is_primary ? (
+                                  <Badge className="bg-blue-600 text-white text-[10px]">Primary</Badge>
+                                ) : (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleSetPrimaryContact(idx)}
+                                    className="h-6 px-1.5 text-[10px] text-slate-600 hover:text-blue-600"
+                                  >
+                                    Set Primary
+                                  </Button>
+                                )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRemoveContact(idx)}
+                                  className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="space-y-0.5 text-slate-600 text-[11px]">
+                              {cnt.email && <div>✉ {cnt.email}</div>}
+                              {cnt.mobile_number && <div>📱 {cnt.mobile_number}</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add New Contact Form */}
+                  <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70 space-y-3">
+                    <h5 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Plus className="h-4 w-4 text-blue-600" />
+                      Add Contact Person
+                    </h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">Contact Person Name</Label>
+                        <Input
+                          value={newContactPerson}
+                          onChange={(e) => setNewContactPerson(e.target.value)}
+                          placeholder="e.g. John Doe"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">Designation</Label>
+                        <Input
+                          value={newContactDesignation}
+                          onChange={(e) => setNewContactDesignation(e.target.value)}
+                          placeholder="e.g. Director / CFO"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">Official Email</Label>
+                        <Input
+                          type="email"
+                          value={newContactEmail}
+                          onChange={(e) => setNewContactEmail(e.target.value)}
+                          placeholder="john@example.com"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">Mobile Number</Label>
+                        <Input
+                          value={newContactMobile}
+                          onChange={(e) => setNewContactMobile(e.target.value)}
+                          placeholder="+91 98765 43210"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleAddContact}
+                      className="bg-slate-900 text-white text-xs h-8 gap-1.5"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add to Contacts List
+                    </Button>
+                  </div>
+                </TabsContent>
+
+                {/* TAB 3: ADDRESSES */}
+                <TabsContent value="addresses" className="m-0 space-y-5">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                        Saved Addresses ({editAddresses.length})
+                      </h4>
+                      <span className="text-[11px] text-slate-500">Registered, Communication, or Branch locations</span>
+                    </div>
+
+                    {editAddresses.length === 0 ? (
+                      <div className="p-4 text-center border border-dashed rounded-lg text-slate-500 text-xs">
+                        No addresses registered. Add an address below.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {editAddresses.map((addr, idx) => (
+                          <div
+                            key={addr.id || idx}
+                            className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-2 relative"
+                          >
+                            <div className="flex items-center justify-between">
+                              <Badge variant="outline" className="text-[10px] font-semibold">
+                                {addr.address_type} Address
+                              </Badge>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveAddress(idx)}
+                                className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <p className="text-slate-800 text-xs leading-relaxed">{addr.street_address}</p>
+                            <p className="text-[11px] font-medium text-slate-600">
+                              {addr.city}, {addr.state} - {addr.pin_code}, {addr.country || "India"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add New Address Form */}
+                  <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70 space-y-3">
+                    <h5 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Plus className="h-4 w-4 text-blue-600" />
+                      Add New Address
+                    </h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">Address Type</Label>
+                        <Select value={newAddressType} onValueChange={setNewAddressType}>
+                          <SelectTrigger className="h-8 text-xs mt-1">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Registered">Registered</SelectItem>
+                            <SelectItem value="Communication">Communication</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label className="text-[11px] font-medium text-slate-600">Street / Office Address</Label>
+                        <Input
+                          value={newStreetAddress}
+                          onChange={(e) => setNewStreetAddress(e.target.value)}
+                          placeholder="e.g. Plot No. 12, Cyber Gateway, Hitech City"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">City</Label>
+                        <Input
+                          value={newCity}
+                          onChange={(e) => setNewCity(e.target.value)}
+                          placeholder="e.g. Hyderabad"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">State</Label>
+                        <Input
+                          value={newState}
+                          onChange={(e) => setNewState(e.target.value)}
+                          placeholder="e.g. Telangana"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">PIN Code</Label>
+                        <Input
+                          value={newPinCode}
+                          onChange={(e) => setNewPinCode(e.target.value)}
+                          placeholder="e.g. 500081"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleAddAddress}
+                      className="bg-slate-900 text-white text-xs h-8 gap-1.5"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add to Addresses List
+                    </Button>
+                  </div>
+                </TabsContent>
+
+                {/* TAB 4: REGISTRATIONS */}
+                <TabsContent value="registrations" className="m-0 space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">PAN Card *</Label>
+                      <Input
+                        value={editPan}
+                        onChange={(e) => setEditPan(e.target.value.toUpperCase())}
+                        placeholder="ABCDE1234F"
+                        className="text-sm h-9 font-mono uppercase"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Date of Incorp / Birth (DOI)</Label>
+                      <Input
+                        type="date"
+                        value={editDobOrDoi}
+                        onChange={(e) => setEditDobOrDoi(e.target.value)}
+                        className="text-sm h-9"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">GSTIN</Label>
+                      <Input
+                        value={editGstin}
+                        onChange={(e) => setEditGstin(e.target.value.toUpperCase())}
+                        placeholder="36ABCDE1234F1Z5"
+                        className="text-sm h-9 font-mono uppercase"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">CIN / LLPIN</Label>
+                      <Input
+                        value={editCin}
+                        onChange={(e) => setEditCin(e.target.value.toUpperCase())}
+                        placeholder="U72200TG2020PTC..."
+                        className="text-sm h-9 font-mono uppercase"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Additional Statutory Identifiers */}
+                  <div className="space-y-3 pt-3 border-t border-slate-100">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      Additional Statutory Identifiers ({editExtraRegs.length})
+                    </h4>
+
+                    {editExtraRegs.length > 0 && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {editExtraRegs.map((reg, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1.5 relative"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900">{reg.type}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveExtraReg(idx)}
+                                className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <div className="font-mono font-semibold text-blue-800 bg-blue-50 px-2 py-0.5 rounded inline-block">
+                              {reg.value}
+                            </div>
+                            {reg.remarks && (
+                              <p className="text-[11px] text-slate-500">{reg.remarks}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70 space-y-3">
+                      <h5 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Plus className="h-4 w-4 text-blue-600" />
+                        Add Identifier (TAN, MSME, PF, ESI, IEC, FSSAI)
+                      </h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <Label className="text-[11px] font-medium text-slate-600">Identifier Type</Label>
+                          <Select value={newExtraType} onValueChange={setNewExtraType}>
+                            <SelectTrigger className="h-8 text-xs mt-1">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="TAN">TAN (Tax Deduction Acct)</SelectItem>
+                              <SelectItem value="MSME">MSME / Udyam</SelectItem>
+                              <SelectItem value="EPFO">EPF / PF Registration</SelectItem>
+                              <SelectItem value="ESIC">ESI Registration</SelectItem>
+                              <SelectItem value="IEC">Import Export Code (IEC)</SelectItem>
+                              <SelectItem value="FSSAI">FSSAI Food License</SelectItem>
+                              <SelectItem value="PT">Professional Tax (PT)</SelectItem>
+                              <SelectItem value="LEI">Legal Entity Identifier (LEI)</SelectItem>
+                              <SelectItem value="OTHER">Other Statutory ID</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-[11px] font-medium text-slate-600">Registration / ID Number</Label>
+                          <Input
+                            value={newExtraValue}
+                            onChange={(e) => setNewExtraValue(e.target.value)}
+                            placeholder="e.g. HYDD12345E"
+                            className="h-8 text-xs mt-1 font-mono uppercase"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[11px] font-medium text-slate-600">Registration Date</Label>
+                          <Input
+                            type="date"
+                            value={newExtraDate}
+                            onChange={(e) => setNewExtraDate(e.target.value)}
+                            className="h-8 text-xs mt-1"
+                          />
+                        </div>
+                        <div className="sm:col-span-3">
+                          <Label className="text-[11px] font-medium text-slate-600">Remarks / Authority</Label>
+                          <Input
+                            value={newExtraRemarks}
+                            onChange={(e) => setNewExtraRemarks(e.target.value)}
+                            placeholder="Optional notes or issuing jurisdiction..."
+                            className="h-8 text-xs mt-1"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAddExtraReg}
+                        className="bg-slate-900 text-white text-xs h-8 gap-1.5"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add Identifier
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* TAB 5: BANK ACCOUNTS */}
+                <TabsContent value="banking" className="m-0 space-y-5">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                        Configured Bank Accounts ({editBankAccounts.length})
+                      </h4>
+                      <span className="text-[11px] text-slate-500">First account or designated account will be Primary</span>
+                    </div>
+
+                    {editBankAccounts.length === 0 ? (
+                      <div className="p-4 text-center border border-dashed rounded-lg text-slate-500 text-xs">
+                        No bank accounts registered. Add a bank account below.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {editBankAccounts.map((acc, idx) => (
+                          <div
+                            key={acc.id || idx}
+                            className={`p-3 rounded-lg border text-xs space-y-2 relative transition-colors ${
+                              acc.is_primary ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border-slate-200"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="font-bold text-slate-900 text-sm block">{acc.bank_name}</span>
+                                <Badge variant="outline" className="text-[10px] mt-0.5">
+                                  {acc.account_type}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {acc.is_primary ? (
+                                  <Badge className="bg-blue-600 text-white text-[10px]">Primary</Badge>
+                                ) : (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleSetPrimaryBankAccount(idx)}
+                                    className="h-6 px-1.5 text-[10px] text-slate-600 hover:text-blue-600"
+                                  >
+                                    Set Primary
+                                  </Button>
+                                )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRemoveBankAccount(idx)}
+                                  className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-slate-600 text-[11px]">
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">Account Number</span>
+                                <span className="font-mono font-semibold text-slate-900">{acc.account_number}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">IFSC Code</span>
+                                <span className="font-mono font-semibold text-blue-700">{acc.ifsc_code}</span>
+                              </div>
+                              {acc.branch_name && (
+                                <div>
+                                  <span className="text-[10px] text-slate-400 block">Branch</span>
+                                  <span>{acc.branch_name}</span>
+                                </div>
+                              )}
+                              {acc.upi_id && (
+                                <div>
+                                  <span className="text-[10px] text-slate-400 block">UPI / VPA</span>
+                                  <span className="font-mono text-emerald-700">{acc.upi_id}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add New Bank Account Form */}
+                  <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70 space-y-3">
+                    <h5 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Landmark className="h-4 w-4 text-blue-600" />
+                      Add Bank Account
+                    </h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">Bank Name *</Label>
+                        <Input
+                          value={newBankName}
+                          onChange={(e) => setNewBankName(e.target.value)}
+                          placeholder="e.g. HDFC Bank"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">Account Number *</Label>
+                        <Input
+                          value={newAccountNumber}
+                          onChange={(e) => setNewAccountNumber(e.target.value)}
+                          placeholder="e.g. 50100234567890"
+                          className="h-8 text-xs mt-1 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">Account Type</Label>
+                        <Select value={newAccountType} onValueChange={setNewAccountType}>
+                          <SelectTrigger className="h-8 text-xs mt-1">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Current">Current Account</SelectItem>
+                            <SelectItem value="Savings">Savings Account</SelectItem>
+                            <SelectItem value="OD/CC">OD / CC Account</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">IFSC Code *</Label>
+                        <Input
+                          value={newIfscCode}
+                          onChange={(e) => setNewIfscCode(e.target.value.toUpperCase())}
+                          placeholder="e.g. HDFC0001234"
+                          className="h-8 text-xs mt-1 font-mono uppercase"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">Branch Name</Label>
+                        <Input
+                          value={newBranchName}
+                          onChange={(e) => setNewBranchName(e.target.value)}
+                          placeholder="e.g. Cyber Towers Branch"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-600">UPI / VPA ID</Label>
+                        <Input
+                          value={newUpiId}
+                          onChange={(e) => setNewUpiId(e.target.value)}
+                          placeholder="company@hdfcbank"
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleAddBankAccount}
+                      className="bg-slate-900 text-white text-xs h-8 gap-1.5"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add to Bank Accounts List
+                    </Button>
+                  </div>
+                </TabsContent>
+              </div>
+
+              <DialogFooter className="p-4 px-6 border-t border-slate-100 bg-slate-50/80 shrink-0 flex items-center justify-between sm:justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditModalOpen(false)}
+                  disabled={isSavingClient}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="submit"
+                    disabled={isSavingClient}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4"
+                  >
+                    {isSavingClient ? "Saving Changes..." : "Save All Changes"}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </Tabs>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Audit Detail Modal Dialog */}
       <Dialog open={isAuditModalOpen} onOpenChange={setIsAuditModalOpen}>
