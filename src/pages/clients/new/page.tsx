@@ -68,12 +68,25 @@ export default function NewClientOnboardingPage() {
       is_primary: boolean;
     }>
   >([]);
-  const [registeredAddress, setRegisteredAddress] = useState("");
-  const [communicationAddress, setCommunicationAddress] = useState("");
+
+  // Section B — Dynamic Addresses
+  const [addressType, setAddressType] = useState<"Registration" | "Communication" | "Other">("Registration");
+  const [streetAddress, setStreetAddress] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [pinCode, setPinCode] = useState("");
-  const [country, setCountry] = useState("India");
+  const [addressesList, setAddressesList] = useState<
+    Array<{
+      id: string;
+      address_type: "Registration" | "Communication" | "Other" | string;
+      street_address: string;
+      city: string;
+      state: string;
+      pin_code: string;
+      country: string;
+      is_primary: boolean;
+    }>
+  >([]);
 
   // Section C
   const [pan, setPan] = useState("");
@@ -96,8 +109,6 @@ export default function NewClientOnboardingPage() {
   // Section D — Bank Account Details
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
-  const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
-  const [accountHolderName, setAccountHolderName] = useState("");
   const [accountType, setAccountType] = useState("Current");
   const [ifscCode, setIfscCode] = useState("");
   const [branchName, setBranchName] = useState("");
@@ -209,6 +220,42 @@ export default function NewClientOnboardingPage() {
     });
   };
 
+  const handleAddAddress = () => {
+    if (!streetAddress.trim() && !city.trim() && !pinCode.trim()) {
+      toast.error("Please enter at least address, city, or PIN code.");
+      return;
+    }
+    const isPrimary = addressesList.length === 0;
+    setAddressesList((prev) => [
+      ...prev,
+      {
+        id: `addr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        address_type: addressType,
+        street_address: streetAddress.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        pin_code: pinCode.trim(),
+        country: "India",
+        is_primary: isPrimary,
+      },
+    ]);
+    setStreetAddress("");
+    setCity("");
+    setState("");
+    setPinCode("");
+    toast.success("Address added to list.");
+  };
+
+  const handleRemoveAddress = (id: string) => {
+    setAddressesList((prev) => {
+      const next = prev.filter((a) => a.id !== id);
+      if (next.length > 0 && !next.some((a) => a.is_primary)) {
+        next[0] = { ...next[0], is_primary: true };
+      }
+      return next;
+    });
+  };
+
   const handleAddExtraRegistration = () => {
     if (!extraType.trim() || !extraValue.trim()) {
       toast.error("Please enter both Identifier Field (e.g. TAN) and Register Number.");
@@ -240,10 +287,6 @@ export default function NewClientOnboardingPage() {
       toast.error("Please fill Bank Name, Account Number, and IFSC Code to add bank account.");
       return;
     }
-    if (confirmAccountNumber.trim() && accountNumber.trim() !== confirmAccountNumber.trim()) {
-      toast.error("Account Number and Confirm Account Number do not match.");
-      return;
-    }
     const isFirst = bankAccountsList.length === 0;
     setBankAccountsList((prev) => [
       ...prev,
@@ -251,7 +294,6 @@ export default function NewClientOnboardingPage() {
         id: `bnk-${Date.now()}`,
         bank_name: bankName.trim(),
         account_number: accountNumber.trim(),
-        account_holder_name: accountHolderName.trim() || clientName.trim() || undefined,
         account_type: accountType,
         ifsc_code: ifscCode.trim().toUpperCase(),
         branch_name: branchName.trim() || undefined,
@@ -261,8 +303,6 @@ export default function NewClientOnboardingPage() {
     ]);
     setBankName("");
     setAccountNumber("");
-    setConfirmAccountNumber("");
-    setAccountHolderName("");
     setAccountType("Current");
     setIfscCode("");
     setBranchName("");
@@ -362,20 +402,41 @@ export default function NewClientOnboardingPage() {
         toast.error("Please fill Bank Name, Account Number, and IFSC Code to save bank details.");
         return;
       }
-      if (confirmAccountNumber.trim() && accountNumber.trim() !== confirmAccountNumber.trim()) {
-        toast.error("Account Number and Confirm Account Number do not match.");
-        return;
-      }
       finalBankAccounts.push({
         id: `bnk-${Date.now()}`,
         bank_name: bankName.trim(),
         account_number: accountNumber.trim(),
-        account_holder_name: accountHolderName.trim() || clientName.trim() || undefined,
         account_type: accountType,
         ifsc_code: ifscCode.trim().toUpperCase(),
         branch_name: branchName.trim() || undefined,
         upi_id: upiId.trim() || undefined,
         is_primary: finalBankAccounts.length === 0,
+      });
+    }
+
+    const finalAddresses = [...addressesList];
+    if (streetAddress.trim() || city.trim() || pinCode.trim() || state.trim()) {
+      finalAddresses.push({
+        id: `addr-${Date.now()}`,
+        address_type: addressType,
+        street_address: streetAddress.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        pin_code: pinCode.trim(),
+        country: "India",
+        is_primary: finalAddresses.length === 0,
+      });
+    }
+    if (finalAddresses.length === 0) {
+      finalAddresses.push({
+        id: `addr-${Date.now()}`,
+        address_type: "Registration",
+        street_address: "",
+        city: "",
+        state: "",
+        pin_code: "",
+        country: "India",
+        is_primary: true,
       });
     }
 
@@ -401,30 +462,17 @@ export default function NewClientOnboardingPage() {
             client_id: "",
           },
           contacts: finalContacts.map((c) => ({ ...c, client_id: "" })),
-          addresses: [
-            {
-              id: `addr-1-${Date.now()}`,
-              client_id: "",
-              address_type: "Registered",
-              street_address: registeredAddress,
-              city,
-              state,
-              pin_code: pinCode,
-              country,
-              is_primary: true
-            },
-            ...(communicationAddress ? [{
-              id: `addr-2-${Date.now()}`,
-              client_id: "",
-              address_type: "Communication" as const,
-              street_address: communicationAddress,
-              city,
-              state,
-              pin_code: pinCode,
-              country,
-              is_primary: false
-            }] : [])
-          ],
+          addresses: finalAddresses.map((a, idx) => ({
+            id: a.id || `addr-${idx}-${Date.now()}`,
+            client_id: "",
+            address_type: (a.address_type === "Registration" ? "Registered" : a.address_type) as any,
+            street_address: a.street_address,
+            city: a.city,
+            state: a.state,
+            pin_code: a.pin_code,
+            country: a.country || "India",
+            is_primary: a.is_primary,
+          })),
           registration: {
             id: `reg-${Date.now()}`,
             client_id: "",
@@ -567,7 +615,7 @@ export default function NewClientOnboardingPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Reference / Trade Name</Label>
+              <Label className="text-xs font-semibold">Reference</Label>
               <Input
                 placeholder="e.g. Acme Group"
                 value={referenceName}
@@ -630,64 +678,62 @@ export default function NewClientOnboardingPage() {
               Primary key person contact, registered and official mailing address
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-xs font-semibold">Contact Person</Label>
-                <Input
-                  placeholder="e.g. John Doe"
-                  value={contactPerson}
-                  onChange={(e) => setContactPerson(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Designation</Label>
-                <Input
-                  placeholder="e.g. CFO / Director"
-                  value={contactDesignation}
-                  onChange={(e) => setContactDesignation(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Mobile Number</Label>
-                <Input
-                  placeholder="+91 98765 43210"
-                  value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Official Email ID</Label>
-                <Input
-                  type="email"
-                  placeholder="finance@acmetech.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-
-              <div className="flex items-end justify-between gap-4">
-                <div className="space-y-1.5 flex-1">
-                  <Label className="text-xs font-semibold">Country</Label>
+          <CardContent className="p-6 space-y-5">
+            {/* Contact Person Inputs */}
+            <div>
+              <Label className="text-xs font-semibold text-slate-800 block mb-2">
+                Primary & Key Contacts
+              </Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600">Contact Person</Label>
                   <Input
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
+                    placeholder="e.g. John Doe"
+                    value={contactPerson}
+                    onChange={(e) => setContactPerson(e.target.value)}
                   />
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleAddContact}
-                  className="h-9 px-3.5 gap-1.5 shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-semibold text-xs"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add More Contact</span>
-                </Button>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600">Designation</Label>
+                  <Input
+                    placeholder="e.g. CFO / Director"
+                    value={contactDesignation}
+                    onChange={(e) => setContactDesignation(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600">Official Email ID</Label>
+                  <Input
+                    type="email"
+                    placeholder="finance@acmetech.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600">Mobile Number</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="+91 98765 43210"
+                      value={mobileNumber}
+                      onChange={(e) => setMobileNumber(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleAddContact}
+                      title="Add Contact"
+                      className="h-9 w-9 shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -733,55 +779,123 @@ export default function NewClientOnboardingPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Registered Office Address</Label>
-                <Textarea
-                  placeholder="Complete registered address as per MCA / Tax records..."
-                  value={registeredAddress}
-                  onChange={(e) => setRegisteredAddress(e.target.value)}
-                  className="min-h-[70px]"
-                />
+            {/* Dynamic Address Section */}
+            <div className="pt-3 border-t border-slate-100 space-y-3">
+              <div>
+                <Label className="text-xs font-semibold text-slate-800 block">
+                  Addresses
+                </Label>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Select address type (Registration, Communication, Other) and enter details.
+                </p>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Communication Address (if different)</Label>
-                <Textarea
-                  placeholder="Mailing address for physical notices or correspondence..."
-                  value={communicationAddress}
-                  onChange={(e) => setCommunicationAddress(e.target.value)}
-                  className="min-h-[70px]"
-                />
-              </div>
-            </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end bg-slate-50/70 p-3.5 rounded-xl border border-slate-200">
+                <div className="lg:col-span-3 space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Address Type</Label>
+                  <select
+                    value={addressType}
+                    onChange={(e) => setAddressType(e.target.value as any)}
+                    className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                  >
+                    <option value="Registration">Registration</option>
+                    <option value="Communication">Communication</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">City</Label>
-                <Input
-                  placeholder="e.g. New Delhi"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                />
+                <div className="lg:col-span-4 space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Address</Label>
+                  <Input
+                    placeholder="Street, Building, Premises address..."
+                    value={streetAddress}
+                    onChange={(e) => setStreetAddress(e.target.value)}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+
+                <div className="lg:col-span-2 space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">City</Label>
+                  <Input
+                    placeholder="e.g. New Delhi"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+
+                <div className="lg:col-span-2 space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">State</Label>
+                  <Input
+                    placeholder="e.g. Delhi"
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+
+                <div className="lg:col-span-1 space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">PIN Code</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      placeholder="110001"
+                      value={pinCode}
+                      onChange={(e) => setPinCode(e.target.value)}
+                      className="h-9 text-xs bg-white w-20"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleAddAddress}
+                      title="Add Address"
+                      className="h-9 w-9 shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">State / Union Territory</Label>
-                <Input
-                  placeholder="e.g. Delhi"
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">PIN Code</Label>
-                <Input
-                  placeholder="e.g. 110001"
-                  value={pinCode}
-                  onChange={(e) => setPinCode(e.target.value)}
-                />
-              </div>
+              {addressesList.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2">
+                  <span className="text-xs font-bold text-slate-700 block">
+                    Added Addresses ({addressesList.length})
+                  </span>
+                  <div className="space-y-2">
+                    {addressesList.map((addr) => (
+                      <div
+                        key={addr.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-white border border-slate-200 px-3 py-2 text-xs"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant={addr.address_type === "Registration" ? "default" : "secondary"}
+                            className="text-[10px]"
+                          >
+                            {addr.address_type}
+                          </Badge>
+                          <span className="text-slate-800 font-medium">
+                            {addr.street_address}
+                            {addr.city && `, ${addr.city}`}
+                            {addr.state && `, ${addr.state}`}
+                            {addr.pin_code && ` - ${addr.pin_code}`}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveAddress(addr.id)}
+                          className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50 shrink-0"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1011,15 +1125,6 @@ export default function NewClientOnboardingPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Account Holder Name</Label>
-                <Input
-                  placeholder="e.g. As per bank records"
-                  value={accountHolderName}
-                  onChange={(e) => setAccountHolderName(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Account Type</Label>
                 <select
                   value={accountType}
@@ -1041,16 +1146,6 @@ export default function NewClientOnboardingPage() {
                   placeholder="e.g. 50200012345678"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
-                  className="font-mono"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Confirm Account Number</Label>
-                <Input
-                  placeholder="Re-enter account number"
-                  value={confirmAccountNumber}
-                  onChange={(e) => setConfirmAccountNumber(e.target.value)}
                   className="font-mono"
                 />
               </div>

@@ -33,6 +33,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { pmsStore } from "@/lib/data/store";
 import {
   isEmployeeRestricted,
@@ -54,6 +61,16 @@ export default function Client360ProfilePage() {
   const [, setRefreshKey] = useState(0);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
+  const [selectedAuditLog, setSelectedAuditLog] = useState<{
+    id: string;
+    title: string;
+    type: string;
+    actor: string;
+    timestamp: string;
+    description?: string;
+    details?: Record<string, any>;
+  } | null>(null);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const clientId = params.id as string;
 
   useEffect(() => {
@@ -209,6 +226,9 @@ export default function Client360ProfilePage() {
               <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
                 {client.client_code}
               </span>
+              <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                📁 {client.folder_name || (client.nick_name ? `${client.nick_name} ${client.client_code}` : client.client_code)}
+              </span>
               <Badge variant="secondary" className="text-xs">
                 {client.constitution}
               </Badge>
@@ -242,12 +262,6 @@ export default function Client360ProfilePage() {
               <Button size="sm" variant="outline" className="border-slate-300 gap-1.5 shadow-xs">
                 <Receipt className="h-4 w-4 text-blue-600" />
                 <span>Raise Invoice</span>
-              </Button>
-            </Link>
-            <Link to={`/projects/new?clientId=${client.id}`}>
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5 shadow-sm">
-                <Plus className="h-4 w-4" />
-                <span>New Project</span>
               </Button>
             </Link>
             <Button
@@ -305,11 +319,11 @@ export default function Client360ProfilePage() {
         {/* 1. OVERVIEW TAB */}
         <TabsContent value="overview" className="space-y-6">
           {/* Main KPI Statistics */}
-          <div className={`grid grid-cols-2 ${isEmployee ? "md:grid-cols-2" : "md:grid-cols-4"} gap-4`}>
+          <div className={`grid grid-cols-1 ${isEmployee ? "sm:grid-cols-2" : "sm:grid-cols-3"} gap-4`}>
             <Card className="border-l-4 border-l-blue-600">
               <CardContent className="p-4">
-                <span className="text-xs font-semibold text-slate-500 uppercase">
-                  {isEmployee ? "Assigned Services" : "Active Services"}
+                <span className="text-xs font-semibold text-slate-500">
+                  {isEmployee ? "Assigned services" : "Active services"}
                 </span>
                 <div className="text-2xl font-bold text-slate-900 mt-1">
                   {isEmployee ? engagements.length : client.active_services_count || engagements.length}
@@ -320,8 +334,8 @@ export default function Client360ProfilePage() {
 
             <Card className="border-l-4 border-l-indigo-600">
               <CardContent className="p-4">
-                <span className="text-xs font-semibold text-slate-500 uppercase">
-                  {isEmployee ? "Assigned Projects" : "Projects"}
+                <span className="text-xs font-semibold text-slate-500">
+                  Projects
                 </span>
                 <div className="text-2xl font-bold text-slate-900 mt-1">
                   {clientProjects.length}
@@ -334,23 +348,13 @@ export default function Client360ProfilePage() {
             </Card>
 
             {!isEmployee && (
-              <>
-                <Card className="border-l-4 border-l-emerald-600">
-                  <CardContent className="p-4">
-                    <span className="text-xs font-semibold text-slate-500 uppercase">Invoiced Revenue</span>
-                    <div className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(client.total_invoiced_amount || 0)}</div>
-                    <span className="text-[11px] text-emerald-600 font-medium">₹{client.total_payments_received?.toLocaleString("en-IN")} received</span>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-amber-500">
-                  <CardContent className="p-4">
-                    <span className="text-xs font-semibold text-slate-500 uppercase">Outstanding Balance</span>
-                    <div className="text-2xl font-bold text-amber-700 mt-1">{formatCurrency(client.outstanding_amount || 0)}</div>
-                    <span className="text-[11px] text-amber-700 font-medium">Pending collection</span>
-                  </CardContent>
-                </Card>
-              </>
+              <Card className="border-l-4 border-l-amber-500">
+                <CardContent className="p-4">
+                  <span className="text-xs font-semibold text-slate-500">Outstanding balance</span>
+                  <div className="text-2xl font-bold text-amber-700 mt-1">{formatCurrency(client.outstanding_amount || 0)}</div>
+                  <span className="text-[11px] text-amber-700 font-medium">Pending collection</span>
+                </CardContent>
+              </Card>
             )}
           </div>
 
@@ -376,8 +380,8 @@ export default function Client360ProfilePage() {
                   <p className="font-mono text-slate-800 text-sm font-semibold mt-0.5">{client.registration?.pan || "—"}</p>
                 </div>
                 <div>
-                  <span className="font-semibold text-slate-500 block">GSTIN</span>
-                  <p className="font-mono text-slate-800 text-sm font-semibold mt-0.5">{client.registration?.gstin || "Not Applicable"}</p>
+                  <span className="font-semibold text-slate-500 block">DOI</span>
+                  <p className="text-slate-800 text-sm font-semibold mt-0.5">{client.registration?.dob_or_doi ? formatDate(client.registration.dob_or_doi) : "—"}</p>
                 </div>
                 <div className="sm:col-span-2 pt-2 border-t border-slate-100">
                   <span className="font-semibold text-slate-500 block">Internal Instructions & Remarks</span>
@@ -426,50 +430,50 @@ export default function Client360ProfilePage() {
             </CardHeader>
             <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 text-sm">
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Client ID</span>
-                <span className="font-mono font-bold text-blue-700">{client.client_code}</span>
+                <span className="text-xs font-semibold text-slate-500 block">Client ID</span>
+                <span className="font-mono font-bold text-blue-700 text-sm mt-0.5 block">{client.client_code}</span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Trade / Client Name</span>
-                <span className="font-semibold text-slate-900">{client.client_name}</span>
+                <span className="text-xs font-semibold text-slate-500 block">Trade / Client Name</span>
+                <span className="text-slate-800 text-sm mt-0.5 block">{client.client_name}</span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Legal Registered Name</span>
-                <span className="font-semibold text-slate-900">{client.legal_name}</span>
+                <span className="text-xs font-semibold text-slate-500 block">Legal Registered Name</span>
+                <span className="text-slate-800 text-sm mt-0.5 block">{client.legal_name}</span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Nick Name</span>
-                <span className="font-semibold text-slate-900">{client.nick_name || "—"}</span>
+                <span className="text-xs font-semibold text-slate-500 block">Nick Name</span>
+                <span className="text-slate-800 text-sm mt-0.5 block">{client.nick_name || "—"}</span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Folder Name</span>
-                <span className="font-mono font-semibold text-slate-900">
+                <span className="text-xs font-semibold text-slate-500 block">Folder Name</span>
+                <span className="font-mono font-semibold text-slate-900 text-sm mt-0.5 block">
                   {client.folder_name || (client.nick_name ? `${client.nick_name} ${client.client_code}` : "—")}
                 </span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Reference Name</span>
-                <span>{client.reference_name || "—"}</span>
+                <span className="text-xs font-semibold text-slate-500 block">Reference Name</span>
+                <span className="text-slate-800 text-sm mt-0.5 block">{client.reference_name || "—"}</span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Constitution</span>
-                <Badge variant="secondary" className="mt-0.5">{client.constitution}</Badge>
+                <span className="text-xs font-semibold text-slate-500 block">Constitution</span>
+                <span className="text-slate-800 text-sm mt-0.5 block">{client.constitution}</span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Category / Sector</span>
-                <span>{client.category || "—"}</span>
+                <span className="text-xs font-semibold text-slate-500 block">Category / Sector</span>
+                <span className="text-slate-800 text-sm mt-0.5 block">{client.category || "—"}</span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Nature of Income</span>
-                <span>{client.nature_of_income || "—"}</span>
+                <span className="text-xs font-semibold text-slate-500 block">Nature of Income</span>
+                <span className="text-slate-800 text-sm mt-0.5 block">{client.nature_of_income || "—"}</span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Relationship Manager</span>
-                <span>{client.relationship_manager_name || "Unassigned"}</span>
+                <span className="text-xs font-semibold text-slate-500 block">Relationship Manager</span>
+                <span className="text-slate-800 text-sm mt-0.5 block">{client.relationship_manager_name || "Unassigned"}</span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-slate-500 uppercase block">Onboarding Date</span>
-                <span>{formatDate(client.created_at)}</span>
+                <span className="text-xs font-semibold text-slate-500 block">Onboarding Date</span>
+                <span className="text-slate-800 text-sm mt-0.5 block">{formatDate(client.created_at)}</span>
               </div>
             </CardContent>
           </Card>
@@ -782,17 +786,17 @@ export default function Client360ProfilePage() {
                       <div className={`grid ${isEmployee ? "grid-cols-2" : "grid-cols-3"} gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5`}>
                         {!isEmployee && (
                           <div>
-                            <span className="text-[10px] uppercase text-slate-400 block">Agreed Fee</span>
+                            <span className="text-[10px] text-slate-500 font-medium block">Agreed fees</span>
                             <span className="font-bold text-slate-900">{formatCurrency(eng.agreed_fee)}</span>
                           </div>
                         )}
                         <div>
-                          <span className="text-[10px] uppercase text-slate-400 block">Start Date</span>
+                          <span className="text-[10px] text-slate-500 font-medium block">Start date</span>
                           <span className="font-semibold text-slate-800">{formatDate(eng.start_date)}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase text-slate-400 block">
-                            {isEmployee ? "Frequency" : "Payment Terms"}
+                          <span className="text-[10px] text-slate-500 font-medium block">
+                            {isEmployee ? "Frequency" : "Payment terms"}
                           </span>
                           <span className="font-semibold text-slate-800 truncate block">
                             {isEmployee ? eng.billing_frequency : eng.payment_terms || "15 Days Net"}
@@ -1251,29 +1255,178 @@ export default function Client360ProfilePage() {
         {!isEmployee && (
           <TabsContent value="activity">
             <Card className="shadow-xs">
-              <CardHeader className="pb-3 border-b border-slate-200">
-                <CardTitle className="text-base font-semibold text-slate-900">
-                  Audit Trail & Historic Activity
-                </CardTitle>
+              <CardHeader className="pb-3 border-b border-slate-200 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold text-slate-900">
+                    Audit Trail & Historic Activity
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500 mt-0.5">
+                    Click any activity record to view its full audit details and captured metadata.
+                  </CardDescription>
+                </div>
               </CardHeader>
               <CardContent className="p-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start gap-3 text-xs">
-                    <div className="h-2.5 w-2.5 rounded-full bg-blue-600 mt-1 shrink-0" />
-                    <div>
-                      <span className="font-bold text-slate-900">Client Onboarded & Master Record Created</span>
-                      <p className="text-slate-500 text-[11px] mt-0.5">By {client.relationship_manager_name || "Admin"}</p>
-                      <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(client.created_at)}</span>
-                    </div>
-                  </div>
-                  {clientInvoices.map((inv) => (
-                    <div key={inv.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start gap-3 text-xs">
-                      <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 mt-1 shrink-0" />
+                  {/* Master Onboarding Event */}
+                  <div
+                    onClick={() => {
+                      setSelectedAuditLog({
+                        id: `onboard-${client.id}`,
+                        title: "Client Onboarded & Master Record Created",
+                        type: "Master Onboarding",
+                        actor: client.relationship_manager_name || "System Admin",
+                        timestamp: client.created_at,
+                        description: `Initial client entity master record established in Supabase PostgreSQL for ${client.client_name}.`,
+                        details: {
+                          "Client ID": client.client_code,
+                          "Trade Name": client.client_name,
+                          "Legal Registered Name": client.legal_name,
+                          "Nick Name": client.nick_name || "—",
+                          "Folder Name": client.folder_name || (client.nick_name ? `${client.nick_name} ${client.client_code}` : "—"),
+                          "Constitution": client.constitution,
+                          "Category": client.category || "—",
+                          "PAN": client.registration?.pan || "—",
+                          "DOI": client.registration?.dob_or_doi ? formatDate(client.registration.dob_or_doi) : "—",
+                          "Relationship Manager": client.relationship_manager_name || "Unassigned",
+                          "Status": client.status,
+                        },
+                      });
+                      setIsAuditModalOpen(true);
+                    }}
+                    className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start justify-between gap-3 text-xs cursor-pointer hover:border-blue-500 hover:shadow-md transition-all group"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="h-2.5 w-2.5 rounded-full bg-blue-600 mt-1 shrink-0" />
                       <div>
-                        <span className="font-bold text-slate-900">Invoice {inv.invoice_number} Raised for {formatCurrency(inv.grand_total)}</span>
-                        <p className="text-slate-500 text-[11px] mt-0.5">Place of supply: {inv.place_of_supply}</p>
-                        <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(inv.created_at)}</span>
+                        <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                          Client Onboarded & Master Record Created
+                        </span>
+                        <p className="text-slate-500 text-[11px] mt-0.5">By {client.relationship_manager_name || "Admin"}</p>
+                        <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(client.created_at)}</span>
                       </div>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] shrink-0 group-hover:border-blue-300">Inspect</Badge>
+                  </div>
+
+                  {/* Invoices Audit Events */}
+                  {clientInvoices.map((inv) => (
+                    <div
+                      key={inv.id}
+                      onClick={() => {
+                        setSelectedAuditLog({
+                          id: inv.id,
+                          title: `Invoice ${inv.invoice_number} Raised`,
+                          type: "Billing & Invoicing",
+                          actor: inv.created_by_name || client.relationship_manager_name || "Finance Admin",
+                          timestamp: inv.created_at,
+                          description: `Tax invoice ${inv.invoice_number} issued with status "${inv.status}".`,
+                          details: {
+                            "Invoice Number": inv.invoice_number,
+                            "Invoice Date": formatDate(inv.invoice_date),
+                            "Due Date": formatDate(inv.due_date),
+                            "Subtotal": formatCurrency(inv.subtotal),
+                            "Total Tax / GST": formatCurrency(inv.total_tax),
+                            "Grand Total": formatCurrency(inv.grand_total),
+                            "Status": inv.status,
+                            "Place of Supply": inv.place_of_supply,
+                            "Payment Terms": inv.payment_terms || "15 Days Net",
+                          },
+                        });
+                        setIsAuditModalOpen(true);
+                      }}
+                      className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start justify-between gap-3 text-xs cursor-pointer hover:border-emerald-500 hover:shadow-md transition-all group"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 mt-1 shrink-0" />
+                        <div>
+                          <span className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
+                            Invoice {inv.invoice_number} Raised for {formatCurrency(inv.grand_total)}
+                          </span>
+                          <p className="text-slate-500 text-[11px] mt-0.5">Place of supply: {inv.place_of_supply}</p>
+                          <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(inv.created_at)}</span>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0 group-hover:border-emerald-300">Inspect</Badge>
+                    </div>
+                  ))}
+
+                  {/* Service Engagement Events */}
+                  {engagements.map((eng) => (
+                    <div
+                      key={eng.id}
+                      onClick={() => {
+                        setSelectedAuditLog({
+                          id: eng.id,
+                          title: `Service Engagement: ${eng.service_name}`,
+                          type: "Retainer Service",
+                          actor: eng.relationship_manager_name || client.relationship_manager_name || "Admin",
+                          timestamp: eng.created_at || client.created_at,
+                          description: `Subscribed client to service catalog engagement: ${eng.service_name}.`,
+                          details: {
+                            "Service Name": eng.service_name,
+                            "Service Code": eng.service_code,
+                            "Agreed Fee": formatCurrency(eng.agreed_fee),
+                            "Billing Frequency": eng.billing_frequency,
+                            "Payment Terms": eng.payment_terms || "15 Days Net",
+                            "Start Date": formatDate(eng.start_date),
+                            "End Date": eng.end_date ? formatDate(eng.end_date) : "Ongoing",
+                            "Status": eng.status,
+                          },
+                        });
+                        setIsAuditModalOpen(true);
+                      }}
+                      className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start justify-between gap-3 text-xs cursor-pointer hover:border-indigo-500 hover:shadow-md transition-all group"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="h-2.5 w-2.5 rounded-full bg-indigo-600 mt-1 shrink-0" />
+                        <div>
+                          <span className="font-bold text-slate-900 group-hover:text-indigo-700 transition-colors">
+                            Subscribed to {eng.service_name}
+                          </span>
+                          <p className="text-slate-500 text-[11px] mt-0.5">Agreed fee: {formatCurrency(eng.agreed_fee)} • {eng.billing_frequency}</p>
+                          <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(eng.created_at || client.created_at)}</span>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0 group-hover:border-indigo-300">Inspect</Badge>
+                    </div>
+                  ))}
+
+                  {/* Project Events */}
+                  {clientProjects.map((proj) => (
+                    <div
+                      key={proj.id}
+                      onClick={() => {
+                        setSelectedAuditLog({
+                          id: proj.id,
+                          title: `Project Created: ${proj.project_name}`,
+                          type: "Project Lifecycle",
+                          actor: client.relationship_manager_name || "Admin",
+                          timestamp: proj.created_at || client.created_at,
+                          description: `Operational deliverable project initiated under code ${proj.project_code}.`,
+                          details: {
+                            "Project Code": proj.project_code,
+                            "Project Name": proj.project_name,
+                            "Status": proj.status,
+                            "Priority": proj.priority,
+                            "Start Date": formatDate(proj.start_date),
+                            "Due Date": formatDate(proj.due_date),
+                          },
+                        });
+                        setIsAuditModalOpen(true);
+                      }}
+                      className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 flex items-start justify-between gap-3 text-xs cursor-pointer hover:border-purple-500 hover:shadow-md transition-all group"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="h-2.5 w-2.5 rounded-full bg-purple-600 mt-1 shrink-0" />
+                        <div>
+                          <span className="font-bold text-slate-900 group-hover:text-purple-700 transition-colors">
+                            Project Initiated: {proj.project_name} ({proj.project_code})
+                          </span>
+                          <p className="text-slate-500 text-[11px] mt-0.5">Priority: {proj.priority} • Due: {formatDate(proj.due_date)}</p>
+                          <span className="text-[10px] text-slate-400 mt-1 block">{formatDateTime(proj.created_at || client.created_at)}</span>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0 group-hover:border-purple-300">Inspect</Badge>
                     </div>
                   ))}
                 </div>
@@ -1282,6 +1435,51 @@ export default function Client360ProfilePage() {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Audit Detail Modal Dialog */}
+      <Dialog open={isAuditModalOpen} onOpenChange={setIsAuditModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs">
+                {selectedAuditLog?.type || "Audit Log"}
+              </Badge>
+              <DialogTitle className="text-base font-bold text-slate-900">
+                {selectedAuditLog?.title}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-slate-500">
+              Recorded on {selectedAuditLog?.timestamp ? formatDateTime(selectedAuditLog.timestamp) : "—"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="bg-slate-50 rounded-lg p-3 text-xs space-y-1 border border-slate-200">
+              <span className="font-semibold text-slate-600 block">Initiated / Logged By</span>
+              <p className="text-slate-900 font-medium">{selectedAuditLog?.actor || "System"}</p>
+              {selectedAuditLog?.description && (
+                <p className="text-slate-600 mt-1 leading-relaxed">{selectedAuditLog.description}</p>
+              )}
+            </div>
+
+            {selectedAuditLog?.details && (
+              <div className="rounded-lg border border-slate-200 overflow-hidden">
+                <div className="bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  Audit Metadata & Snapshot
+                </div>
+                <div className="divide-y divide-slate-100 text-xs">
+                  {Object.entries(selectedAuditLog.details).map(([key, val]) => (
+                    <div key={key} className="flex items-center justify-between px-3 py-2">
+                      <span className="text-slate-500 font-medium">{key}</span>
+                      <span className="text-slate-900 font-semibold text-right">{String(val ?? "—")}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <TaskDetailDialog
         taskId={activeTaskId}

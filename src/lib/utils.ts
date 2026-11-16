@@ -17,9 +17,9 @@ export function formatDate(dateString: string | Date | null | undefined): string
   if (!dateString) return "—";
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
+  return new Intl.DateTimeFormat("en-US", {
     month: "short",
+    day: "numeric",
     year: "numeric",
   }).format(date);
 }
@@ -28,9 +28,9 @@ export function formatDateTime(dateString: string | Date | null | undefined): st
   if (!dateString) return "—";
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
+  return new Intl.DateTimeFormat("en-US", {
     month: "short",
+    day: "numeric",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",

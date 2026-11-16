@@ -13,7 +13,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
 import { isEmployeeRestricted, isClientAssignedToEmployee } from "@/lib/access";
-import { getInitials } from "@/lib/utils";
 import { toast } from "sonner";
 
 export default function ClientsListPage() {
@@ -23,7 +22,7 @@ export default function ClientsListPage() {
   const [, setTick] = useState(0);
   const [search, setSearch] = useState(initialSearch);
   const [constitutionFilter, setConstitutionFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("Active");
 
   useEffect(() => {
     const unsub = pmsStore.subscribe(() => setTick((t) => t + 1));
@@ -219,53 +218,39 @@ export default function ClientsListPage() {
             const isActive = client.status === "Active";
 
             return (
-              <Card
+              <Link
                 key={client.id}
-                className="group rounded-2xl border-[1.5px] border-slate-300 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-neutral-900 hover:shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition-all duration-200"
+                to={`/clients/${client.id}`}
+                className="block group"
               >
-                <CardContent className="p-4 sm:p-5 space-y-4">
-                  {/* Top Row: Avatar, Name/Code & Status Pill */}
-                  <div className="flex items-start justify-between gap-2.5">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="h-10 w-10 rounded-full bg-[#eef2ff] text-[#4f46e5] flex items-center justify-center text-xs font-bold shrink-0">
-                        {getInitials(client.client_name, "CL")}
-                      </div>
-                      <div className="min-w-0">
-                        <Link
-                          to={`/clients/${client.id}`}
-                          className="text-[14px] font-bold text-[#111827] hover:text-[#4f46e5] transition-colors leading-snug block truncate"
-                        >
+                <Card
+                  className="rounded-2xl border-[1.5px] border-slate-300 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)] group-hover:border-neutral-900 group-hover:shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition-all duration-200 cursor-pointer"
+                >
+                  <CardContent className="p-4 sm:p-5">
+                    {/* Top Row: Name/Code & Status Pill */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[14px] font-bold text-[#111827] group-hover:text-[#2563eb] transition-colors leading-snug block truncate">
                           {client.client_name}
-                        </Link>
-                        <p className="text-[11px] font-mono text-[#6b7280] mt-0.5 leading-snug break-words">
+                        </span>
+                        <p className="text-[11px] font-mono text-[#6b7280] mt-1 leading-snug break-words">
                           {client.client_code} · <span className="font-sans">{client.constitution}</span>
                         </p>
                       </div>
+
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                          isActive
+                            ? "bg-[#e9f7d9] text-[#2f6f1e]"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {client.status}
+                      </span>
                     </div>
-
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                        isActive
-                          ? "bg-[#e9f7d9] text-[#2f6f1e]"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {client.status}
-                    </span>
-                  </div>
-
-                  {/* Full-width Action Button */}
-                  <Link to={`/clients/${client.id}`} className="block">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full h-9 rounded-xl border-slate-300 bg-white hover:bg-slate-50 text-[#111827] text-xs font-semibold shadow-none"
-                    >
-                      Open 360° Profile
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
             );
           })}
         </div>
