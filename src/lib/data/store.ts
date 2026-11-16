@@ -302,6 +302,7 @@ class PMSDataStore {
   private isHydratingFromCloud: boolean = false;
   private cloudHydratePromise: Promise<void> | null = null;
   private localUpdatedAt: number = 0;
+  private loadAllPromise: Promise<void> | null = null;
 
   constructor() {
     this.hydrate();
@@ -309,6 +310,9 @@ class PMSDataStore {
     void this.loadAllFromSupabase();
 
     if (typeof window !== "undefined") {
+      window.addEventListener("beforeunload", () => {
+        this.writeLocalSnapshot();
+      });
       window.addEventListener("focus", () => {
         void this.loadAllFromSupabase();
       });
@@ -321,6 +325,14 @@ class PMSDataStore {
   }
 
   async loadAllFromSupabase(): Promise<void> {
+    if (this.loadAllPromise) return this.loadAllPromise;
+    this.loadAllPromise = this._doLoadAllFromSupabase().finally(() => {
+      this.loadAllPromise = null;
+    });
+    return this.loadAllPromise;
+  }
+
+  private async _doLoadAllFromSupabase(): Promise<void> {
     try {
       const [
         clients,
@@ -471,10 +483,12 @@ class PMSDataStore {
     const deletedTaskSet = new Set(this.deletedTaskIds);
 
     const merged: T[] = [];
+    const handledLocalIds = new Set<string>();
+
     for (const remote of remoteList) {
       if (recycleBinIdSet.has(remote.id)) continue;
       if (deletedTaskSet.has(remote.id)) continue;
-      if (deletedTaskProjectSet.has((remote as any).project_id)) continue;
+      if ((remote as any).project_id && deletedTaskProjectSet.has((remote as any).project_id)) continue;
 
       const local = localMap.get(remote.id) ||
         (remote.task_code ? localMap.get(remote.task_code.toUpperCase()) : undefined) ||
@@ -486,15 +500,19 @@ class PMSDataStore {
         continue;
       }
 
+      handledLocalIds.add(local.id);
+
       const localTime = new Date(local.updated_at || local.created_at || 0).getTime();
       const remoteTime = new Date(remote.updated_at || remote.created_at || 0).getTime();
 
-      if (localTime > remoteTime) {
+      if (localTime >= remoteTime) {
+        // Local is fresher or equal: preserve local updates firmly
         merged.push({
           ...remote,
           ...local,
         });
       } else {
+        // Remote is newer: take remote values, but preserve rich local client structures if remote omitted them
         const mergedItem: any = { ...remote };
         for (const key of Object.keys(local)) {
           const lVal = (local as any)[key];
@@ -514,8 +532,11 @@ class PMSDataStore {
     }
 
     const remoteIdSet = new Set(remoteList.map((r) => r.id));
-    const now = Date.now();
+    const MOCK_TASK_PREFIXES = ["tsk-gen-", "tsk-gst-", "tsk-inc-"];
+
+    // Preserve ALL local items that were not found in remote — NEVER discard real user data after 3 minutes!
     for (const local of localList) {
+      if (handledLocalIds.has(local.id)) continue;
       if (remoteIdSet.has(local.id)) continue;
       if (local.task_code && remoteList.some((r) => r.task_code?.toUpperCase() === local.task_code?.toUpperCase())) continue;
       if (local.client_code && remoteList.some((r) => r.client_code?.toUpperCase() === local.client_code?.toUpperCase())) continue;
@@ -523,15 +544,12 @@ class PMSDataStore {
 
       if (recycleBinIdSet.has(local.id)) continue;
       if (deletedTaskSet.has(local.id)) continue;
-      if (deletedTaskProjectSet.has((local as any).project_id)) continue;
+      if ((local as any).project_id && deletedTaskProjectSet.has((local as any).project_id)) continue;
 
-      const ageMs = now - new Date(local.created_at || 0).getTime();
-      // Retain recently created local items (created within the last 3 minutes) so they never vanish on refresh
-      const isUnsavedRecentDraft = ageMs >= 0 && ageMs < 180000;
+      // Filter out legacy mock data
+      if (!isUuid(local.id) && MOCK_TASK_PREFIXES.some((p) => local.id && local.id.toLowerCase().startsWith(p))) continue;
 
-      if (isUnsavedRecentDraft) {
-        merged.push(local);
-      }
+      merged.push(local);
     }
 
     return merged;
@@ -548,20 +566,40 @@ class PMSDataStore {
     });
     const deletedCatSet = new Set(this.deletedTaskCategoryIds);
 
-    // Remote categories from Supabase are the authoritative single source of truth
     const filteredRemote = remoteCats.filter((c) => !recycleBinIdSet.has(c.id) && !deletedCatSet.has(c.id));
+    const categoryMap = new Map<string, TaskCategory>();
 
-    // Retain genuinely unsaved offline categories created in the last 3 minutes
-    const remoteIdSet = new Set(filteredRemote.map((r) => r.id));
-    const now = Date.now();
-    const unsavedDrafts = localCats.filter((loc) => {
-      if (remoteIdSet.has(loc.id)) return false;
-      if (recycleBinIdSet.has(loc.id) || deletedCatSet.has(loc.id)) return false;
-      const ageMs = now - new Date(loc.created_at || 0).getTime();
-      return ageMs >= 0 && ageMs < 180000;
+    filteredRemote.forEach((rCat) => {
+      categoryMap.set(rCat.id, rCat);
     });
 
-    return [...filteredRemote, ...unsavedDrafts];
+    const validLocalCats = localCats.filter((loc) => !recycleBinIdSet.has(loc.id) && !deletedCatSet.has(loc.id));
+    validLocalCats.forEach((lCat) => {
+      const existing = categoryMap.get(lCat.id);
+      if (!existing) {
+        categoryMap.set(lCat.id, lCat);
+      } else {
+        const remoteSubs = existing.sub_categories || [];
+        const localSubs = lCat.sub_categories || [];
+        const subMap = new Map<string, TaskSubCategory>();
+        remoteSubs.forEach((s) => subMap.set(s.id, s));
+        localSubs.forEach((s) => {
+          if (!subMap.has(s.id)) {
+            subMap.set(s.id, s);
+          } else {
+            const cur = subMap.get(s.id)!;
+            subMap.set(s.id, { ...cur, ...s });
+          }
+        });
+        categoryMap.set(lCat.id, {
+          ...existing,
+          ...lCat,
+          sub_categories: Array.from(subMap.values()),
+        });
+      }
+    });
+
+    return Array.from(categoryMap.values());
   }
 
   private addDaysIso(baseIso: string, days: number): string {
@@ -595,7 +633,7 @@ class PMSDataStore {
     });
   }
 
-  private mergeById<T extends { id: string }>(currentList: T[], incomingList: T[]): T[] {
+  private mergeById<T extends { id: string; updated_at?: string; created_at?: string }>(currentList: T[], incomingList: T[]): T[] {
     if (!Array.isArray(incomingList) || incomingList.length === 0) return currentList;
     if (!Array.isArray(currentList) || currentList.length === 0) return incomingList;
 
@@ -603,8 +641,20 @@ class PMSDataStore {
     currentList.forEach((item) => {
       if (item && item.id) map.set(item.id, item);
     });
-    incomingList.forEach((item) => {
-      if (item && item.id) map.set(item.id, item);
+    incomingList.forEach((incoming) => {
+      if (!incoming || !incoming.id) return;
+      const current = map.get(incoming.id);
+      if (!current) {
+        map.set(incoming.id, incoming);
+        return;
+      }
+      const curTime = new Date(current.updated_at || current.created_at || 0).getTime();
+      const incTime = new Date(incoming.updated_at || incoming.created_at || 0).getTime();
+      if (curTime >= incTime) {
+        map.set(incoming.id, { ...incoming, ...current });
+      } else {
+        map.set(incoming.id, { ...current, ...incoming });
+      }
     });
     return Array.from(map.values());
   }
@@ -725,6 +775,9 @@ class PMSDataStore {
     if (Array.isArray(parsed.approvalLogs) && parsed.approvalLogs.length > 0) {
       this.approvalLogs = this.mergeById(this.approvalLogs, parsed.approvalLogs);
     }
+    if (Array.isArray(parsed.universalRecycleBin) && parsed.universalRecycleBin.length > 0) {
+      this.universalRecycleBin = this.mergeById(this.universalRecycleBin, parsed.universalRecycleBin);
+    }
     if (typeof parsed.updatedAt === "number") {
       this.localUpdatedAt = Math.max(this.localUpdatedAt, parsed.updatedAt);
     }
@@ -766,6 +819,7 @@ class PMSDataStore {
       recurringInvoices: this.recurringInvoices,
       bulkBatches: this.bulkBatches,
       approvalLogs: this.approvalLogs,
+      universalRecycleBin: this.universalRecycleBin,
       updatedAt,
     };
   }
@@ -791,6 +845,11 @@ class PMSDataStore {
       if (this.currentUser.id === "emp-admin-01" && this.currentUser.email === "admin@pmsfirm.com") {
         this.currentUser = { ...this.currentUser, email: SUPERADMIN_EMAIL };
       }
+
+      // Sanitize deletedTaskProjectIds: remove any project IDs from deletedTaskProjectIds that exist as active projects
+      this.deletedTaskProjectIds = this.deletedTaskProjectIds.filter(
+        (projId) => !this.projects.some((p) => p.id === projId)
+      );
 
       // Purge all legacy mock practice tasks, mock categories, mock workflows, and mock services permanently
       const MOCK_TASK_PREFIXES = ["tsk-gen-", "tsk-gst-", "tsk-inc-"];
@@ -911,6 +970,11 @@ class PMSDataStore {
 
         const remote = data?.setting_value as Record<string, any> | undefined;
         if (remote && typeof remote === "object") {
+          // If remote cloud snapshot is older than local state, do not overwrite local state with stale snapshot!
+          if (typeof remote.updatedAt === "number" && this.localUpdatedAt && remote.updatedAt < this.localUpdatedAt) {
+            void this.pushSnapshotToSupabase();
+            return;
+          }
           this.isHydratingFromCloud = true;
           try {
             this.applyWorkspaceDataSnapshot(remote);
@@ -1482,8 +1546,10 @@ class PMSDataStore {
     this.services[index] = {
       ...this.services[index],
       ...updates,
+      updated_at: new Date().toISOString(),
     };
     this.addActivityLog(`Updated service catalog entry: ${this.services[index].service_name}`, "service", id);
+    this.persist();
     return this.services[index];
   }
 
@@ -2040,6 +2106,7 @@ class PMSDataStore {
     this.taskCategories[idx] = {
       ...this.taskCategories[idx],
       ...updates,
+      updated_at: new Date().toISOString(),
     };
     if (updates.name) {
       this.tasks.forEach((t) => {
@@ -2132,7 +2199,9 @@ class PMSDataStore {
     cat.sub_categories[subIdx] = {
       ...cat.sub_categories[subIdx],
       ...updates,
+      updated_at: new Date().toISOString(),
     };
+    cat.updated_at = new Date().toISOString();
     if (updates.name) {
       this.tasks.forEach((t) => {
         if (t.sub_category_id === subCategoryId) t.sub_category_name = updates.name;
@@ -2781,6 +2850,7 @@ class PMSDataStore {
       project_id: resolvedProjectId,
       project_name: resolvedProjectName,
       completed_at,
+      updated_at: new Date().toISOString(),
     };
 
     // Direct database write — awaits DB confirmation, safely logs if offline or non-UUID id
@@ -2793,6 +2863,7 @@ class PMSDataStore {
     this.tasks[index] = {
       ...current,
       ...mergedUpdates,
+      updated_at: mergedUpdates.updated_at,
     };
 
     this.refreshProjectProgress(this.tasks[index].project_id);
@@ -3202,10 +3273,6 @@ class PMSDataStore {
       }
     }
 
-    if (isParent && !this.deletedTaskProjectIds.includes(target.project_id)) {
-      this.deletedTaskProjectIds.push(target.project_id);
-    }
-
     removedIds.forEach((id) => {
       if (!this.deletedTaskIds.includes(id)) {
         this.deletedTaskIds.push(id);
@@ -3256,6 +3323,7 @@ class PMSDataStore {
     this.workflows[index] = {
       ...this.workflows[index],
       ...updates,
+      updated_at: new Date().toISOString(),
     };
     this.addActivityLog(`Updated workflow template: ${this.workflows[index].workflow_name}`, "workflow", id);
     this.persist();
@@ -4003,6 +4071,8 @@ class PMSDataStore {
     if (!inv || inv.status !== "Draft") return null;
     inv.status = "Finalized";
     inv.finalized_at = new Date().toISOString();
+    inv.updated_at = new Date().toISOString();
+    void updateInvoiceInDb(invoiceId, { status: "Finalized" }).catch(() => {});
     this.addActivityLog(`Finalized invoice ${inv.invoice_number}`, "invoice", invoiceId);
     this.persist();
     return inv;
@@ -4013,7 +4083,9 @@ class PMSDataStore {
     if (!inv || inv.status === "Cancelled") return null;
     inv.status = "Cancelled";
     inv.cancelled_at = new Date().toISOString();
+    inv.updated_at = new Date().toISOString();
     inv.cancel_reason = reason;
+    void updateInvoiceInDb(invoiceId, { status: "Cancelled", notes: reason }).catch(() => {});
     this.addActivityLog(`Cancelled invoice ${inv.invoice_number}. Reason: ${reason}`, "invoice", invoiceId);
     this.persist();
     return inv;
@@ -4035,7 +4107,8 @@ class PMSDataStore {
       id,
       payment_number,
       status: "Completed",
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
     // Direct database write — awaits DB confirmation, throws actual Supabase error on failure

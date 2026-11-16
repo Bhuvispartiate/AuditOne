@@ -210,6 +210,7 @@ export interface Service {
   billing_type: 'One-time' | 'Recurring';
   status: 'Active' | 'Inactive';
   created_at: string;
+  updated_at?: string;
 }
 
 export type BillingFrequency = 'One-time' | 'Monthly' | 'Quarterly' | 'Half-yearly' | 'Annually' | 'Custom';
@@ -295,6 +296,7 @@ export interface TaskSubCategory {
   description?: string;
   whatsapp_enabled?: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface TaskCategory {
@@ -307,6 +309,7 @@ export interface TaskCategory {
   whatsapp_enabled?: boolean;
   sub_categories: TaskSubCategory[];
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Task {
@@ -348,6 +351,7 @@ export interface Task {
   created_by_name?: string;
   completed_at?: string;
   created_at: string;
+  updated_at?: string;
   subtasks?: Task[];
   comments_count?: number;
   attachments_count?: number;
@@ -463,6 +467,7 @@ export interface WorkflowTemplate {
   version: number;
   stages_count?: number;
   created_at: string;
+  updated_at?: string;
   whatsapp_enabled?: boolean;
   milestones?: WorkflowMilestoneTemplate[];
   template_tasks?: WorkflowProjectTaskTemplate[];
@@ -582,6 +587,7 @@ export interface Invoice {
   cancelled_at?: string;
   cancel_reason?: string;
   created_at: string;
+  updated_at?: string;
   items: InvoiceItem[];
   payments?: Payment[];
 }
@@ -635,6 +641,7 @@ export interface Payment {
   remarks?: string;
   status: 'Pending' | 'Completed' | 'Bounced' | 'Refunded';
   created_at: string;
+  updated_at?: string;
 }
 
 // ============================================================================
