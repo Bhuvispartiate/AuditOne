@@ -85,7 +85,7 @@
 
 /* ========================================================================== */
 /* Global Brand Theme Overrides: Navy (#272769), Gold (#E0A95C)              */
-/* Buttons, Main Bars, Sidebar -> Navy (#272769) with Gold text (#E0A95C)     */
+/* Buttons, Main Bars, Sidebar -> Navy (#272769)                             */
 /* ========================================================================== */
 .bg-neutral-900,
 .bg-\[\#201815\],
@@ -102,11 +102,28 @@
 .bg-indigo-800,
 .bg-purple-600,
 .bg-purple-700,
-.bg-purple-800,
-.bg-\[\#272769\],
-.bg-navy {
+.bg-purple-800 {
   background-color: #272769 !important;
-  color: #E0A95C !important;
+  color: #FFFFFF !important;
+}
+
+.bg-neutral-900 *,
+.bg-\[\#201815\] *,
+.bg-\[\#241713\] *,
+.bg-\[\#2A1C17\] *,
+.bg-\[\#2E1F1A\] *,
+.bg-\[\#6c5ce7\] *,
+.bg-violet-600 *,
+.bg-violet-700 *,
+.bg-violet-800 *,
+.bg-violet-900 *,
+.bg-indigo-600 *,
+.bg-indigo-700 *,
+.bg-indigo-800 *,
+.bg-purple-600 *,
+.bg-purple-700 *,
+.bg-purple-800 * {
+  color: #FFFFFF !important;
 }
 
 /* Hover states for Navy buttons */
@@ -121,22 +138,24 @@
 .hover\:bg-indigo-700:hover,
 .hover\:bg-indigo-800:hover,
 .hover\:bg-purple-700:hover,
-.hover\:bg-purple-800:hover,
-.hover\:bg-\[\#1E1E4F\]:hover {
+.hover\:bg-purple-800:hover {
   background-color: #1E1E4F !important;
-  color: #E0A95C !important;
+  color: #FFFFFF !important;
 }
 
-/* Ensure buttons with blue/navy bg have gold text and gold icons */
-button.bg-\[\#272769\],
-button.bg-navy,
-a.bg-\[\#272769\],
-a.bg-navy,
-button.bg-\[\#272769\] *,
-button.bg-navy *,
-a.bg-\[\#272769\] *,
-a.bg-navy * {
-  color: #E0A95C !important;
+.hover\:bg-black:hover *,
+.hover\:bg-neutral-900:hover *,
+.hover\:bg-\[\#342722\]:hover *,
+.hover\:bg-\[\#34241E\]:hover *,
+.hover\:bg-\[\#5b4cdb\]:hover *,
+.hover\:bg-\[\#5a4ad8\]:hover *,
+.hover\:bg-violet-700:hover *,
+.hover\:bg-violet-800:hover *,
+.hover\:bg-indigo-700:hover *,
+.hover\:bg-indigo-800:hover *,
+.hover\:bg-purple-700:hover *,
+.hover\:bg-purple-800:hover * {
+  color: #FFFFFF !important;
 }
 
 /* Headings and body text: Text navy #1E1E4F */
@@ -240,7 +259,6 @@ a.bg-navy * {
 /* Semantic utility classes based on theme spec */
 .bg-navy {
   background-color: #272769 !important;
-  color: #E0A95C !important;
 }
 .text-navy {
   color: #1E1E4F !important;
@@ -252,12 +270,6 @@ a.bg-navy * {
   background-color: #E0A95C !important;
 }
 .text-gold {
-  color: #E0A95C !important;
-}
-
-/* Sidebar with blue/navy bg has gold text */
-aside.bg-\[\#272769\],
-aside.bg-navy {
   color: #E0A95C !important;
 }
 

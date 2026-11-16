@@ -144,7 +144,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
   return (
     <aside
       className={cn(
-        "relative flex flex-col bg-[#272769] text-[#E0A95C] select-none overflow-hidden shrink-0",
+        "relative flex flex-col bg-[#272769] text-white select-none overflow-hidden shrink-0",
         isMobile
           ? "w-full h-full rounded-r-[28px] shadow-2xl border-r border-[#3B3B88]"
           : cn(
@@ -165,7 +165,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
           </div>
           {!effectiveCollapsed && (
             <div className="flex flex-col truncate">
-              <span className="font-extrabold text-[#E0A95C] tracking-tight text-[15px] leading-tight">
+              <span className="font-extrabold text-white tracking-tight text-[15px] leading-tight">
                 Linear Audit
               </span>
               <span className="text-[10px] font-bold text-[#E0A95C] uppercase tracking-widest mt-0.5">
@@ -180,7 +180,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={onClose}
             title="Close menu"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#E0A95C] hover:bg-[#3B3B88] hover:text-[#E0A95C] transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#E3E2F5] hover:bg-[#3B3B88] hover:text-white transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -189,7 +189,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={() => setCollapsed(true)}
             title="Collapse sidebar"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#E0A95C] hover:text-[#E0A95C] hover:bg-[#3B3B88] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#ABA8D8] hover:text-white hover:bg-[#3B3B88] transition-colors"
           >
             <ChevronsLeft className="h-4 w-4" />
           </button>
@@ -202,7 +202,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={() => setCollapsed(false)}
             title="Expand sidebar"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#E0A95C] hover:text-[#E0A95C] hover:bg-[#3B3B88] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#ABA8D8] hover:text-white hover:bg-[#3B3B88] transition-colors"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -225,7 +225,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 "group flex items-center rounded-full transition-all duration-150 relative",
                 isActive
                   ? "bg-[#E0A95C] text-[#1E1E4F] font-bold shadow-xs"
-                  : "text-[#E0A95C] hover:bg-[#32327D] hover:text-[#E0A95C] font-medium"
+                  : "text-[#E3E2F5] hover:bg-[#32327D] hover:text-white font-medium"
               )}
             >
               <Link
@@ -239,7 +239,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 <Icon
                   className={cn(
                     "h-[17px] w-[17px] shrink-0 transition-transform duration-200 group-hover:scale-105",
-                    isActive ? "text-[#1E1E4F]" : "text-[#E0A95C] group-hover:text-[#E0A95C]"
+                    isActive ? "text-[#1E1E4F]" : "text-[#ABA8D8] group-hover:text-white"
                   )}
                 />
                 {!effectiveCollapsed && (
@@ -250,8 +250,8 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                     className={cn(
                       "ml-auto flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
                       isActive
-                        ? "bg-[#272769] text-[#E0A95C]"
-                        : "bg-[#3B3B88] text-[#E0A95C]"
+                        ? "bg-[#272769] text-white"
+                        : "bg-[#3B3B88] text-[#E3E2F5]"
                     )}
                   >
                     {taskBadge}
@@ -280,14 +280,14 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                   "group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium transition-all duration-150",
                   isActive
                     ? "bg-[#E0A95C] text-[#1E1E4F] font-bold shadow-xs"
-                    : "text-[#E0A95C] hover:bg-[#32327D] hover:text-[#E0A95C]"
+                    : "text-[#E3E2F5] hover:bg-[#32327D] hover:text-white"
                 )}
                 title={effectiveCollapsed ? item.title : undefined}
               >
-                <Icon className={cn("h-[17px] w-[17px] shrink-0", isActive ? "text-[#1E1E4F]" : "text-[#E0A95C] group-hover:text-[#E0A95C]")} />
+                <Icon className={cn("h-[17px] w-[17px] shrink-0", isActive ? "text-[#1E1E4F]" : "text-[#ABA8D8] group-hover:text-white")} />
                 {!effectiveCollapsed && <span className="truncate flex-1">{item.title}</span>}
                 {!effectiveCollapsed && badgeValue !== undefined && (
-                  <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#3B3B88] px-1.5 text-[10px] font-bold text-[#E0A95C]">
+                  <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#3B3B88] px-1.5 text-[10px] font-bold text-white">
                     {badgeValue}
                   </span>
                 )}
@@ -298,10 +298,10 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
           <Link
             to="/reports"
             onClick={() => { if (isMobile) onClose?.(); }}
-            className="group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium text-[#E0A95C] hover:bg-[#32327D] hover:text-[#E0A95C] transition-all duration-150"
+            className="group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium text-[#E3E2F5] hover:bg-[#32327D] hover:text-white transition-all duration-150"
             title={effectiveCollapsed ? "Help & Support" : undefined}
           >
-            <HelpCircle className="h-[17px] w-[17px] shrink-0 text-[#E0A95C] group-hover:text-[#E0A95C]" />
+            <HelpCircle className="h-[17px] w-[17px] shrink-0 text-[#ABA8D8] group-hover:text-white" />
             {!effectiveCollapsed && <span className="truncate flex-1">Help & Support</span>}
           </Link>
         </div>
@@ -331,7 +331,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 <>
                   <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-xs font-bold text-[#E0A95C] truncate leading-tight group-hover:text-[#E0A95C]">
+                      <p className="text-xs font-bold text-white truncate leading-tight group-hover:text-white">
                         {currentUser?.full_name || "Administrator"}
                       </p>
                       {isSuperAdminUser && (
@@ -340,14 +340,14 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-[#E0A95C]/80 truncate mt-0.5 leading-tight group-hover:text-[#E0A95C]">
+                    <p className="text-[10px] text-[#ABA8D8] truncate mt-0.5 leading-tight group-hover:text-[#E3E2F5]">
                       {currentUser?.designation_name
                         ? currentUser.designation_name
                         : formatRoleName(currentUser?.role_code, isSuperAdminUser)}
                       {isEmployee ? " • View Only" : ""}
                     </p>
                   </div>
-                  <ChevronDown className="h-3.5 w-3.5 text-[#E0A95C] group-hover:text-[#E0A95C] shrink-0 transition-transform duration-150" />
+                  <ChevronDown className="h-3.5 w-3.5 text-[#ABA8D8] group-hover:text-white shrink-0 transition-transform duration-150" />
                 </>
               )}
             </button>
@@ -357,13 +357,13 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             side={effectiveCollapsed ? "right" : "top"}
             align={effectiveCollapsed ? "end" : "start"}
             sideOffset={8}
-            className="w-60 p-1.5 rounded-2xl border border-[#3B3B88] bg-[#272769] text-[#E0A95C] shadow-2xl z-50"
+            className="w-60 p-1.5 rounded-2xl border border-[#3B3B88] bg-[#272769] text-white shadow-2xl z-50"
           >
-            <DropdownMenuLabel className="px-3 py-2 text-xs font-normal text-[#E0A95C]/80">
-              <div className="font-bold text-sm text-[#E0A95C] truncate">
+            <DropdownMenuLabel className="px-3 py-2 text-xs font-normal text-[#ABA8D8]">
+              <div className="font-bold text-sm text-white truncate">
                 {currentUser?.full_name || "Administrator"}
               </div>
-              <div className="text-[11px] text-[#E0A95C]/80 truncate mt-0.5">
+              <div className="text-[11px] text-[#ABA8D8] truncate mt-0.5">
                 {currentUser?.email || "admin@pms.internal"}
               </div>
               <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#32327D] border border-[#444498] text-[#E0A95C]">
@@ -377,13 +377,13 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             {currentUser?.id && (
               <DropdownMenuItem
                 asChild
-                className="rounded-xl cursor-pointer text-xs font-medium text-[#E0A95C] hover:bg-[#32327D] hover:text-[#E0A95C] focus:bg-[#32327D] focus:text-[#E0A95C]"
+                className="rounded-xl cursor-pointer text-xs font-medium text-white hover:bg-[#32327D] hover:text-white focus:bg-[#32327D] focus:text-white"
               >
                 <Link
                   to={`/employees/${currentUser.id}`}
                   onClick={() => { if (isMobile) onClose?.(); }}
                 >
-                  <User className="mr-2 h-4 w-4 text-[#E0A95C]" />
+                  <User className="mr-2 h-4 w-4 text-[#ABA8D8]" />
                   <span>My Directory Profile</span>
                 </Link>
               </DropdownMenuItem>
@@ -392,13 +392,13 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             {!isEmployee && (
               <DropdownMenuItem
                 asChild
-                className="rounded-xl cursor-pointer text-xs font-medium text-[#E0A95C] hover:bg-[#32327D] hover:text-[#E0A95C] focus:bg-[#32327D] focus:text-[#E0A95C]"
+                className="rounded-xl cursor-pointer text-xs font-medium text-white hover:bg-[#32327D] hover:text-white focus:bg-[#32327D] focus:text-white"
               >
                 <Link
                   to="/settings"
                   onClick={() => { if (isMobile) onClose?.(); }}
                 >
-                  <Settings className="mr-2 h-4 w-4 text-[#E0A95C]" />
+                  <Settings className="mr-2 h-4 w-4 text-[#ABA8D8]" />
                   <span>System Settings</span>
                 </Link>
               </DropdownMenuItem>

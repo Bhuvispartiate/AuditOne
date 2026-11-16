@@ -505,17 +505,17 @@ export default function FinanceCentralPage() {
                 onClick={() => switchTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all whitespace-nowrap shrink-0 text-xs ${
                   isActive
-                    ? "bg-[#272769] text-[#E0A95C] shadow-xs font-black"
+                    ? "bg-[#272769] text-white shadow-xs font-black"
                     : "text-[#55557A] hover:text-[#1E1E4F] hover:bg-[#E3E2F5] font-semibold"
                 }`}
               >
-                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-[#E0A95C]" : "text-[#55557A]"}`} />
+                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-white" : "text-[#55557A]"}`} />
                 <span>{tab.label}</span>
                 {tab.count !== undefined && (
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                       isActive
-                        ? "bg-[#1E1E4F] text-[#E0A95C]"
+                        ? "bg-white/20 text-white"
                         : tab.badgeVariant === "destructive"
                         ? "bg-rose-200 text-rose-900"
                         : "bg-[#E3E2F5] text-[#272769]"
@@ -536,12 +536,12 @@ export default function FinanceCentralPage() {
       {activeTab === "overview" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
-            <Card className="rounded-[24px] border border-[#272769] bg-[#272769] text-[#E0A95C] p-5 shadow-sm">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#E0A95C]/80">Total Billed</span>
-              <div className="text-xl sm:text-2xl font-black text-[#E0A95C] mt-1.5">
+            <Card className="rounded-[24px] border border-[#272769] bg-[#272769] text-white p-5 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#ABA8D8]">Total Billed</span>
+              <div className="text-xl sm:text-2xl font-black text-white mt-1.5">
                 ₹{totalInvoiced.toLocaleString("en-IN")}
               </div>
-              <p className="text-[10px] text-[#E0A95C]/75 mt-1">{approvedInvoices.length} Generated Invoices</p>
+              <p className="text-[10px] text-[#ABA8D8] mt-1">{approvedInvoices.length} Generated Invoices</p>
             </Card>
 
             <Card className="rounded-[24px] border border-[#E6E4F0] bg-white p-5 shadow-xs">
@@ -603,10 +603,10 @@ export default function FinanceCentralPage() {
               </p>
               <Button
                 onClick={() => switchTab("single-invoice")}
-                className="w-full bg-[#272769] hover:bg-[#1E1E4F] text-[#E0A95C] rounded-full text-xs font-bold gap-1 shadow-xs"
+                className="w-full bg-[#272769] hover:bg-[#1E1E4F] text-white rounded-full text-xs font-bold gap-1 shadow-xs"
               >
                 <span>Create Single Invoice</span>
-                <ArrowUpRight className="h-3.5 w-3.5 text-[#E0A95C]" />
+                <ArrowUpRight className="h-3.5 w-3.5" />
               </Button>
             </div>
 
@@ -625,10 +625,10 @@ export default function FinanceCentralPage() {
               </p>
               <Button
                 onClick={() => switchTab("bulk-invoice")}
-                className="w-full bg-[#272769] hover:bg-[#1E1E4F] text-[#E0A95C] rounded-full text-xs font-bold gap-1 shadow-xs"
+                className="w-full bg-[#272769] hover:bg-[#1E1E4F] text-white rounded-full text-xs font-bold gap-1 shadow-xs"
               >
                 <span>Create Bulk Batch</span>
-                <ArrowUpRight className="h-3.5 w-3.5 text-[#E0A95C]" />
+                <ArrowUpRight className="h-3.5 w-3.5" />
               </Button>
             </div>
 
@@ -648,10 +648,10 @@ export default function FinanceCentralPage() {
               <div className="flex items-center gap-2">
                 <Button
                   onClick={() => setIsRecurringModalOpen(true)}
-                  className="flex-1 bg-[#272769] hover:bg-[#1E1E4F] text-[#E0A95C] rounded-full text-xs font-bold gap-1 shadow-xs"
+                  className="flex-1 bg-[#272769] hover:bg-[#1E1E4F] text-white rounded-full text-xs font-bold gap-1 shadow-xs"
                 >
                   <span>New Schedule</span>
-                  <Plus className="h-3.5 w-3.5 text-[#E0A95C]" />
+                  <Plus className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   onClick={handleRunScheduler}

@@ -234,7 +234,7 @@ export function GeoLocationSetupCard({
         <div className="md:col-span-2">
           <Button
             type="submit"
-            className="w-full h-9 rounded-full bg-[#272769] hover:bg-[#1E1E4F] text-[#E0A95C] text-xs font-bold gap-1.5"
+            className="w-full h-9 rounded-full bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold gap-1.5"
           >
             <Save className="h-3.5 w-3.5" />
             <span>Save Location</span>

@@ -273,8 +273,8 @@ export default function DashboardPage() {
                 </button>
               </Link>
               <Link to="/clients/new">
-                <button className="flex items-center gap-1.5 h-10 px-5 rounded-full bg-[#272769] hover:bg-[#1E1E4F] text-[#E0A95C] text-xs font-bold transition-all shadow-xs cursor-pointer">
-                  <Plus className="h-4 w-4 text-[#E0A95C]" />
+                <button className="flex items-center gap-1.5 h-10 px-5 rounded-full bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold transition-all shadow-xs cursor-pointer">
+                  <Plus className="h-4 w-4" />
                   <span>Onboard Client</span>
                 </button>
               </Link>
@@ -616,7 +616,7 @@ export default function DashboardPage() {
               </p>
               {!isEmployee && (
                 <Link to="/projects/new">
-                  <button className="mt-3 px-4 py-2 rounded-full bg-[#272769] text-[#E0A95C] text-xs font-bold hover:bg-[#1E1E4F] transition-colors cursor-pointer">
+                  <button className="mt-3 px-4 py-2 rounded-full bg-[#272769] text-white text-xs font-bold hover:bg-[#1E1E4F] transition-colors cursor-pointer">
                     + New Project
                   </button>
                 </Link>
@@ -695,7 +695,7 @@ export default function DashboardPage() {
               </p>
               {!isEmployee && (
                 <Link to="/tasks?create=true">
-                  <button className="mt-3 px-4 py-2 rounded-full bg-[#272769] text-[#E0A95C] text-xs font-bold hover:bg-[#1E1E4F] transition-colors cursor-pointer">
+                  <button className="mt-3 px-4 py-2 rounded-full bg-[#272769] text-white text-xs font-bold hover:bg-[#1E1E4F] transition-colors cursor-pointer">
                     + Create Task
                   </button>
                 </Link>
@@ -825,7 +825,7 @@ export default function DashboardPage() {
                   <span
                     className={`font-mono text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
                       item.clientCount > 0
-                        ? "bg-[#272769] text-[#E0A95C]"
+                        ? "bg-[#272769] text-white"
                         : "bg-[#E3E2F5] text-[#55557A]"
                     }`}
                   >
@@ -874,7 +874,7 @@ export default function DashboardPage() {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-mono text-[10px] font-bold bg-[#272769] text-[#E0A95C] px-2 py-0.5 rounded-md">
+                    <span className="font-mono text-[10px] font-bold bg-[#272769] text-white px-2 py-0.5 rounded-md">
                       {m.task_code || "TASK"}
                     </span>
                     <span className="text-xs font-extrabold text-[#1E1E4F]">
@@ -905,9 +905,9 @@ export default function DashboardPage() {
                       toast.success("Message marked as Seen.");
                       setTick((t) => t + 1);
                     }}
-                    className="h-9 px-4 rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-[#E0A95C] text-xs font-bold gap-1.5 cursor-pointer"
+                    className="h-9 px-4 rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold gap-1.5 cursor-pointer"
                   >
-                    <CheckCheck className="h-4 w-4 text-[#E0A95C]" />
+                    <CheckCheck className="h-4 w-4" />
                     <span>Seen Message</span>
                   </Button>
                 </div>
@@ -956,7 +956,7 @@ export default function DashboardPage() {
                             setShowMentionReceiptsModal(false);
                             setSelectedCommentTaskId(item.task_id);
                           }}
-                          className="font-mono text-[10px] font-bold bg-[#272769] text-[#E0A95C] px-2 py-0.5 rounded-md hover:bg-[#1E1E4F] cursor-pointer"
+                          className="font-mono text-[10px] font-bold bg-[#272769] text-white px-2 py-0.5 rounded-md hover:bg-[#1E1E4F] cursor-pointer"
                         >
                           {item.task_code || "TASK"}
                         </button>
