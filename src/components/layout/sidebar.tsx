@@ -180,7 +180,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={onClose}
             title="Close menu"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#E3E2F5] hover:bg-[#3B3B88] hover:text-white transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-white hover:bg-[#3B3B88] hover:text-white transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -189,7 +189,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={() => setCollapsed(true)}
             title="Collapse sidebar"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#ABA8D8] hover:text-white hover:bg-[#3B3B88] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-white hover:text-white hover:bg-[#3B3B88] transition-colors"
           >
             <ChevronsLeft className="h-4 w-4" />
           </button>
@@ -202,7 +202,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={() => setCollapsed(false)}
             title="Expand sidebar"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#ABA8D8] hover:text-white hover:bg-[#3B3B88] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-white hover:text-white hover:bg-[#3B3B88] transition-colors"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -225,7 +225,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 "group flex items-center rounded-full transition-all duration-150 relative",
                 isActive
                   ? "bg-[#E0A95C] text-[#1E1E4F] font-bold shadow-xs"
-                  : "text-[#E3E2F5] hover:bg-[#32327D] hover:text-white font-medium"
+                  : "text-white hover:bg-[#32327D] hover:text-white font-medium"
               )}
             >
               <Link
@@ -233,17 +233,22 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 onClick={() => {
                   if (isMobile) onClose?.();
                 }}
-                className="flex flex-1 min-w-0 items-center gap-3 px-3.5 py-2.5 text-[13px]"
+                className={cn(
+                  "flex flex-1 min-w-0 items-center gap-3 px-3.5 py-2.5 text-[13px]",
+                  isActive ? "text-[#1E1E4F]" : "text-white"
+                )}
                 title={effectiveCollapsed ? item.title : undefined}
               >
                 <Icon
                   className={cn(
                     "h-[17px] w-[17px] shrink-0 transition-transform duration-200 group-hover:scale-105",
-                    isActive ? "text-[#1E1E4F]" : "text-[#ABA8D8] group-hover:text-white"
+                    isActive ? "text-[#1E1E4F]" : "text-white group-hover:text-white"
                   )}
                 />
                 {!effectiveCollapsed && (
-                  <span className="truncate flex-1 tracking-tight">{item.title}</span>
+                  <span className={cn("truncate flex-1 tracking-tight", isActive ? "text-[#1E1E4F]" : "text-white")}>
+                    {item.title}
+                  </span>
                 )}
                 {!effectiveCollapsed && taskBadge !== undefined && (
                   <span
@@ -251,7 +256,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                       "ml-auto flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
                       isActive
                         ? "bg-[#272769] text-white"
-                        : "bg-[#3B3B88] text-[#E3E2F5]"
+                        : "bg-[#E0A95C] text-[#1E1E4F]"
                     )}
                   >
                     {taskBadge}
@@ -280,12 +285,12 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                   "group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium transition-all duration-150",
                   isActive
                     ? "bg-[#E0A95C] text-[#1E1E4F] font-bold shadow-xs"
-                    : "text-[#E3E2F5] hover:bg-[#32327D] hover:text-white"
+                    : "text-white hover:bg-[#32327D] hover:text-white"
                 )}
                 title={effectiveCollapsed ? item.title : undefined}
               >
-                <Icon className={cn("h-[17px] w-[17px] shrink-0", isActive ? "text-[#1E1E4F]" : "text-[#ABA8D8] group-hover:text-white")} />
-                {!effectiveCollapsed && <span className="truncate flex-1">{item.title}</span>}
+                <Icon className={cn("h-[17px] w-[17px] shrink-0", isActive ? "text-[#1E1E4F]" : "text-white group-hover:text-white")} />
+                {!effectiveCollapsed && <span className={cn("truncate flex-1", isActive ? "text-[#1E1E4F]" : "text-white")}>{item.title}</span>}
                 {!effectiveCollapsed && badgeValue !== undefined && (
                   <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#3B3B88] px-1.5 text-[10px] font-bold text-white">
                     {badgeValue}
@@ -298,11 +303,11 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
           <Link
             to="/reports"
             onClick={() => { if (isMobile) onClose?.(); }}
-            className="group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium text-[#E3E2F5] hover:bg-[#32327D] hover:text-white transition-all duration-150"
+            className="group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#32327D] hover:text-white transition-all duration-150"
             title={effectiveCollapsed ? "Help & Support" : undefined}
           >
-            <HelpCircle className="h-[17px] w-[17px] shrink-0 text-[#ABA8D8] group-hover:text-white" />
-            {!effectiveCollapsed && <span className="truncate flex-1">Help & Support</span>}
+            <HelpCircle className="h-[17px] w-[17px] shrink-0 text-white group-hover:text-white" />
+            {!effectiveCollapsed && <span className="truncate flex-1 text-white">Help & Support</span>}
           </Link>
         </div>
       )}
@@ -335,19 +340,19 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                         {currentUser?.full_name || "Administrator"}
                       </p>
                       {isSuperAdminUser && (
-                        <span className="shrink-0 px-1 py-0.2 rounded text-[8px] font-extrabold uppercase tracking-wider bg-[#E0A95C]/20 text-[#E0A95C] border border-[#E0A95C]/40">
+                        <span className="shrink-0 px-1 py-0.2 rounded text-[8px] font-extrabold uppercase tracking-wider bg-[#E0A95C] text-[#1E1E4F] border border-[#E0A95C]">
                           Root
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-[#ABA8D8] truncate mt-0.5 leading-tight group-hover:text-[#E3E2F5]">
+                    <p className="text-[10px] text-white/80 truncate mt-0.5 leading-tight group-hover:text-white">
                       {currentUser?.designation_name
                         ? currentUser.designation_name
                         : formatRoleName(currentUser?.role_code, isSuperAdminUser)}
                       {isEmployee ? " • View Only" : ""}
                     </p>
                   </div>
-                  <ChevronDown className="h-3.5 w-3.5 text-[#ABA8D8] group-hover:text-white shrink-0 transition-transform duration-150" />
+                  <ChevronDown className="h-3.5 w-3.5 text-white group-hover:text-white shrink-0 transition-transform duration-150" />
                 </>
               )}
             </button>

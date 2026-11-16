@@ -69,10 +69,10 @@ export default function TeamsPage() {
         <Button
           onClick={() => setIsModalOpen(true)}
           size="sm"
-          className="bg-[#272769] hover:bg-[#1E1E4F] text-white gap-1.5 rounded-full px-5 h-10 shadow-xs font-bold text-xs cursor-pointer"
+          className="bg-[#272769] hover:bg-[#1E1E4F] !text-white gap-1.5 rounded-full px-5 h-10 shadow-xs font-bold text-xs cursor-pointer"
         >
-          <Plus className="h-4 w-4" />
-          <span>Create New Team</span>
+          <Plus className="h-4 w-4 !text-white" />
+          <span className="!text-white">Create New Team</span>
         </Button>
       </div>
 

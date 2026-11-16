@@ -130,6 +130,27 @@
   color: #FFFFFF !important;
 }
 
+/* Explicit button text overrides for blue/navy buttons */
+button.bg-\[\#272769\],
+button.bg-navy,
+a.bg-\[\#272769\],
+a.bg-navy,
+button.bg-\[\#272769\] *,
+button.bg-navy *,
+a.bg-\[\#272769\] *,
+a.bg-navy * {
+  color: #FFFFFF !important;
+}
+
+/* Active menu item in sidebar retains Gold background and Navy text */
+aside .bg-\[\#E0A95C\],
+aside .bg-\[\#E0A95C\] *,
+aside.bg-\[\#272769\] .bg-\[\#E0A95C\],
+aside.bg-\[\#272769\] .bg-\[\#E0A95C\] * {
+  background-color: #E0A95C !important;
+  color: #1E1E4F !important;
+}
+
 /* Hover states for Navy buttons */
 .hover\:bg-black:hover,
 .hover\:bg-neutral-900:hover,

@@ -273,9 +273,9 @@ export default function DashboardPage() {
                 </button>
               </Link>
               <Link to="/clients/new">
-                <button className="flex items-center gap-1.5 h-10 px-5 rounded-full bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold transition-all shadow-xs cursor-pointer">
-                  <Plus className="h-4 w-4" />
-                  <span>Onboard Client</span>
+                <button className="flex items-center gap-1.5 h-10 px-5 rounded-full bg-[#272769] hover:bg-[#1E1E4F] !text-white text-xs font-bold transition-all shadow-xs cursor-pointer">
+                  <Plus className="h-4 w-4 !text-white" />
+                  <span className="!text-white">Onboard Client</span>
                 </button>
               </Link>
             </>
@@ -616,7 +616,7 @@ export default function DashboardPage() {
               </p>
               {!isEmployee && (
                 <Link to="/projects/new">
-                  <button className="mt-3 px-4 py-2 rounded-full bg-[#272769] text-white text-xs font-bold hover:bg-[#1E1E4F] transition-colors cursor-pointer">
+                  <button className="mt-3 px-4 py-2 rounded-full bg-[#272769] !text-white text-xs font-bold hover:bg-[#1E1E4F] transition-colors cursor-pointer">
                     + New Project
                   </button>
                 </Link>
@@ -695,7 +695,7 @@ export default function DashboardPage() {
               </p>
               {!isEmployee && (
                 <Link to="/tasks?create=true">
-                  <button className="mt-3 px-4 py-2 rounded-full bg-[#272769] text-white text-xs font-bold hover:bg-[#1E1E4F] transition-colors cursor-pointer">
+                  <button className="mt-3 px-4 py-2 rounded-full bg-[#272769] !text-white text-xs font-bold hover:bg-[#1E1E4F] transition-colors cursor-pointer">
                     + Create Task
                   </button>
                 </Link>
