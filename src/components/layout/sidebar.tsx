@@ -7,7 +7,6 @@ import {
   FolderGit2,
   CheckSquare,
   GitBranch,
-  Columns3,
   CreditCard,
   Receipt,
   UserCheck,
@@ -31,10 +30,8 @@ import { cn } from "@/lib/utils";
 import { pmsStore } from "@/lib/data/store";
 import {
   isEmployeeRestricted,
-  isProjectAssignedToEmployee,
   isSuperAdmin,
   isTaskAssignedToEmployee,
-  isWorkflowAssignedToEmployee,
 } from "@/lib/access";
 
 export interface NavItem {
@@ -89,9 +86,6 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
   const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const effectiveCollapsed = isMobile ? false : collapsed;
-  const [workflowsOpen, setWorkflowsOpen] = useState(
-    Boolean(pathname && pathname.startsWith("/workflows/"))
-  );
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -99,20 +93,11 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
     return unsub;
   }, []);
 
-  useEffect(() => {
-    if (pathname && pathname.startsWith("/workflows/")) {
-      setWorkflowsOpen(true);
-    }
-  }, [pathname]);
-
   const currentUser = pmsStore.getCurrentUser();
   const isEmployee = isEmployeeRestricted(currentUser);
   const isSuperAdminUser = isSuperAdmin(currentUser);
   const employeeId = currentUser?.id || "";
-  const projects = pmsStore.getProjects();
   const tasks = pmsStore.getTasks();
-  const engagements = pmsStore.getAllEngagements();
-  const allWorkflows = pmsStore.getWorkflows().filter((w) => w.is_active !== false);
 
   const visibleNavItems = isEmployee
     ? mainNavItems.filter((item) => EMPLOYEE_ALLOWED_HREFS.has(item.href))
@@ -121,20 +106,6 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
   const visibleTasks = isEmployee
     ? tasks.filter((t) => isTaskAssignedToEmployee(t, employeeId))
     : tasks;
-
-  const workflows = isEmployee
-    ? allWorkflows.filter((w) =>
-        isWorkflowAssignedToEmployee(w, employeeId, projects, tasks, engagements)
-      )
-    : allWorkflows;
-
-  const assignedProjectClientIds = isEmployee
-    ? new Set(
-        projects
-          .filter((p) => isProjectAssignedToEmployee(p, employeeId, tasks) && p.client_id)
-          .map((p) => p.client_id as string)
-      )
-    : null;
 
   const notifications = pmsStore.getNotifications();
   const pendingTasksCount = visibleTasks.filter((t) => t.status !== "Completed").length;
@@ -221,162 +192,52 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
       <div className="flex-1 overflow-y-auto px-3 py-1 space-y-1 scrollbar-none">
         {visibleNavItems.map((item) => {
           const Icon = item.icon;
-          const isWorkflowRoot = item.href === "/workflows";
           const isActive = pathname
-            ? isWorkflowRoot
-              ? pathname === "/workflows"
-              : pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
+            ? pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
             : false;
           const taskBadge = item.href === "/tasks" && pendingTasksCount > 0 ? pendingTasksCount : undefined;
 
           return (
-            <React.Fragment key={item.href}>
-              <div
-                className={cn(
-                  "group flex items-center rounded-full transition-all duration-150 relative",
-                  isActive
-                    ? "bg-[#9A97A8] text-white font-semibold shadow-xs"
-                    : "text-[#C4B7A6] hover:bg-[#2C1E19] hover:text-[#FAF8F5] font-medium"
-                )}
+            <div
+              key={item.href}
+              className={cn(
+                "group flex items-center rounded-full transition-all duration-150 relative",
+                isActive
+                  ? "bg-[#9A97A8] text-white font-semibold shadow-xs"
+                  : "text-[#C4B7A6] hover:bg-[#2C1E19] hover:text-[#FAF8F5] font-medium"
+              )}
+            >
+              <Link
+                to={item.href}
+                onClick={() => {
+                  if (isMobile) onClose?.();
+                }}
+                className="flex flex-1 min-w-0 items-center gap-3 px-3.5 py-2.5 text-[13px]"
+                title={effectiveCollapsed ? item.title : undefined}
               >
-                <Link
-                  to={item.href}
-                  onClick={() => {
-                    if (isMobile) onClose?.();
-                    if (isWorkflowRoot && workflows.length > 0 && !effectiveCollapsed) {
-                      setWorkflowsOpen(true);
-                    }
-                  }}
-                  className="flex flex-1 min-w-0 items-center gap-3 px-3.5 py-2.5 text-[13px]"
-                  title={effectiveCollapsed ? item.title : undefined}
-                >
-                  <Icon
-                    className={cn(
-                      "h-[17px] w-[17px] shrink-0 transition-transform duration-200 group-hover:scale-105",
-                      isActive ? "text-white" : "text-[#A89E92] group-hover:text-[#FAF8F5]"
-                    )}
-                  />
-                  {!effectiveCollapsed && (
-                    <span className="truncate flex-1 tracking-tight">{item.title}</span>
+                <Icon
+                  className={cn(
+                    "h-[17px] w-[17px] shrink-0 transition-transform duration-200 group-hover:scale-105",
+                    isActive ? "text-white" : "text-[#A89E92] group-hover:text-[#FAF8F5]"
                   )}
-                  {!effectiveCollapsed && taskBadge !== undefined && (
-                    <span
-                      className={cn(
-                        "ml-auto flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
-                        isActive
-                          ? "bg-white/20 text-white"
-                          : "bg-[#34241E] text-[#FAF8F5]"
-                      )}
-                    >
-                      {taskBadge}
-                    </span>
-                  )}
-                </Link>
-
-                {/* Collapsible Dropdown Toggle for Workflows */}
-                {isWorkflowRoot && !effectiveCollapsed && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setWorkflowsOpen((prev) => !prev);
-                    }}
-                    title={workflowsOpen ? "Collapse workflows dropdown" : "Expand workflows dropdown"}
+                />
+                {!effectiveCollapsed && (
+                  <span className="truncate flex-1 tracking-tight">{item.title}</span>
+                )}
+                {!effectiveCollapsed && taskBadge !== undefined && (
+                  <span
                     className={cn(
-                      "mr-2 flex items-center gap-1 rounded-full px-1.5 py-1 text-[10px] font-bold transition-colors",
+                      "ml-auto flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
                       isActive
-                        ? "text-white hover:bg-white/20"
-                        : "text-[#A89E92] hover:bg-[#34241E] hover:text-[#FAF8F5]"
+                        ? "bg-white/20 text-white"
+                        : "bg-[#34241E] text-[#FAF8F5]"
                     )}
                   >
-                    {workflows.length > 0 && (
-                      <span
-                        className={cn(
-                          "flex h-4 min-w-[18px] items-center justify-center rounded-full px-1",
-                          isActive ? "bg-white/20 text-white" : "bg-[#34241E] text-[#FAF8F5]"
-                        )}
-                      >
-                        {workflows.length}
-                      </span>
-                    )}
-                    {workflowsOpen ? (
-                      <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                    )}
-                  </button>
+                    {taskBadge}
+                  </span>
                 )}
-              </div>
-
-              {/* Collapsible Dropdown List of Workflow Pages */}
-              {isWorkflowRoot && !effectiveCollapsed && workflowsOpen && (
-                <div className="ml-4 pl-2.5 border-l border-[#382620] space-y-0.5 py-1">
-                  {workflows.length === 0 ? (
-                    <div className="block rounded-lg px-3 py-1.5 text-[11px] text-[#A89E92]">
-                      {isEmployee ? "No assigned workflows" : (
-                        <Link
-                          to="/workflows"
-                          onClick={() => { if (isMobile) onClose?.(); }}
-                          className="hover:text-[#FAF8F5]"
-                        >
-                          No workflows yet — Create
-                        </Link>
-                      )}
-                    </div>
-                  ) : (
-                    workflows.map((wf) => {
-                      const wfHref = `/workflows/${wf.id}`;
-                      const wfActive = pathname === wfHref;
-                      const serviceClientsCount = new Set(
-                        engagements
-                          .filter(
-                            (e) =>
-                              e.status === "Active" &&
-                              (!assignedProjectClientIds ||
-                                e.relationship_manager_id === employeeId ||
-                                assignedProjectClientIds.has(e.client_id)) &&
-                              ((wf.service_id && e.service_id === wf.service_id) ||
-                                (wf.service_name &&
-                                   e.service_name?.trim().toLowerCase() === wf.service_name.trim().toLowerCase()))
-                          )
-                          .map((e) => e.client_id)
-                      ).size;
-
-                      return (
-                        <Link
-                          key={wf.id}
-                          to={wfHref}
-                          onClick={() => { if (isMobile) onClose?.(); }}
-                          className={cn(
-                            "group flex items-center gap-2.5 rounded-full px-3 py-2 text-[12px] font-medium transition-all duration-150",
-                            wfActive
-                              ? "bg-[#FAF8F5] text-[#201815] font-semibold shadow-xs"
-                              : "text-[#C4B7A6] hover:bg-[#2C1E19] hover:text-[#FAF8F5]"
-                          )}
-                        >
-                          <Columns3
-                            className={cn(
-                              "h-[15px] w-[15px] shrink-0",
-                              wfActive ? "text-[#201815]" : "text-[#A89E92] group-hover:text-[#FAF8F5]"
-                            )}
-                          />
-                          <span className="truncate flex-1 tracking-tight">{wf.workflow_name}</span>
-                          <span
-                            className={cn(
-                              "ml-auto flex h-4.5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
-                              wfActive ? "bg-[#201815]/10 text-[#201815]" : "bg-[#34241E] text-[#FAF8F5]"
-                            )}
-                          >
-                            {serviceClientsCount}
-                          </span>
-                        </Link>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </React.Fragment>
+              </Link>
+            </div>
           );
         })}
       </div>
