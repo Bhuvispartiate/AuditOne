@@ -1325,11 +1325,11 @@ export default function Client360ProfilePage() {
                             "Invoice Date": formatDate(inv.invoice_date),
                             "Due Date": formatDate(inv.due_date),
                             "Subtotal": formatCurrency(inv.subtotal),
-                            "Total Tax / GST": formatCurrency(inv.total_tax),
+                            "Total Tax / GST": formatCurrency(inv.total_gst || 0),
                             "Grand Total": formatCurrency(inv.grand_total),
                             "Status": inv.status,
                             "Place of Supply": inv.place_of_supply,
-                            "Payment Terms": inv.payment_terms || "15 Days Net",
+                            "Payment Terms": inv.terms_label || "15 Days Net",
                           },
                         });
                         setIsAuditModalOpen(true);
