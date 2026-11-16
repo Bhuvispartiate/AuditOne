@@ -628,7 +628,7 @@ export default function VaultPage() {
         const encrypted = await encryptVaultPassword(addClientPassword.trim());
         await pmsStore.addVaultCredential({
           portal_name: addClientPortal.trim(),
-          login_url: addClientUrl.trim() || undefined,
+          login_url: addClientUrl.trim() || "",
           username: addClientUsername.trim(),
           password_encrypted: encrypted,
           category: currentCategory.name,
