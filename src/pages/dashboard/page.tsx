@@ -21,10 +21,12 @@ import {
 import { pmsStore } from "@/lib/data/store";
 import {
   isAdminUser,
+  isSuperAdmin,
   isTaskAssignedToEmployee,
   isProjectAssignedToEmployee,
   isClientAssignedToEmployee,
 } from "@/lib/access";
+import { SuperAdminDatabaseResetCard } from "@/components/admin/super-admin-database-reset-card";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 import { renderCommentWithMentions } from "@/components/tasks/task-comments-box";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -282,6 +284,11 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Super Admin Exclusive Database Control */}
+      {isSuperAdmin(currentUser) && (
+        <SuperAdminDatabaseResetCard className="mb-6" />
+      )}
 
       {/* Row 1: 4 Pastel Tinted Bento KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

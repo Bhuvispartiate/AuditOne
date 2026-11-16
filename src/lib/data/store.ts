@@ -147,6 +147,7 @@ import {
   deleteTeamFromDb,
   fetchDocumentFoldersFromDb,
   saveDocumentFoldersToDb,
+  resetFullDatabaseInSupabase,
   ensureUuid,
   isUuid,
 } from "@/lib/supabase/db";
@@ -5450,6 +5451,33 @@ class PMSDataStore {
     }
     void insertVaultAuditLogToDb(entry).catch(() => {});
     this.persist();
+  }
+
+  // --------------------------------------------------------------------------
+  // SUPER ADMIN FULL DATABASE RESET
+  // --------------------------------------------------------------------------
+  async resetFullDatabase(): Promise<{ ok: boolean; error?: string; count?: number }> {
+    if (
+      !this.currentUser ||
+      (this.currentUser.role_code !== "SUPER_ADMIN" && !isSuperAdminEmail(this.currentUser.email))
+    ) {
+      return { ok: false, error: "Unauthorized: Full database reset is restricted exclusively to the Super Admin." };
+    }
+
+    try {
+      const res = await resetFullDatabaseInSupabase(this.currentUser);
+      if (!res.ok) {
+        return { ok: false, error: res.error || "Failed to reset Supabase database." };
+      }
+
+      // Re-hydrate full store directly from Supabase to load the clean database baseline
+      await this.loadAllFromSupabase();
+      this.notify();
+      return { ok: true, count: res.clearedTablesCount };
+    } catch (err: any) {
+      console.error("Super Admin database reset failed:", err);
+      return { ok: false, error: err?.message || "Failed to reset database." };
+    }
   }
 }
 

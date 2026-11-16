@@ -26,6 +26,7 @@ import { pmsStore } from "@/lib/data/store";
 import { isSuperAdmin } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
 import { toast } from "sonner";
+import { SuperAdminDatabaseResetCard } from "@/components/admin/super-admin-database-reset-card";
 
 export default function AdminsManagementPage() {
   const [, setTick] = useState(0);
@@ -508,6 +509,9 @@ export default function AdminsManagementPage() {
           );
         })}
       </div>
+
+      {/* Super Admin Database Control */}
+      <SuperAdminDatabaseResetCard className="shadow-2xs" />
 
       {/* Recent Admin Management Audit Log */}
       <Card className="rounded-[24px] border-[1.5px] border-slate-300 shadow-2xs">

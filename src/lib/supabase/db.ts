@@ -3,7 +3,7 @@
 // Pure, single-source-of-truth direct database persistence
 // ============================================================================
 
-import { createClient } from "./client";
+import { createClient, SUPERADMIN_EMAIL, isSuperAdminEmail } from "./client";
 import {
   Client,
   ClientContact,
@@ -2528,5 +2528,147 @@ export async function saveDocumentFoldersToDb(folders: DocumentFolder[]): Promis
   if (error) {
     console.warn("Supabase save document_folders warning:", error.message || error);
   }
+}
+
+// ----------------------------------------------------------------------------
+// SUPER ADMIN FULL DATABASE RESET
+// Wipes all application transactional data from Supabase PostgreSQL
+// Preserves the Super Admin root account and default system configurations
+// ----------------------------------------------------------------------------
+
+export async function resetFullDatabaseInSupabase(initiator: Employee): Promise<{
+  ok: boolean;
+  error?: string;
+  clearedTablesCount?: number;
+}> {
+  if (!initiator || (initiator.role_code !== "SUPER_ADMIN" && !isSuperAdminEmail(initiator.email))) {
+    throw new Error("Unauthorized: Full database reset is restricted exclusively to the Super Admin.");
+  }
+
+  const supabase = createClient();
+  const nilUuid = "00000000-0000-0000-0000-000000000000";
+
+  // Tables to truncate in foreign-key safe cascade order
+  const tablesToClear = [
+    // 1. Task activity and sub-items
+    "task_comments",
+    "task_attachments",
+    "task_status_history",
+    // 2. Tasks
+    "tasks",
+    // 3. Project mappings & Projects
+    "project_assignments",
+    "project_milestones",
+    "project_workflows",
+    "project_workflow_stages",
+    "projects",
+    // 4. Invoices, Payments, Requests
+    "payment_allocations",
+    "payments",
+    "invoice_items",
+    "invoice_approval_logs",
+    "bulk_invoice_batches",
+    "invoice_request_items",
+    "invoice_requests",
+    "recurring_invoices",
+    "invoices",
+    "credit_notes",
+    "payment_reminders",
+    // 5. Client sub-records & Engagements
+    "service_fee_records",
+    "service_engagements",
+    "client_contacts",
+    "client_addresses",
+    "client_registrations",
+    "client_bank_accounts",
+    "client_documents",
+    // 6. Clients
+    "clients",
+    // 7. Workflows
+    "workflow_tasks",
+    "workflow_subtasks",
+    "workflow_conditions",
+    "workflow_sub_stages",
+    "workflow_stages",
+    "workflow_milestones",
+    "workflow_template_versions",
+    "workflow_templates",
+    // 8. Services
+    "services",
+    // 9. Task categories
+    "task_sub_categories",
+    "task_categories",
+    // 10. Vault, Files & Recycle Bin
+    "universal_recycle_bin",
+    "vault_audit_logs",
+    "vault_credentials",
+    "file_objects",
+    // 11. Notifications, WhatsApp & Activity
+    "whatsapp_templates",
+    "notifications",
+    "activity_logs",
+    "attendance_records",
+    // 12. Teams
+    "team_members",
+    "teams",
+  ];
+
+  let clearedCount = 0;
+  for (const tbl of tablesToClear) {
+    try {
+      const { error } = await supabase.from(tbl).delete().neq("id", nilUuid);
+      if (error) {
+        console.warn(`[Reset] Table ${tbl} deletion notice:`, error.message);
+      } else {
+        clearedCount++;
+      }
+    } catch (e: any) {
+      console.warn(`[Reset] Warning deleting from ${tbl}:`, e.message || e);
+    }
+  }
+
+  // 13. Employees: Delete all non-Super-Admin employee accounts
+  try {
+    const adminEmail = (initiator.email || SUPERADMIN_EMAIL).trim().toLowerCase();
+    await supabase
+      .from("employees")
+      .delete()
+      .neq("id", nilUuid)
+      .neq("email", adminEmail)
+      .neq("role_code", "SUPER_ADMIN");
+    clearedCount++;
+  } catch (e: any) {
+    console.warn("[Reset] Non-superadmin employee deletion notice:", e.message || e);
+  }
+
+  // 14. Reset Task Statuses to core defaults
+  try {
+    await supabase.from("task_statuses").delete().neq("id", nilUuid);
+    const defaultStatuses = [
+      { id: "status-todo", name: "To Do", color: "#64748B", position: 1, is_system: true, is_completed: false },
+      { id: "status-inprogress", name: "In Progress", color: "#3B82F6", position: 2, is_system: true, is_completed: false },
+      { id: "status-review", name: "Review", color: "#F59E0B", position: 3, is_system: true, is_completed: false },
+      { id: "status-completed", name: "Completed", color: "#10B981", position: 4, is_system: true, is_completed: true },
+    ];
+    await supabase.from("task_statuses").upsert(defaultStatuses);
+  } catch (e: any) {
+    console.warn("[Reset] Task statuses re-seed warning:", e.message || e);
+  }
+
+  // 15. Reset system settings to clean defaults
+  try {
+    await supabase.from("system_settings").delete().neq("id", nilUuid);
+    await saveDocumentFoldersToDb([
+      { id: "folder-tax", name: "Tax Filings", path: "/Tax Filings", description: "Direct & Indirect Tax documents", created_at: new Date().toISOString() },
+      { id: "folder-corp", name: "Corporate & ROC", path: "/Corporate & ROC", description: "MCA, ROC filings and certificates", created_at: new Date().toISOString() },
+      { id: "folder-audit", name: "Audit & Assurance", path: "/Audit & Assurance", description: "Statutory & internal audit reports", created_at: new Date().toISOString() },
+      { id: "folder-kyc", name: "Client KYC & Registrations", path: "/Client KYC & Registrations", description: "PAN, Aadhaar, GST & Incorporation", created_at: new Date().toISOString() },
+      { id: "folder-gen", name: "General Correspondence", path: "/General Correspondence", description: "Notices, letters and agreements", created_at: new Date().toISOString() },
+    ]);
+  } catch (e: any) {
+    console.warn("[Reset] System settings reset warning:", e.message || e);
+  }
+
+  return { ok: true, clearedTablesCount: clearedCount };
 }
 
