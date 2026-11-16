@@ -25,6 +25,8 @@ import {
   Trash2,
   KeyRound,
   X,
+  User,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { pmsStore } from "@/lib/data/store";
@@ -33,6 +35,15 @@ import {
   isSuperAdmin,
   isTaskAssignedToEmployee,
 } from "@/lib/access";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { createClient } from "@/lib/supabase/client";
 
 export interface NavItem {
   title: string;
@@ -80,6 +91,16 @@ const footerNavItems: NavItem[] = [
 export interface AppSidebarProps {
   isMobile?: boolean;
   onClose?: () => void;
+}
+
+function formatRoleName(role?: string, isSuper = false): string {
+  if (isSuper || role === "SUPER_ADMIN") return "Super Admin";
+  if (role === "ADMIN") return "Administrator";
+  if (role === "DIRECTOR") return "Director";
+  if (role === "HEAD") return "Department Head";
+  if (role === "SUPERVISOR") return "Supervisor";
+  if (role === "TRAINEE") return "Trainee";
+  return "Staff Member";
 }
 
 export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) {
@@ -288,33 +309,121 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
 
       {/* Bottom User Profile Pill */}
       <div className="p-3 border-t border-[#382620]">
-        <Link
-          to={isEmployee ? "/dashboard" : "/settings"}
-          onClick={() => { if (isMobile) onClose?.(); }}
-          className={cn(
-            "flex items-center gap-2.5 rounded-2xl p-2 bg-[#2A1C17] hover:bg-[#34241E] border border-[#3E2C24] transition-colors shadow-2xs",
-            effectiveCollapsed && "justify-center"
-          )}
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FAF8F5] text-xs font-black text-[#201815] shadow-xs">
-            {initials}
-          </div>
-          {!effectiveCollapsed && (
-            <>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-[#FAF8F5] truncate">
-                  {currentUser?.full_name || "Administrator"}
-                </p>
-                <p className="text-[10px] text-[#A89E92] truncate">
-                  {isEmployee
-                    ? `${currentUser?.designation_name || currentUser?.role_code} • View Only`
-                    : currentUser?.designation_name || currentUser?.role_code || "Practice Admin"}
-                </p>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "w-full flex items-center gap-2.5 rounded-2xl p-2 bg-[#2A1C17] hover:bg-[#34241E] border border-[#3E2C24] transition-all shadow-2xs text-left group cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#FAF8F5]/20",
+                effectiveCollapsed && "justify-center"
+              )}
+              title={effectiveCollapsed ? currentUser?.full_name || "User Profile" : undefined}
+            >
+              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2C1D18] border border-[#48342A] text-xs font-bold text-[#FAF8F5] shadow-xs select-none">
+                <span>{initials}</span>
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-[#201815]"
+                  title="Active Session"
+                />
               </div>
-              {!isEmployee && <ChevronDown className="h-3.5 w-3.5 text-[#A89E92] shrink-0" />}
-            </>
-          )}
-        </Link>
+
+              {!effectiveCollapsed && (
+                <>
+                  <div className="min-w-0 flex-1 text-left">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-bold text-[#FAF8F5] truncate leading-tight group-hover:text-white">
+                        {currentUser?.full_name || "Administrator"}
+                      </p>
+                      {isSuperAdminUser && (
+                        <span className="shrink-0 px-1 py-0.2 rounded text-[8px] font-extrabold uppercase tracking-wider bg-[#3C2A20] text-[#E8C59A] border border-[#5A4032]">
+                          Root
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-[#A89E92] truncate mt-0.5 leading-tight group-hover:text-[#C4B7A6]">
+                      {currentUser?.designation_name
+                        ? currentUser.designation_name
+                        : formatRoleName(currentUser?.role_code, isSuperAdminUser)}
+                      {isEmployee ? " • View Only" : ""}
+                    </p>
+                  </div>
+                  <ChevronDown className="h-3.5 w-3.5 text-[#A89E92] group-hover:text-[#FAF8F5] shrink-0 transition-transform duration-150" />
+                </>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent
+            side={effectiveCollapsed ? "right" : "top"}
+            align={effectiveCollapsed ? "end" : "start"}
+            sideOffset={8}
+            className="w-60 p-1.5 rounded-2xl border border-[#3E2C24] bg-[#201815] text-[#FAF8F5] shadow-2xl z-50"
+          >
+            <DropdownMenuLabel className="px-3 py-2 text-xs font-normal text-[#A89E92]">
+              <div className="font-bold text-sm text-[#FAF8F5] truncate">
+                {currentUser?.full_name || "Administrator"}
+              </div>
+              <div className="text-[11px] text-[#A89E92] truncate mt-0.5">
+                {currentUser?.email || "admin@pms.internal"}
+              </div>
+              <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#2A1C17] border border-[#3E2C24] text-[#E8C59A]">
+                <ShieldCheck className="h-3 w-3 text-[#E8C59A]" />
+                {formatRoleName(currentUser?.role_code, isSuperAdminUser)}
+                {isEmployee ? " (View Only)" : ""}
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-[#382620]" />
+
+            {currentUser?.id && (
+              <DropdownMenuItem
+                asChild
+                className="rounded-xl cursor-pointer text-xs font-medium text-[#FAF8F5] hover:bg-[#2C1E19] hover:text-white focus:bg-[#2C1E19] focus:text-white"
+              >
+                <Link
+                  to={`/employees/${currentUser.id}`}
+                  onClick={() => { if (isMobile) onClose?.(); }}
+                >
+                  <User className="mr-2 h-4 w-4 text-[#A89E92]" />
+                  <span>My Directory Profile</span>
+                </Link>
+              </DropdownMenuItem>
+            )}
+
+            {!isEmployee && (
+              <DropdownMenuItem
+                asChild
+                className="rounded-xl cursor-pointer text-xs font-medium text-[#FAF8F5] hover:bg-[#2C1E19] hover:text-white focus:bg-[#2C1E19] focus:text-white"
+              >
+                <Link
+                  to="/settings"
+                  onClick={() => { if (isMobile) onClose?.(); }}
+                >
+                  <Settings className="mr-2 h-4 w-4 text-[#A89E92]" />
+                  <span>System Settings</span>
+                </Link>
+              </DropdownMenuItem>
+            )}
+
+            <DropdownMenuSeparator className="bg-[#382620]" />
+
+            <DropdownMenuItem
+              asChild
+              className="rounded-xl cursor-pointer text-xs font-medium text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 focus:bg-rose-950/40 focus:text-rose-300"
+            >
+              <Link
+                to="/login"
+                onClick={() => {
+                  pmsStore.signOut();
+                  createClient().auth.signOut().catch(() => {});
+                  if (isMobile) onClose?.();
+                }}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Sign Out</span>
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
   );

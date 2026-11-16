@@ -237,7 +237,19 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
               <DropdownMenuLabel className="px-3 py-2 text-xs font-semibold text-[#7C746A]">
                 Signed in as{" "}
                 <span className="text-[#201815] font-bold block">
-                  {currentUser?.role_code}
+                  {currentUser?.role_code === "SUPER_ADMIN"
+                    ? "Super Admin"
+                    : currentUser?.role_code === "ADMIN"
+                      ? "Admin"
+                      : currentUser?.role_code === "DIRECTOR"
+                        ? "Director"
+                        : currentUser?.role_code === "HEAD"
+                          ? "Department Head"
+                          : currentUser?.role_code === "SUPERVISOR"
+                            ? "Supervisor"
+                            : currentUser?.role_code === "TRAINEE"
+                              ? "Trainee"
+                              : "Staff Member"}
                   {isEmployee ? " (View Only)" : ""}
                 </span>
               </DropdownMenuLabel>
