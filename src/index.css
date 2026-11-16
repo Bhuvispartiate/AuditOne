@@ -4,35 +4,43 @@
 
 @layer base {
   :root {
-    --background: 38 35% 90%;
-    --foreground: 20 22% 10%;
+    /* Page background: Background #F6F5FB */
+    --background: 250 33% 98%;
+    /* Headings and body text: Text navy #1E1E4F */
+    --foreground: 240 45% 21%;
 
-    --card: 40 33% 97%;
-    --card-foreground: 20 22% 10%;
+    /* Cards: White #FFFFFF */
+    --card: 0 0% 100%;
+    --card-foreground: 240 45% 21%;
 
-    --popover: 40 33% 97%;
-    --popover-foreground: 20 22% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 45% 21%;
 
-    --primary: 20 22% 10%;
-    --primary-foreground: 40 33% 97%;
+    /* Sidebar, main bars, buttons: Navy #272769 */
+    --primary: 240 46% 28%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 38 22% 87%;
-    --secondary-foreground: 20 22% 10%;
+    /* “On track” tags: Navy tint #E3E2F5 */
+    --secondary: 243 45% 92%;
+    --secondary-foreground: 240 45% 21%;
 
-    --muted: 38 22% 87%;
-    --muted-foreground: 34 8% 45%;
+    /* Labels and secondary text: Muted text #55557A */
+    --muted: 243 45% 92%;
+    --muted-foreground: 240 18% 41%;
 
-    --accent: 252 10% 63%;
-    --accent-foreground: 0 0% 100%;
+    /* Highlights, target bars, active menu: Gold #E0A95C */
+    --accent: 35 68% 62%;
+    --accent-foreground: 240 45% 21%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 38 22% 85%;
-    --input: 38 22% 85%;
-    --ring: 20 22% 10%;
+    /* Card borders: Border #E6E4F0 */
+    --border: 247 24% 92%;
+    --input: 247 24% 92%;
+    --ring: 240 46% 28%;
 
-    --radius: 1.5rem;
+    --radius: 1.25rem;
   }
 }
 
@@ -42,7 +50,7 @@
     font-family: 'Plus Jakarta Sans', Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   body {
-    @apply bg-[#EFE8DC] text-[#201815] antialiased selection:bg-[#201815]/15 selection:text-[#201815];
+    @apply bg-[#F6F5FB] text-[#1E1E4F] antialiased selection:bg-[#E0A95C]/30 selection:text-[#1E1E4F];
     font-family: 'Plus Jakarta Sans', Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     letter-spacing: -0.015em;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -50,6 +58,7 @@
     -moz-osx-font-smoothing: grayscale;
   }
   h1, h2, h3, h4, h5, h6 {
+    color: #1E1E4F;
     font-family: 'Plus Jakarta Sans', sans-serif;
     letter-spacing: -0.025em;
   }
@@ -58,7 +67,7 @@
   }
 }
 
-/* Custom Scrollbars matching warm almond palette */
+/* Custom Scrollbars matching brand palette */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -67,16 +76,16 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D5CCC0;
+  background: #D2CFE8;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #B8AE9F;
+  background: #B5B1D8;
 }
 
 /* ========================================================================== */
-/* Global Luxury Brown Theme Overrides for Buttons, Bars & Controls          */
-/* Whenever a button or bar is brown, the text and icons MUST be crisp white */
+/* Global Brand Theme Overrides: Navy (#272769), Gold (#E0A95C)              */
+/* Buttons, Main Bars, Sidebar -> Navy (#272769)                             */
 /* ========================================================================== */
 .bg-neutral-900,
 .bg-\[\#201815\],
@@ -94,8 +103,8 @@
 .bg-purple-600,
 .bg-purple-700,
 .bg-purple-800 {
-  background-color: #201815 !important;
-  color: #FAF8F5 !important;
+  background-color: #272769 !important;
+  color: #FFFFFF !important;
 }
 
 .bg-neutral-900 *,
@@ -114,13 +123,14 @@
 .bg-purple-600 *,
 .bg-purple-700 *,
 .bg-purple-800 * {
-  color: #FAF8F5 !important;
+  color: #FFFFFF !important;
 }
 
-/* Hover states for brown buttons */
+/* Hover states for Navy buttons */
 .hover\:bg-black:hover,
 .hover\:bg-neutral-900:hover,
 .hover\:bg-\[\#342722\]:hover,
+.hover\:bg-\[\#34241E\]:hover,
 .hover\:bg-\[\#5b4cdb\]:hover,
 .hover\:bg-\[\#5a4ad8\]:hover,
 .hover\:bg-violet-700:hover,
@@ -129,13 +139,14 @@
 .hover\:bg-indigo-800:hover,
 .hover\:bg-purple-700:hover,
 .hover\:bg-purple-800:hover {
-  background-color: #342722 !important;
-  color: #FAF8F5 !important;
+  background-color: #1E1E4F !important;
+  color: #FFFFFF !important;
 }
 
 .hover\:bg-black:hover *,
 .hover\:bg-neutral-900:hover *,
 .hover\:bg-\[\#342722\]:hover *,
+.hover\:bg-\[\#34241E\]:hover *,
 .hover\:bg-\[\#5b4cdb\]:hover *,
 .hover\:bg-\[\#5a4ad8\]:hover *,
 .hover\:bg-violet-700:hover *,
@@ -144,10 +155,10 @@
 .hover\:bg-indigo-800:hover *,
 .hover\:bg-purple-700:hover *,
 .hover\:bg-purple-800:hover * {
-  color: #FAF8F5 !important;
+  color: #FFFFFF !important;
 }
 
-/* Change violet/indigo/purple text, badges, borders to rich luxury brown */
+/* Headings and body text: Text navy #1E1E4F */
 .text-violet-600,
 .text-violet-700,
 .text-violet-800,
@@ -164,9 +175,10 @@
 .hover\:text-violet-700:hover,
 .hover\:text-violet-800:hover,
 .hover\:text-indigo-700:hover {
-  color: #201815 !important;
+  color: #1E1E4F !important;
 }
 
+/* Borders -> Border #E6E4F0 */
 .border-violet-600,
 .border-violet-700,
 .border-violet-800,
@@ -177,7 +189,7 @@
 .hover\:border-violet-600:hover,
 .hover\:border-violet-700:hover,
 .hover\:border-indigo-500:hover {
-  border-color: #201815 !important;
+  border-color: #272769 !important;
 }
 
 .border-violet-200,
@@ -185,22 +197,94 @@
 .border-violet-400,
 .border-indigo-200,
 .border-indigo-300,
-.border-purple-200 {
-  border-color: #E2DACD !important;
+.border-purple-200,
+.border-\[\#E2DACD\] {
+  border-color: #E6E4F0 !important;
 }
 
+/* Old light backgrounds -> Page background #F6F5FB / White #FFFFFF */
 .bg-violet-50,
 .bg-violet-100,
 .bg-indigo-50,
 .bg-purple-50 {
-  background-color: #FAF8F5 !important;
-  color: #201815 !important;
+  background-color: #F6F5FB !important;
+  color: #1E1E4F !important;
 }
 
+/* Luxury Almond & Espresso Migration to Navy & Gold Theme Spec */
+.bg-\[\#FAF8F5\] {
+  background-color: #FFFFFF !important;
+}
+
+.bg-\[\#EFE8DC\],
+.bg-\[\#E8E0D2\] {
+  background-color: #E3E2F5 !important;
+}
+
+.bg-\[\#EFE8DC\] *,
+.bg-\[\#E8E0D2\] * {
+  color: #272769 !important;
+}
+
+.text-\[\#201815\],
+.group-hover\:text-\[\#201815\]:hover,
+.hover\:text-\[\#201815\]:hover {
+  color: #1E1E4F !important;
+}
+
+.text-\[\#7C746A\],
+.text-\[\#6A6258\],
+.text-\[\#A8A095\],
+.text-\[\#9A97A8\] {
+  color: #55557A !important;
+}
+
+.text-\[\#FAF8F5\] {
+  color: #FFFFFF !important;
+}
+
+.border-\[\#E2DACD\] {
+  border-color: #E6E4F0 !important;
+}
+
+/* Ring colors */
 .ring-violet-500,
 .ring-violet-600,
 .focus\:ring-violet-500:focus,
 .focus\:ring-violet-600:focus,
 .focus\:ring-indigo-500:focus {
-  --tw-ring-color: #201815 !important;
+  --tw-ring-color: #272769 !important;
+}
+
+/* Semantic utility classes based on theme spec */
+.bg-navy {
+  background-color: #272769 !important;
+}
+.text-navy {
+  color: #1E1E4F !important;
+}
+.text-muted-custom {
+  color: #55557A !important;
+}
+.bg-gold {
+  background-color: #E0A95C !important;
+}
+.text-gold {
+  color: #E0A95C !important;
+}
+
+/* “On track” tags: Navy tint #E3E2F5 with Navy #272769 text */
+.tag-on-track,
+.badge-on-track {
+  background-color: #E3E2F5 !important;
+  color: #272769 !important;
+  border-color: transparent !important;
+}
+
+/* “At risk” tags: Gold tint #F6E4C5 with Brown #6B4A12 text */
+.tag-at-risk,
+.badge-at-risk {
+  background-color: #F6E4C5 !important;
+  color: #6B4A12 !important;
+  border-color: transparent !important;
 }

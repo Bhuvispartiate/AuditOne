@@ -89,12 +89,12 @@ function getCategoryColorTheme(color?: string) {
   switch (color) {
     case "violet":
       return {
-        badge: "bg-[#FAF8F5] text-[#201815] border-[#E2DACD]",
-        iconBg: "bg-[#EFE8DC] text-[#201815]",
-        border: "hover:border-[#201815]",
-        accent: "text-[#201815]",
-        bar: "bg-[#201815] text-[#FAF8F5]",
-        columnBorder: "border-[#E2DACD] bg-[#FAF8F5]",
+        badge: "bg-[#E3E2F5] text-[#272769] border-[#E6E4F0]",
+        iconBg: "bg-[#E3E2F5] text-[#272769]",
+        border: "hover:border-[#272769]",
+        accent: "text-[#272769]",
+        bar: "bg-[#272769] text-white",
+        columnBorder: "border-[#E6E4F0] bg-white",
       };
     case "sky":
       return {
@@ -1896,7 +1896,7 @@ function TasksContent() {
                                   className={`w-full h-8 text-xs font-bold rounded-xl gap-1.5 shadow-sm transition-all ${
                                     taskClipboard.mode === "copy"
                                       ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200"
-                                      : "bg-[#201815] hover:bg-[#342722] text-white"
+                                      : "bg-[#272769] hover:bg-[#1E1E4F] text-white"
                                   }`}
                                 >
                                   {taskClipboard.mode === "copy" ? (
@@ -3774,7 +3774,7 @@ function TasksContent() {
                 setMoveCopyAction("copy");
                 setIsMoveCopyModalOpen(true);
               }}
-              className="h-8 rounded-full bg-[#201815] hover:bg-[#342722] text-[#FAF8F5] text-xs font-bold gap-1.5 shadow-sm"
+              className="h-8 rounded-full bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold gap-1.5 shadow-sm"
             >
               <FolderInput className="h-3.5 w-3.5" />
               <span>Copy / Move to...</span>
@@ -3895,7 +3895,7 @@ function TasksContent() {
                   type="button"
                   variant={moveCopyAction === "move" ? "default" : "outline"}
                   onClick={() => setMoveCopyAction("move")}
-                  className={`text-xs font-bold h-9 ${moveCopyAction === "move" ? "bg-[#201815] hover:bg-[#342722] text-[#FAF8F5]" : ""}`}
+                  className={`text-xs font-bold h-9 ${moveCopyAction === "move" ? "bg-[#272769] hover:bg-[#1E1E4F] text-white" : ""}`}
                 >
                   <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
                   Move Tasks

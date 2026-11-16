@@ -476,10 +476,10 @@ export default function FinanceCentralPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* INNER TABS NAVIGATION (Luxury Almond & Espresso Pill Style)              */}
+      {/* INNER TABS NAVIGATION (Navy & Gold Pill Style)                            */}
       {/* ========================================================================= */}
       <div className="w-full overflow-x-auto pb-1 scrollbar-none">
-        <div className="inline-flex items-center gap-1.5 p-1.5 bg-[#E8E0D2] rounded-full border border-[#E2DACD] text-xs font-bold">
+        <div className="inline-flex items-center gap-1.5 p-1.5 bg-[#E3E2F5]/60 rounded-full border border-[#E6E4F0] text-xs font-bold">
           {[
             { id: "overview", label: "Overview", icon: TrendingUp },
             { id: "all-invoices", label: "All Invoices", icon: Receipt, count: invoices.length },
@@ -505,20 +505,20 @@ export default function FinanceCentralPage() {
                 onClick={() => switchTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all whitespace-nowrap shrink-0 text-xs ${
                   isActive
-                    ? "bg-[#201815] text-[#FAF8F5] shadow-xs font-black"
-                    : "text-[#6A6258] hover:text-[#201815] hover:bg-[#DDD5C7]/70 font-semibold"
+                    ? "bg-[#272769] text-white shadow-xs font-black"
+                    : "text-[#55557A] hover:text-[#1E1E4F] hover:bg-[#E3E2F5] font-semibold"
                 }`}
               >
-                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-[#FAF8F5]" : "text-[#7C746A]"}`} />
+                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-white" : "text-[#55557A]"}`} />
                 <span>{tab.label}</span>
                 {tab.count !== undefined && (
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                       isActive
-                        ? "bg-[#FAF8F5]/20 text-[#FAF8F5]"
+                        ? "bg-white/20 text-white"
                         : tab.badgeVariant === "destructive"
                         ? "bg-rose-200 text-rose-900"
-                        : "bg-[#DDD5C7] text-[#201815]"
+                        : "bg-[#E3E2F5] text-[#272769]"
                     }`}
                   >
                     {tab.count}
@@ -536,119 +536,119 @@ export default function FinanceCentralPage() {
       {activeTab === "overview" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
-            <Card className="rounded-[24px] border border-transparent bg-[#201815] text-[#FAF8F5] p-5 shadow-sm">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#9A97A8]">Total Billed</span>
-              <div className="text-xl sm:text-2xl font-black text-[#FAF8F5] mt-1.5">
+            <Card className="rounded-[24px] border border-[#272769] bg-[#272769] text-white p-5 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#ABA8D8]">Total Billed</span>
+              <div className="text-xl sm:text-2xl font-black text-white mt-1.5">
                 ₹{totalInvoiced.toLocaleString("en-IN")}
               </div>
-              <p className="text-[10px] text-[#A8A095] mt-1">{approvedInvoices.length} Generated Invoices</p>
+              <p className="text-[10px] text-[#ABA8D8] mt-1">{approvedInvoices.length} Generated Invoices</p>
             </Card>
 
-            <Card className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 shadow-xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7C746A]">Paid Invoices</span>
-              <div className="text-xl sm:text-2xl font-black text-[#201815] mt-1.5">
+            <Card className="rounded-[24px] border border-[#E6E4F0] bg-white p-5 shadow-xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#55557A]">Paid Invoices</span>
+              <div className="text-xl sm:text-2xl font-black text-[#1E1E4F] mt-1.5">
                 {approvedInvoices.filter((i) => i.status === "Paid").length} Paid
               </div>
-              <p className="text-[10px] text-[#7C746A] mt-1">₹{approvedInvoices.reduce((s, i) => s + (i.paid_amount || 0), 0).toLocaleString("en-IN")} Realized</p>
+              <p className="text-[10px] text-[#55557A] mt-1">₹{approvedInvoices.reduce((s, i) => s + (i.paid_amount || 0), 0).toLocaleString("en-IN")} Realized</p>
             </Card>
 
-            <Card className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 shadow-xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7C746A]">Outstanding Balance</span>
+            <Card className="rounded-[24px] border border-[#E6E4F0] bg-white p-5 shadow-xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#55557A]">Outstanding Balance</span>
               <div className="text-xl sm:text-2xl font-black text-rose-800 mt-1.5">
                 ₹{totalOutstanding.toLocaleString("en-IN")}
               </div>
-              <p className="text-[10px] text-[#7C746A] mt-1">Pending client receipts</p>
+              <p className="text-[10px] text-[#55557A] mt-1">Pending client receipts</p>
             </Card>
 
             <Card
               onClick={() => switchTab("approvals")}
-              className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 shadow-xs cursor-pointer hover:border-[#201815] transition-all"
+              className="rounded-[24px] border border-[#E6E4F0] bg-white p-5 shadow-xs cursor-pointer hover:border-[#272769] transition-all"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#7C746A]">Pending Approvals</span>
-                <span className="h-2 w-2 rounded-full bg-[#9A97A8] animate-ping" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#55557A]">Pending Approvals</span>
+                <span className="h-2 w-2 rounded-full bg-[#E0A95C] animate-ping" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-[#201815] mt-1.5">
+              <div className="text-xl sm:text-2xl font-black text-[#1E1E4F] mt-1.5">
                 {pendingRequests.length} Req
               </div>
-              <p className="text-[10px] text-[#7C746A] mt-1">₹{totalPendingApprovalAmount.toLocaleString("en-IN")} in queue</p>
+              <p className="text-[10px] text-[#55557A] mt-1">₹{totalPendingApprovalAmount.toLocaleString("en-IN")} in queue</p>
             </Card>
 
             <Card
               onClick={() => switchTab("recurring-invoice")}
-              className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 shadow-xs cursor-pointer hover:border-[#201815] transition-all"
+              className="rounded-[24px] border border-[#E6E4F0] bg-white p-5 shadow-xs cursor-pointer hover:border-[#272769] transition-all"
             >
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7C746A]">Active Retainers</span>
-              <div className="text-xl sm:text-2xl font-black text-[#201815] mt-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#55557A]">Active Retainers</span>
+              <div className="text-xl sm:text-2xl font-black text-[#1E1E4F] mt-1.5">
                 {activeRetainers.length} Active
               </div>
-              <p className="text-[10px] text-[#7C746A] mt-1">₹{Math.round(activeRetainersMonthlyValue).toLocaleString("en-IN")}/mo run-rate</p>
+              <p className="text-[10px] text-[#55557A] mt-1">₹{Math.round(activeRetainersMonthlyValue).toLocaleString("en-IN")}/mo run-rate</p>
             </Card>
           </div>
 
           {/* Quick Actions & Billing Channels Card */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 space-y-3 shadow-xs">
+            <div className="rounded-[24px] border border-[#E6E4F0] bg-white p-5 space-y-3 shadow-xs">
               <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-full bg-[#EFE8DC] text-[#201815] flex items-center justify-center">
+                <div className="h-9 w-9 rounded-full bg-[#E3E2F5] text-[#272769] flex items-center justify-center">
                   <Receipt className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-[#201815]">Single Client Invoice</h3>
-                  <p className="text-[11px] text-[#7C746A]">Bill one client for completed tasks</p>
+                  <h3 className="text-sm font-extrabold text-[#1E1E4F]">Single Client Invoice</h3>
+                  <p className="text-[11px] text-[#55557A]">Bill one client for completed tasks</p>
                 </div>
               </div>
-              <p className="text-xs text-[#7C746A]">
+              <p className="text-xs text-[#55557A]">
                 Pulls all completed deliverables for a specific client. Adjust line items and submit for Admin Approval.
               </p>
               <Button
                 onClick={() => switchTab("single-invoice")}
-                className="w-full bg-[#201815] hover:bg-[#342722] text-[#FAF8F5] rounded-full text-xs font-bold gap-1 shadow-xs"
+                className="w-full bg-[#272769] hover:bg-[#1E1E4F] text-white rounded-full text-xs font-bold gap-1 shadow-xs"
               >
                 <span>Create Single Invoice</span>
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </Button>
             </div>
 
-            <div className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 space-y-3 shadow-xs">
+            <div className="rounded-[24px] border border-[#E6E4F0] bg-white p-5 space-y-3 shadow-xs">
               <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-full bg-[#EFE8DC] text-[#201815] flex items-center justify-center">
+                <div className="h-9 w-9 rounded-full bg-[#E3E2F5] text-[#272769] flex items-center justify-center">
                   <Layers className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-[#201815]">Bulk Invoice Batch</h3>
-                  <p className="text-[11px] text-[#7C746A]">Multi-client / multi-task generation</p>
+                  <h3 className="text-sm font-extrabold text-[#1E1E4F]">Bulk Invoice Batch</h3>
+                  <p className="text-[11px] text-[#55557A]">Multi-client / multi-task generation</p>
                 </div>
               </div>
-              <p className="text-xs text-[#7C746A]">
+              <p className="text-xs text-[#55557A]">
                 Select completed deliverables across all clients. The engine groups tasks by client to generate separate invoices.
               </p>
               <Button
                 onClick={() => switchTab("bulk-invoice")}
-                className="w-full bg-[#9A97A8] hover:bg-[#8A8798] text-white rounded-full text-xs font-bold gap-1 shadow-xs"
+                className="w-full bg-[#272769] hover:bg-[#1E1E4F] text-white rounded-full text-xs font-bold gap-1 shadow-xs"
               >
                 <span>Create Bulk Batch</span>
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </Button>
             </div>
 
-            <div className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] p-5 space-y-3 shadow-xs">
+            <div className="rounded-[24px] border border-[#E6E4F0] bg-white p-5 space-y-3 shadow-xs">
               <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-full bg-[#EFE8DC] text-[#201815] flex items-center justify-center">
+                <div className="h-9 w-9 rounded-full bg-[#E3E2F5] text-[#272769] flex items-center justify-center">
                   <Clock className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-[#201815]">Recurring Retainer</h3>
-                  <p className="text-[11px] text-[#7C746A]">Independent scheduled billing</p>
+                  <h3 className="text-sm font-extrabold text-[#1E1E4F]">Recurring Retainer</h3>
+                  <p className="text-[11px] text-[#55557A]">Independent scheduled billing</p>
                 </div>
               </div>
-              <p className="text-xs text-[#7C746A]">
+              <p className="text-xs text-[#55557A]">
                 Automated monthly, quarterly, or yearly retainer cycles. Independent of tasks and triggered automatically.
               </p>
               <div className="flex items-center gap-2">
                 <Button
                   onClick={() => setIsRecurringModalOpen(true)}
-                  className="flex-1 bg-[#201815] hover:bg-[#342722] text-[#FAF8F5] rounded-full text-xs font-bold gap-1 shadow-xs"
+                  className="flex-1 bg-[#272769] hover:bg-[#1E1E4F] text-white rounded-full text-xs font-bold gap-1 shadow-xs"
                 >
                   <span>New Schedule</span>
                   <Plus className="h-3.5 w-3.5" />
@@ -656,10 +656,10 @@ export default function FinanceCentralPage() {
                 <Button
                   onClick={handleRunScheduler}
                   variant="outline"
-                  className="border-[#E2DACD] bg-[#FAF8F5] text-[#201815] hover:bg-[#EFE8DC] rounded-full text-xs font-bold px-3"
+                  className="border-[#E6E4F0] bg-white text-[#1E1E4F] hover:bg-[#E3E2F5] rounded-full text-xs font-bold px-3"
                   title="Run scheduler check"
                 >
-                  <RefreshCw className="h-3.5 w-3.5 text-[#201815]" />
+                  <RefreshCw className="h-3.5 w-3.5 text-[#1E1E4F]" />
                 </Button>
               </div>
             </div>
@@ -676,7 +676,7 @@ export default function FinanceCentralPage() {
                 </h3>
                 <button
                   onClick={() => switchTab("approvals")}
-                  className="text-xs font-bold text-[#201815] hover:underline"
+                  className="text-xs font-bold text-[#272769] hover:underline"
                 >
                   View All &rarr;
                 </button>
@@ -727,12 +727,12 @@ export default function FinanceCentralPage() {
             <div className="rounded-[24px] border border-slate-200 bg-white p-5 space-y-3 shadow-xs">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-extrabold text-[#111827] flex items-center gap-2">
-                  <Receipt className="h-4 w-4 text-[#201815]" />
+                  <Receipt className="h-4 w-4 text-[#272769]" />
                   <span>Recent Generated Invoices</span>
                 </h3>
                 <button
                   onClick={() => switchTab("all-invoices")}
-                  className="text-xs font-bold text-[#201815] hover:underline"
+                  className="text-xs font-bold text-[#272769] hover:underline"
                 >
                   View Register &rarr;
                 </button>
@@ -934,7 +934,7 @@ export default function FinanceCentralPage() {
                     setSelectedSingleTaskIds([]);
                     setSingleTaskAmounts({});
                   }}
-                  className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900 focus:ring-[#201815]"
+                  className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900 focus:ring-[#272769]"
                 >
                   <option value="">Select a client...</option>
                   {clients.map((c) => (
@@ -1560,7 +1560,7 @@ export default function FinanceCentralPage() {
                               ? "bg-sky-50 text-sky-800 border-sky-300"
                               : req.request_type === "recurring"
                               ? "bg-blue-50 text-blue-800 border-blue-300"
-                              : "bg-[#EFE8DC] text-[#201815] border-[#E2DACD]"
+                              : "bg-[#E3E2F5] text-[#272769] border-[#E6E4F0]"
                           }`}
                         >
                           {req.request_type} Billing

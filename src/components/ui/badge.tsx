@@ -8,17 +8,20 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "border-transparent bg-neutral-900 text-white",
+          "border-transparent bg-[#272769] text-white",
         secondary:
-          "border-transparent bg-[#f3f4f6] text-[#111827]",
+          "border-transparent bg-[#E3E2F5] text-[#1E1E4F]",
         destructive:
           "border-transparent bg-rose-50 text-rose-700 border-rose-200",
-        outline: "text-[#6b7280] border-[#e5e7eb] bg-white",
-        success: "border-transparent bg-emerald-50 text-emerald-700",
-        warning: "border-transparent bg-amber-50 text-amber-700",
+        outline: "text-[#55557A] border-[#E6E4F0] bg-white",
+        success: "border-transparent bg-[#E3E2F5] text-[#272769]",
+        warning: "border-transparent bg-[#F6E4C5] text-[#6B4A12]",
+        ontrack: "border-transparent bg-[#E3E2F5] text-[#272769]",
+        atrisk: "border-transparent bg-[#F6E4C5] text-[#6B4A12]",
         info: "border-transparent bg-sky-50 text-sky-700",
-        purple: "border-transparent bg-purple-50 text-purple-700",
-        lime: "border-transparent bg-lime-100 text-lime-900",
+        purple: "border-transparent bg-[#E3E2F5] text-[#272769]",
+        lime: "border-transparent bg-[#F6E4C5] text-[#6B4A12]",
+        gold: "border-transparent bg-[#E0A95C] text-[#1E1E4F]",
       },
     },
     defaultVariants: {

@@ -177,7 +177,7 @@ export default function AttendancePage() {
 
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="h-9 px-3 rounded-xl border-slate-300 bg-white font-mono text-xs gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-[#201815]" />
+            <Clock className="h-3.5 w-3.5 text-[#272769]" />
             Today: {formatDate(todayStr)}
           </Badge>
           {!isEmployee && (
@@ -211,7 +211,7 @@ export default function AttendancePage() {
                 : employees.length}
             </span>
           </div>
-          <div className="h-10 w-10 rounded-2xl bg-[#EFE8DC] text-[#201815] flex items-center justify-center">
+          <div className="h-10 w-10 rounded-2xl bg-[#E3E2F5] text-[#272769] flex items-center justify-center">
             <Users className="h-5 w-5" />
           </div>
         </div>
@@ -288,7 +288,7 @@ export default function AttendancePage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
           <div>
             <h2 className="text-base font-extrabold text-[#16172d] flex items-center gap-2">
-              <UserCheck className="h-4 w-4 text-[#201815]" />
+              <UserCheck className="h-4 w-4 text-[#272769]" />
               <span>
                 {isEmployee
                   ? "My Personal GPS Attendance Card"
@@ -348,7 +348,7 @@ export default function AttendancePage() {
                     ? "border-slate-300 bg-slate-50/80"
                     : matchedToday?.status === "Present"
                       ? "border-emerald-300 bg-emerald-50/30"
-                      : "border-slate-300 bg-white hover:border-[#201815]"
+                      : "border-slate-300 bg-white hover:border-[#272769]"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">

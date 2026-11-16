@@ -61,7 +61,7 @@ export default function TeamsPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#201815]">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1E1E4F]">
             Team Management & Operational Hierarchy
           </h1>
         </div>
@@ -69,7 +69,7 @@ export default function TeamsPage() {
         <Button
           onClick={() => setIsModalOpen(true)}
           size="sm"
-          className="bg-[#201815] hover:bg-[#34241E] text-[#FAF8F5] gap-1.5 rounded-full px-5 h-10 shadow-xs font-bold text-xs cursor-pointer"
+          className="bg-[#272769] hover:bg-[#1E1E4F] text-white gap-1.5 rounded-full px-5 h-10 shadow-xs font-bold text-xs cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           <span>Create New Team</span>
@@ -77,56 +77,56 @@ export default function TeamsPage() {
       </div>
 
       {/* Visual Hierarchy Architecture Card (Website Theme) */}
-      <div className="rounded-[28px] border border-[#E2DACD] bg-[#FAF8F5] shadow-xs p-5 sm:p-6">
+      <div className="rounded-[28px] border border-[#E6E4F0] bg-white shadow-xs p-5 sm:p-6">
         <div className="flex items-center gap-2.5 mb-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#201815] text-[#FAF8F5] shadow-2xs">
-            <GitPullRequest className="h-4 w-4 text-[#FAF8F5]" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#272769] text-white shadow-2xs">
+            <GitPullRequest className="h-4 w-4 text-white" />
           </div>
-          <h3 className="font-extrabold text-sm text-[#201815] tracking-tight">
+          <h3 className="font-extrabold text-sm text-[#1E1E4F] tracking-tight">
             Configurable Four-Tier Practice Hierarchy
           </h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
           {/* Tier 1 */}
-          <div className="p-4 bg-white rounded-2xl border border-[#E2DACD] shadow-2xs transition-all hover:border-[#201815]/30 hover:shadow-xs">
-            <span className="text-[10px] uppercase font-black tracking-wider text-[#9B4D2B] block">
+          <div className="p-4 bg-[#F6F5FB] rounded-2xl border border-[#E6E4F0] shadow-2xs transition-all hover:border-[#272769]/30 hover:shadow-xs">
+            <span className="text-[10px] uppercase font-black tracking-wider text-[#E0A95C] block">
               Tier 1: Leadership
             </span>
-            <p className="font-extrabold text-[#201815] text-sm mt-1">Practice Head</p>
-            <p className="text-[11px] text-[#7C746A] mt-0.5 leading-snug">
+            <p className="font-extrabold text-[#1E1E4F] text-sm mt-1">Practice Head</p>
+            <p className="text-[11px] text-[#55557A] mt-0.5 leading-snug">
               Authorizes client pricing & audits
             </p>
           </div>
 
           {/* Tier 2 */}
-          <div className="p-4 bg-white rounded-2xl border border-[#E2DACD] shadow-2xs transition-all hover:border-[#201815]/30 hover:shadow-xs">
-            <span className="text-[10px] uppercase font-black tracking-wider text-[#3B5B7E] block">
+          <div className="p-4 bg-[#F6F5FB] rounded-2xl border border-[#E6E4F0] shadow-2xs transition-all hover:border-[#272769]/30 hover:shadow-xs">
+            <span className="text-[10px] uppercase font-black tracking-wider text-[#272769] block">
               Tier 2: Management
             </span>
-            <p className="font-extrabold text-[#201815] text-sm mt-1">Supervisors / Managers</p>
-            <p className="text-[11px] text-[#7C746A] mt-0.5 leading-snug">
+            <p className="font-extrabold text-[#1E1E4F] text-sm mt-1">Supervisors / Managers</p>
+            <p className="text-[11px] text-[#55557A] mt-0.5 leading-snug">
               Assigns deliverable tasks
             </p>
           </div>
 
           {/* Tier 3 */}
-          <div className="p-4 bg-white rounded-2xl border border-[#E2DACD] shadow-2xs transition-all hover:border-[#201815]/30 hover:shadow-xs">
-            <span className="text-[10px] uppercase font-black tracking-wider text-[#2E6F54] block">
+          <div className="p-4 bg-[#F6F5FB] rounded-2xl border border-[#E6E4F0] shadow-2xs transition-all hover:border-[#272769]/30 hover:shadow-xs">
+            <span className="text-[10px] uppercase font-black tracking-wider text-emerald-700 block">
               Tier 3: Execution
             </span>
-            <p className="font-extrabold text-[#201815] text-sm mt-1">Senior / Staff Employees</p>
-            <p className="text-[11px] text-[#7C746A] mt-0.5 leading-snug">
+            <p className="font-extrabold text-[#1E1E4F] text-sm mt-1">Senior / Staff Employees</p>
+            <p className="text-[11px] text-[#55557A] mt-0.5 leading-snug">
               Prepares workpapers & filings
             </p>
           </div>
 
           {/* Tier 4 */}
-          <div className="p-4 bg-white rounded-2xl border border-[#E2DACD] shadow-2xs transition-all hover:border-[#201815]/30 hover:shadow-xs">
-            <span className="text-[10px] uppercase font-black tracking-wider text-[#A07024] block">
+          <div className="p-4 bg-[#F6F5FB] rounded-2xl border border-[#E6E4F0] shadow-2xs transition-all hover:border-[#272769]/30 hover:shadow-xs">
+            <span className="text-[10px] uppercase font-black tracking-wider text-[#6B4A12] block">
               Tier 4: Training
             </span>
-            <p className="font-extrabold text-[#201815] text-sm mt-1">Articled Trainees</p>
-            <p className="text-[11px] text-[#7C746A] mt-0.5 leading-snug">
+            <p className="font-extrabold text-[#1E1E4F] text-sm mt-1">Articled Trainees</p>
+            <p className="text-[11px] text-[#55557A] mt-0.5 leading-snug">
               Assists in reconciliations
             </p>
           </div>
@@ -136,33 +136,33 @@ export default function TeamsPage() {
       {/* Teams Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {teams.map((team) => (
-          <div key={team.id} className="rounded-[24px] border border-[#E2DACD] bg-[#FAF8F5] shadow-xs p-5 space-y-4">
-            <div className="pb-3 border-b border-[#E2DACD] flex flex-row items-center justify-between gap-3">
+          <div key={team.id} className="rounded-[24px] border border-[#E6E4F0] bg-white shadow-xs p-5 space-y-4">
+            <div className="pb-3 border-b border-[#E6E4F0] flex flex-row items-center justify-between gap-3">
               <div>
-                <h4 className="text-base font-extrabold text-[#201815]">{team.name}</h4>
-                <p className="text-xs text-[#7C746A] font-medium mt-0.5">Operational Squad</p>
+                <h4 className="text-base font-extrabold text-[#1E1E4F]">{team.name}</h4>
+                <p className="text-xs text-[#55557A] font-medium mt-0.5">Operational Squad</p>
               </div>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E3E2F5] text-[#272769] border border-[#E6E4F0]">
                 {team.status}
               </span>
             </div>
             <div className="space-y-4">
-              <p className="text-xs text-[#7C746A] leading-relaxed">{team.description}</p>
-              <div className="p-3.5 bg-white rounded-2xl border border-[#E2DACD] text-xs">
-                <span className="text-[#7C746A] font-bold block uppercase text-[10px]">Team Supervisor / Lead</span>
-                <span className="font-extrabold text-[#201815] text-sm mt-0.5 block">{team.supervisor_name}</span>
+              <p className="text-xs text-[#55557A] leading-relaxed">{team.description}</p>
+              <div className="p-3.5 bg-[#F6F5FB] rounded-2xl border border-[#E6E4F0] text-xs">
+                <span className="text-[#55557A] font-bold block uppercase text-[10px]">Team Supervisor / Lead</span>
+                <span className="font-extrabold text-[#1E1E4F] text-sm mt-0.5 block">{team.supervisor_name}</span>
               </div>
 
               {team.members && team.members.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <span className="text-[11px] font-extrabold text-[#201815] uppercase tracking-wider block">
+                  <span className="text-[11px] font-extrabold text-[#1E1E4F] uppercase tracking-wider block">
                     Active Squad Members ({team.members.length}):
                   </span>
                   <div className="space-y-1.5">
                     {team.members.map((m) => (
-                      <div key={m.id} className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-[#E2DACD] text-xs">
-                        <span className="font-bold text-[#201815]">{m.employee_name}</span>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EFE8DC] text-[#201815]">
+                      <div key={m.id} className="flex items-center justify-between p-2.5 rounded-xl bg-[#F6F5FB] border border-[#E6E4F0] text-xs">
+                        <span className="font-bold text-[#1E1E4F]">{m.employee_name}</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E3E2F5] text-[#272769]">
                           {m.role_in_team}
                         </span>
                       </div>
@@ -177,27 +177,27 @@ export default function TeamsPage() {
 
       {/* Add Team Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-md rounded-[28px] border-[#E2DACD] bg-[#FAF8F5] p-6 sm:p-7 shadow-2xl">
+        <DialogContent className="max-w-md rounded-[28px] border-[#E6E4F0] bg-white p-6 sm:p-7 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black text-[#201815]">Create New Team</DialogTitle>
+            <DialogTitle className="text-lg font-black text-[#1E1E4F]">Create New Team</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateTeam} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#201815]">Team Name</label>
+              <label className="text-xs font-bold text-[#1E1E4F]">Team Name</label>
               <Input
                 placeholder="e.g. Indirect Tax & GST Litigation Squad"
                 value={teamName}
                 onChange={(e) => setTeamName(e.target.value)}
                 required
-                className="rounded-xl border-[#E2DACD] bg-white text-xs font-medium focus:border-[#201815] focus:ring-[#201815]"
+                className="rounded-xl border-[#E6E4F0] bg-white text-xs font-medium focus:border-[#272769] focus:ring-[#272769]"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#201815]">Team Supervisor / Manager</label>
+              <label className="text-xs font-bold text-[#1E1E4F]">Team Supervisor / Manager</label>
               <select
                 value={supervisorId}
                 onChange={(e) => setSupervisorId(e.target.value)}
-                className="w-full h-10 rounded-xl border border-[#E2DACD] bg-white px-3 text-xs font-medium text-[#201815] focus:outline-none focus:border-[#201815]"
+                className="w-full h-10 rounded-xl border border-[#E6E4F0] bg-white px-3 text-xs font-medium text-[#1E1E4F] focus:outline-none focus:border-[#272769]"
               >
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>{e.full_name} ({e.designation_name})</option>
@@ -205,12 +205,12 @@ export default function TeamsPage() {
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#201815]">Description</label>
+              <label className="text-xs font-bold text-[#1E1E4F]">Description</label>
               <Textarea
                 placeholder="Operational purpose and scope..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="rounded-xl border-[#E2DACD] bg-white text-xs font-medium focus:border-[#201815] focus:ring-[#201815]"
+                className="rounded-xl border-[#E6E4F0] bg-white text-xs font-medium focus:border-[#272769] focus:ring-[#272769]"
               />
             </div>
             <DialogFooter className="gap-2 pt-2">
@@ -218,13 +218,13 @@ export default function TeamsPage() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-2xl border-[#E2DACD] bg-white hover:bg-[#EFE8DC] text-[#201815] font-semibold text-xs"
+                className="rounded-2xl border-[#E6E4F0] bg-white hover:bg-[#E3E2F5] text-[#1E1E4F] font-semibold text-xs"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="rounded-2xl bg-[#201815] hover:bg-[#34241E] text-[#FAF8F5] font-bold text-xs px-5 shadow-xs"
+                className="rounded-2xl bg-[#272769] hover:bg-[#1E1E4F] text-white font-bold text-xs px-5 shadow-xs"
               >
                 Save Team
               </Button>

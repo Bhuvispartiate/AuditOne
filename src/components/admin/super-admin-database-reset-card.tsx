@@ -91,7 +91,7 @@ export function SuperAdminDatabaseResetCard({
             </div>
             <div className="space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm sm:text-base font-extrabold text-[#201815] tracking-tight">
+                <h3 className="text-sm sm:text-base font-extrabold text-[#1E1E4F] tracking-tight">
                   Supabase Cloud Database Reset
                 </h3>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200">
@@ -99,7 +99,7 @@ export function SuperAdminDatabaseResetCard({
                   Super Admin Only
                 </span>
               </div>
-              <p className="text-xs text-[#7C746A] max-w-2xl leading-relaxed">
+              <p className="text-xs text-[#55557A] max-w-2xl leading-relaxed">
                 Permanently wipes all clients, projects, tasks, invoices, payments, workflows,
                 and non-admin employee records directly from Supabase PostgreSQL. Restores standard
                 default task statuses and document folders while preserving your Super Admin root account.
@@ -125,17 +125,17 @@ export function SuperAdminDatabaseResetCard({
 
       {/* Confirmation Modal */}
       <Dialog open={isOpen} onOpenChange={(open) => !isResetting && setIsOpen(open)}>
-        <DialogContent className="max-w-lg p-6 sm:p-7 rounded-[28px] border-[#E2DACD] bg-[#FAF8F5] shadow-2xl">
+        <DialogContent className="max-w-lg p-6 sm:p-7 rounded-[28px] border-[#E6E4F0] bg-white shadow-2xl">
           <DialogHeader className="space-y-3">
             <div className="mx-auto flex h-13 w-13 items-center justify-center rounded-2xl bg-rose-100 border border-rose-200 text-rose-700 shadow-xs">
               <AlertTriangle className="h-6 w-6 text-rose-700 animate-pulse" />
             </div>
-            <DialogTitle className="text-lg font-black text-center text-[#201815]">
+            <DialogTitle className="text-lg font-black text-center text-[#1E1E4F]">
               Confirm Full Supabase Database Wipe
             </DialogTitle>
-            <DialogDescription className="text-xs text-center text-[#7C746A] leading-relaxed">
+            <DialogDescription className="text-xs text-center text-[#55557A] leading-relaxed">
               This is a permanent, non-reversible action that directly executes on your live
-              <strong className="text-[#201815] mx-1">Supabase PostgreSQL</strong> database.
+              <strong className="text-[#1E1E4F] mx-1">Supabase PostgreSQL</strong> database.
             </DialogDescription>
           </DialogHeader>
 
@@ -156,7 +156,7 @@ export function SuperAdminDatabaseResetCard({
           </div>
 
           <div className="space-y-2 pt-1">
-            <Label className="text-xs font-bold text-[#201815]">
+            <Label className="text-xs font-bold text-[#1E1E4F]">
               To confirm, type <span className="font-mono font-black text-rose-700 select-all">{REQUIRED_CONFIRM_PHRASE}</span> below:
             </Label>
             <Input
@@ -164,7 +164,7 @@ export function SuperAdminDatabaseResetCard({
               onChange={(e) => setConfirmText(e.target.value)}
               placeholder={`Type "${REQUIRED_CONFIRM_PHRASE}"`}
               disabled={isResetting}
-              className="rounded-xl border-[#E2DACD] bg-white font-mono text-xs focus:border-rose-600 focus:ring-rose-600"
+              className="rounded-xl border-[#E6E4F0] bg-white font-mono text-xs focus:border-rose-600 focus:ring-rose-600"
             />
           </div>
 
@@ -174,7 +174,7 @@ export function SuperAdminDatabaseResetCard({
               variant="outline"
               disabled={isResetting}
               onClick={() => setIsOpen(false)}
-              className="rounded-2xl border-[#E2DACD] bg-white hover:bg-[#EFE8DC] text-[#201815] font-semibold text-xs"
+              className="rounded-2xl border-[#E6E4F0] bg-white hover:bg-[#E3E2F5] text-[#1E1E4F] font-semibold text-xs"
             >
               Cancel
             </Button>

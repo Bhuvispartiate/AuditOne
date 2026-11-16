@@ -144,31 +144,31 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
   return (
     <aside
       className={cn(
-        "relative flex flex-col bg-[#201815] text-[#FAF8F5] select-none overflow-hidden shrink-0",
+        "relative flex flex-col bg-[#272769] text-white select-none overflow-hidden shrink-0",
         isMobile
-          ? "w-full h-full rounded-r-[28px] shadow-2xl border-r border-[#382620]"
+          ? "w-full h-full rounded-r-[28px] shadow-2xl border-r border-[#3B3B88]"
           : cn(
-              "rounded-[28px] border border-[#382620] shadow-[0_12px_36px_rgba(20,14,12,0.35)] transition-all duration-300 ease-in-out z-30",
+              "rounded-[28px] border border-[#3B3B88] shadow-[0_12px_36px_rgba(30,30,79,0.35)] transition-all duration-300 ease-in-out z-30",
               effectiveCollapsed ? "w-[78px]" : "w-[248px]"
             )
       )}
     >
-      {/* Brand Header matching minimalist luxury aesthetic */}
+      {/* Brand Header with Navy and Gold accents */}
       <div className="flex h-[74px] items-center justify-between px-4 pt-1">
         <Link
           to="/dashboard"
           onClick={() => { if (isMobile) onClose?.(); }}
           className="flex items-center gap-3 overflow-hidden"
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FAF8F5] text-[#201815] shadow-xs">
-            <Zap className="h-4.5 w-4.5 fill-[#201815]" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#E0A95C] text-[#272769] shadow-xs">
+            <Zap className="h-4.5 w-4.5 fill-[#272769]" />
           </div>
           {!effectiveCollapsed && (
             <div className="flex flex-col truncate">
-              <span className="font-extrabold text-[#FAF8F5] tracking-tight text-[15px] leading-tight">
+              <span className="font-extrabold text-white tracking-tight text-[15px] leading-tight">
                 Linear Audit
               </span>
-              <span className="text-[10px] font-bold text-[#A89E92] uppercase tracking-widest mt-0.5">
+              <span className="text-[10px] font-bold text-[#E0A95C] uppercase tracking-widest mt-0.5">
                 Practice OS
               </span>
             </div>
@@ -180,7 +180,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={onClose}
             title="Close menu"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#382620] bg-[#2A1C17] text-[#FAF8F5] hover:bg-[#34241E] transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#E3E2F5] hover:bg-[#3B3B88] hover:text-white transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -189,7 +189,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={() => setCollapsed(true)}
             title="Collapse sidebar"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#382620] bg-[#2A1C17] text-[#A89E92] hover:text-[#FAF8F5] hover:bg-[#34241E] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#ABA8D8] hover:text-white hover:bg-[#3B3B88] transition-colors"
           >
             <ChevronsLeft className="h-4 w-4" />
           </button>
@@ -202,7 +202,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={() => setCollapsed(false)}
             title="Expand sidebar"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#382620] bg-[#2A1C17] text-[#A89E92] hover:text-[#FAF8F5] hover:bg-[#34241E] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-[#ABA8D8] hover:text-white hover:bg-[#3B3B88] transition-colors"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -224,8 +224,8 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
               className={cn(
                 "group flex items-center rounded-full transition-all duration-150 relative",
                 isActive
-                  ? "bg-[#9A97A8] text-white font-semibold shadow-xs"
-                  : "text-[#C4B7A6] hover:bg-[#2C1E19] hover:text-[#FAF8F5] font-medium"
+                  ? "bg-[#E0A95C] text-[#1E1E4F] font-bold shadow-xs"
+                  : "text-[#E3E2F5] hover:bg-[#32327D] hover:text-white font-medium"
               )}
             >
               <Link
@@ -239,7 +239,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 <Icon
                   className={cn(
                     "h-[17px] w-[17px] shrink-0 transition-transform duration-200 group-hover:scale-105",
-                    isActive ? "text-white" : "text-[#A89E92] group-hover:text-[#FAF8F5]"
+                    isActive ? "text-[#1E1E4F]" : "text-[#ABA8D8] group-hover:text-white"
                   )}
                 />
                 {!effectiveCollapsed && (
@@ -250,8 +250,8 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                     className={cn(
                       "ml-auto flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
                       isActive
-                        ? "bg-white/20 text-white"
-                        : "bg-[#34241E] text-[#FAF8F5]"
+                        ? "bg-[#272769] text-white"
+                        : "bg-[#3B3B88] text-[#E3E2F5]"
                     )}
                   >
                     {taskBadge}
@@ -265,7 +265,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
 
       {/* Bottom Utility Navigation */}
       {!isEmployee && (
-        <div className="px-3 pt-2 pb-2 border-t border-[#382620] space-y-1">
+        <div className="px-3 pt-2 pb-2 border-t border-[#3B3B88] space-y-1">
           {footerNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname ? pathname.startsWith(item.href) : false;
@@ -279,15 +279,15 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 className={cn(
                   "group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium transition-all duration-150",
                   isActive
-                    ? "bg-[#9A97A8] text-white font-semibold shadow-xs"
-                    : "text-[#C4B7A6] hover:bg-[#2C1E19] hover:text-[#FAF8F5]"
+                    ? "bg-[#E0A95C] text-[#1E1E4F] font-bold shadow-xs"
+                    : "text-[#E3E2F5] hover:bg-[#32327D] hover:text-white"
                 )}
                 title={effectiveCollapsed ? item.title : undefined}
               >
-                <Icon className="h-[17px] w-[17px] shrink-0 text-[#A89E92] group-hover:text-[#FAF8F5]" />
+                <Icon className={cn("h-[17px] w-[17px] shrink-0", isActive ? "text-[#1E1E4F]" : "text-[#ABA8D8] group-hover:text-white")} />
                 {!effectiveCollapsed && <span className="truncate flex-1">{item.title}</span>}
                 {!effectiveCollapsed && badgeValue !== undefined && (
-                  <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#34241E] px-1.5 text-[10px] font-bold text-[#FAF8F5]">
+                  <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#3B3B88] px-1.5 text-[10px] font-bold text-white">
                     {badgeValue}
                   </span>
                 )}
@@ -298,31 +298,31 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
           <Link
             to="/reports"
             onClick={() => { if (isMobile) onClose?.(); }}
-            className="group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium text-[#C4B7A6] hover:bg-[#2C1E19] hover:text-[#FAF8F5] transition-all duration-150"
+            className="group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium text-[#E3E2F5] hover:bg-[#32327D] hover:text-white transition-all duration-150"
             title={effectiveCollapsed ? "Help & Support" : undefined}
           >
-            <HelpCircle className="h-[17px] w-[17px] shrink-0 text-[#A89E92] group-hover:text-[#FAF8F5]" />
+            <HelpCircle className="h-[17px] w-[17px] shrink-0 text-[#ABA8D8] group-hover:text-white" />
             {!effectiveCollapsed && <span className="truncate flex-1">Help & Support</span>}
           </Link>
         </div>
       )}
 
       {/* Bottom User Profile Pill */}
-      <div className="p-3 border-t border-[#382620]">
+      <div className="p-3 border-t border-[#3B3B88]">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
               className={cn(
-                "w-full flex items-center gap-2.5 rounded-2xl p-2 bg-[#2A1C17] hover:bg-[#34241E] border border-[#3E2C24] transition-all shadow-2xs text-left group cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#FAF8F5]/20",
+                "w-full flex items-center gap-2.5 rounded-2xl p-2 bg-[#32327D] hover:bg-[#3B3B88] border border-[#444498] transition-all shadow-2xs text-left group cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#E0A95C]/40",
                 effectiveCollapsed && "justify-center"
               )}
               title={effectiveCollapsed ? currentUser?.full_name || "User Profile" : undefined}
             >
-              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2C1D18] border border-[#48342A] text-xs font-bold text-[#FAF8F5] shadow-xs select-none">
+              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E0A95C] border border-[#E0A95C] text-xs font-bold text-[#1E1E4F] shadow-xs select-none">
                 <span>{initials}</span>
                 <span
-                  className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-[#201815]"
+                  className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[#272769]"
                   title="Active Session"
                 />
               </div>
@@ -331,23 +331,23 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 <>
                   <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-xs font-bold text-[#FAF8F5] truncate leading-tight group-hover:text-white">
+                      <p className="text-xs font-bold text-white truncate leading-tight group-hover:text-white">
                         {currentUser?.full_name || "Administrator"}
                       </p>
                       {isSuperAdminUser && (
-                        <span className="shrink-0 px-1 py-0.2 rounded text-[8px] font-extrabold uppercase tracking-wider bg-[#3C2A20] text-[#E8C59A] border border-[#5A4032]">
+                        <span className="shrink-0 px-1 py-0.2 rounded text-[8px] font-extrabold uppercase tracking-wider bg-[#E0A95C]/20 text-[#E0A95C] border border-[#E0A95C]/40">
                           Root
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-[#A89E92] truncate mt-0.5 leading-tight group-hover:text-[#C4B7A6]">
+                    <p className="text-[10px] text-[#ABA8D8] truncate mt-0.5 leading-tight group-hover:text-[#E3E2F5]">
                       {currentUser?.designation_name
                         ? currentUser.designation_name
                         : formatRoleName(currentUser?.role_code, isSuperAdminUser)}
                       {isEmployee ? " • View Only" : ""}
                     </p>
                   </div>
-                  <ChevronDown className="h-3.5 w-3.5 text-[#A89E92] group-hover:text-[#FAF8F5] shrink-0 transition-transform duration-150" />
+                  <ChevronDown className="h-3.5 w-3.5 text-[#ABA8D8] group-hover:text-white shrink-0 transition-transform duration-150" />
                 </>
               )}
             </button>
@@ -357,33 +357,33 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             side={effectiveCollapsed ? "right" : "top"}
             align={effectiveCollapsed ? "end" : "start"}
             sideOffset={8}
-            className="w-60 p-1.5 rounded-2xl border border-[#3E2C24] bg-[#201815] text-[#FAF8F5] shadow-2xl z-50"
+            className="w-60 p-1.5 rounded-2xl border border-[#3B3B88] bg-[#272769] text-white shadow-2xl z-50"
           >
-            <DropdownMenuLabel className="px-3 py-2 text-xs font-normal text-[#A89E92]">
-              <div className="font-bold text-sm text-[#FAF8F5] truncate">
+            <DropdownMenuLabel className="px-3 py-2 text-xs font-normal text-[#ABA8D8]">
+              <div className="font-bold text-sm text-white truncate">
                 {currentUser?.full_name || "Administrator"}
               </div>
-              <div className="text-[11px] text-[#A89E92] truncate mt-0.5">
+              <div className="text-[11px] text-[#ABA8D8] truncate mt-0.5">
                 {currentUser?.email || "admin@pms.internal"}
               </div>
-              <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#2A1C17] border border-[#3E2C24] text-[#E8C59A]">
-                <ShieldCheck className="h-3 w-3 text-[#E8C59A]" />
+              <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#32327D] border border-[#444498] text-[#E0A95C]">
+                <ShieldCheck className="h-3 w-3 text-[#E0A95C]" />
                 {formatRoleName(currentUser?.role_code, isSuperAdminUser)}
                 {isEmployee ? " (View Only)" : ""}
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-[#382620]" />
+            <DropdownMenuSeparator className="bg-[#3B3B88]" />
 
             {currentUser?.id && (
               <DropdownMenuItem
                 asChild
-                className="rounded-xl cursor-pointer text-xs font-medium text-[#FAF8F5] hover:bg-[#2C1E19] hover:text-white focus:bg-[#2C1E19] focus:text-white"
+                className="rounded-xl cursor-pointer text-xs font-medium text-white hover:bg-[#32327D] hover:text-white focus:bg-[#32327D] focus:text-white"
               >
                 <Link
                   to={`/employees/${currentUser.id}`}
                   onClick={() => { if (isMobile) onClose?.(); }}
                 >
-                  <User className="mr-2 h-4 w-4 text-[#A89E92]" />
+                  <User className="mr-2 h-4 w-4 text-[#ABA8D8]" />
                   <span>My Directory Profile</span>
                 </Link>
               </DropdownMenuItem>
@@ -392,23 +392,23 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             {!isEmployee && (
               <DropdownMenuItem
                 asChild
-                className="rounded-xl cursor-pointer text-xs font-medium text-[#FAF8F5] hover:bg-[#2C1E19] hover:text-white focus:bg-[#2C1E19] focus:text-white"
+                className="rounded-xl cursor-pointer text-xs font-medium text-white hover:bg-[#32327D] hover:text-white focus:bg-[#32327D] focus:text-white"
               >
                 <Link
                   to="/settings"
                   onClick={() => { if (isMobile) onClose?.(); }}
                 >
-                  <Settings className="mr-2 h-4 w-4 text-[#A89E92]" />
+                  <Settings className="mr-2 h-4 w-4 text-[#ABA8D8]" />
                   <span>System Settings</span>
                 </Link>
               </DropdownMenuItem>
             )}
 
-            <DropdownMenuSeparator className="bg-[#382620]" />
+            <DropdownMenuSeparator className="bg-[#3B3B88]" />
 
             <DropdownMenuItem
               asChild
-              className="rounded-xl cursor-pointer text-xs font-medium text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 focus:bg-rose-950/40 focus:text-rose-300"
+              className="rounded-xl cursor-pointer text-xs font-medium text-rose-300 hover:bg-rose-950/40 hover:text-rose-200 focus:bg-rose-950/40 focus:text-rose-200"
             >
               <Link
                 to="/login"
