@@ -110,6 +110,9 @@ import {
   insertRecycleBinItemToDb,
   deleteRecycleBinItemFromDb,
   fetchEmployeesFromDb,
+  insertEmployeeToDb,
+  updateEmployeeInDb,
+  deleteEmployeeFromDb,
   fetchDocumentsFromDb,
   insertDocumentToDb,
   deleteDocumentFromDb,
@@ -4292,10 +4295,10 @@ class PMSDataStore {
     return this.employees.find(e => e.id === id);
   }
 
-  addEmployee(empData: Omit<Employee, "id" | "employee_code" | "created_at">): Employee {
+  async addEmployee(empData: Omit<Employee, "id" | "employee_code" | "created_at">): Promise<Employee> {
     const nextNum = this.employees.length + 1;
     const employee_code = `EMP-${String(nextNum).padStart(3, "0")}`;
-    const id = `emp-${Date.now()}`;
+    const id = ensureUuid();
 
     const newEmployee: Employee = {
       ...empData,
@@ -4310,7 +4313,7 @@ class PMSDataStore {
         newEmployee.team_name = team.name;
         const members = team.members ? [...team.members] : [];
         members.push({
-          id: `tm-${Date.now()}`,
+          id: ensureUuid(),
           team_id: team.id,
           employee_id: newEmployee.id,
           employee_name: newEmployee.full_name,
@@ -4324,20 +4327,23 @@ class PMSDataStore {
       }
     }
 
-    this.employees.push(newEmployee);
+    // Direct Supabase Persistence: write directly to database
+    await insertEmployeeToDb(newEmployee);
+
+    this.employees.unshift(newEmployee);
     this.addActivityLog(`Onboarded new employee: ${newEmployee.full_name}`, "employee", id);
-    this.persist();
+    this.notify();
     return newEmployee;
   }
 
   /** Super Admin exclusive: create a new Admin account in the directory. */
-  createAdminUser(input: {
+  async createAdminUser(input: {
     first_name: string;
     last_name: string;
     email: string;
     mobile_number?: string;
     designation_name?: string;
-  }): { ok: boolean; employee?: Employee; error?: string } {
+  }): Promise<{ ok: boolean; employee?: Employee; error?: string }> {
     if (this.currentUser?.role_code !== "SUPER_ADMIN") {
       return { ok: false, error: "Only Super Admin can create Admin accounts." };
     }
@@ -4363,36 +4369,39 @@ class PMSDataStore {
     }
 
     const fullName = [first, last].filter(Boolean).join(" ");
-    const created = this.addEmployee({
-      first_name: first,
-      last_name: last || "",
-      full_name: fullName,
-      email: normalizedEmail,
-      mobile_number: input.mobile_number?.trim() || "—",
-      designation_name: input.designation_name?.trim() || "Practice Admin",
-      joining_date: new Date().toISOString().slice(0, 10),
-      employment_status: "Active",
-      is_active: true,
-      role_code: "ADMIN",
-      assigned_projects_count: 0,
-      assigned_tasks_count: 0,
-      completed_tasks_count: 0,
-    });
-    this.addActivityLog(
-      `Created Admin account: ${created.full_name} (${created.email})`,
-      "admin",
-      created.id
-    );
-    this.persist();
-    this.notify();
-    return { ok: true, employee: created };
+    try {
+      const created = await this.addEmployee({
+        first_name: first,
+        last_name: last || "",
+        full_name: fullName,
+        email: normalizedEmail,
+        mobile_number: input.mobile_number?.trim() || "—",
+        designation_name: input.designation_name?.trim() || "Practice Admin",
+        joining_date: new Date().toISOString().slice(0, 10),
+        employment_status: "Active",
+        is_active: true,
+        role_code: "ADMIN",
+        assigned_projects_count: 0,
+        assigned_tasks_count: 0,
+        completed_tasks_count: 0,
+      });
+      this.addActivityLog(
+        `Created Admin account: ${created.full_name} (${created.email})`,
+        "admin",
+        created.id
+      );
+      this.notify();
+      return { ok: true, employee: created };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || "Failed to save Admin to database." };
+    }
   }
 
   /** Super Admin exclusive: promote an employee to ADMIN or demote an ADMIN to another role. */
-  updateEmployeeRole(
+  async updateEmployeeRole(
     employeeId: string,
     roleCode: RoleCode
-  ): { ok: boolean; error?: string } {
+  ): Promise<{ ok: boolean; error?: string }> {
     if (this.currentUser?.role_code !== "SUPER_ADMIN") {
       return { ok: false, error: "Only Super Admin can manage Admin roles." };
     }
@@ -4409,30 +4418,41 @@ class PMSDataStore {
     }
 
     const previousRole = target.role_code || "EMPLOYEE";
-    const updated: Employee = {
-      ...target,
-      role_code: roleCode,
-      designation_name:
-        roleCode === "ADMIN" && !target.designation_name
-          ? "Practice Admin"
-          : target.designation_name,
-    };
-    this.employees[idx] = updated;
-    this.addActivityLog(
-      `Changed role for ${updated.full_name} (${previousRole} → ${roleCode})`,
-      "admin",
-      updated.id
-    );
-    this.persist();
-    this.notify();
-    return { ok: true };
+    const designationName =
+      roleCode === "ADMIN" && !target.designation_name
+        ? "Practice Admin"
+        : target.designation_name;
+
+    try {
+      // Direct Supabase Persistence: write update to PostgreSQL
+      await updateEmployeeInDb(employeeId, {
+        role_code: roleCode,
+        designation_name: designationName,
+      });
+
+      const updated: Employee = {
+        ...target,
+        role_code: roleCode,
+        designation_name: designationName,
+      };
+      this.employees[idx] = updated;
+      this.addActivityLog(
+        `Changed role for ${updated.full_name} (${previousRole} → ${roleCode})`,
+        "admin",
+        updated.id
+      );
+      this.notify();
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || "Failed to update role in database." };
+    }
   }
 
   /** Activate or suspend an employee/admin account. Only Super Admin may toggle ADMIN accounts. */
-  setEmployeeActiveStatus(
+  async setEmployeeActiveStatus(
     employeeId: string,
     isActive: boolean
-  ): { ok: boolean; error?: string } {
+  ): Promise<{ ok: boolean; error?: string }> {
     if (!this.isCurrentUserAdmin()) {
       return { ok: false, error: "Unauthorized." };
     }
@@ -4448,20 +4468,29 @@ class PMSDataStore {
       return { ok: false, error: "Only Super Admin can activate or suspend Admin accounts." };
     }
 
-    const updated: Employee = {
-      ...target,
-      is_active: isActive,
-      employment_status: isActive ? "Active" : "Inactive",
-    };
-    this.employees[idx] = updated;
-    this.addActivityLog(
-      `${isActive ? "Activated" : "Suspended"} ${updated.role_code === "ADMIN" ? "Admin" : "Employee"} account: ${updated.full_name}`,
-      "admin",
-      updated.id
-    );
-    this.persist();
-    this.notify();
-    return { ok: true };
+    try {
+      // Direct Supabase Persistence: write update to PostgreSQL
+      await updateEmployeeInDb(employeeId, {
+        is_active: isActive,
+        employment_status: isActive ? "Active" : "Inactive",
+      });
+
+      const updated: Employee = {
+        ...target,
+        is_active: isActive,
+        employment_status: isActive ? "Active" : "Inactive",
+      };
+      this.employees[idx] = updated;
+      this.addActivityLog(
+        `${isActive ? "Activated" : "Suspended"} ${updated.role_code === "ADMIN" ? "Admin" : "Employee"} account: ${updated.full_name}`,
+        "admin",
+        updated.id
+      );
+      this.notify();
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || "Failed to update status in database." };
+    }
   }
 
   // Teams

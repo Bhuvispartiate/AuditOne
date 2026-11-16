@@ -1921,7 +1921,7 @@ export async function deleteRecycleBinItemFromDb(id: string): Promise<void> {
 
 export async function fetchEmployeesFromDb(): Promise<Employee[]> {
   const supabase = createClient();
-  const { data, error } = await supabase.from("employees").select("*, designations(title)");
+  const { data, error } = await supabase.from("employees").select("*, designations(title)").order("created_at", { ascending: true });
   if (error) {
     console.error("Supabase fetch employees error:", error);
     throw new Error(error.message);
@@ -1935,15 +1935,77 @@ export async function fetchEmployeesFromDb(): Promise<Employee[]> {
     email: row.email,
     mobile_number: row.mobile_number,
     designation_id: row.designation_id || undefined,
-    designation_name: row.designations?.title || undefined,
+    designation_name: row.designations?.title || row.designation_name || undefined,
     team_id: row.team_id || undefined,
     team_name: row.team_name || undefined,
     joining_date: row.joining_date,
     employment_status: row.employment_status,
     is_active: Boolean(row.is_active),
-    role_code: "EMPLOYEE",
+    role_code: (row.role_code as any) || "EMPLOYEE",
     created_at: row.created_at,
   }));
+}
+
+export async function insertEmployeeToDb(emp: Employee): Promise<Employee> {
+  const supabase = createClient();
+  const id = ensureUuid(emp.id);
+  const { error } = await supabase.from("employees").insert({
+    id,
+    employee_code: emp.employee_code,
+    first_name: emp.first_name,
+    last_name: emp.last_name || "",
+    full_name: emp.full_name,
+    email: emp.email.trim().toLowerCase(),
+    mobile_number: emp.mobile_number || null,
+    designation_name: emp.designation_name || null,
+    designation_id: isUuid(emp.designation_id) ? emp.designation_id : null,
+    team_id: isUuid(emp.team_id) ? emp.team_id : null,
+    team_name: emp.team_name || null,
+    joining_date: emp.joining_date || new Date().toISOString().slice(0, 10),
+    employment_status: emp.employment_status || "Active",
+    is_active: emp.is_active ?? true,
+    role_code: emp.role_code || "EMPLOYEE",
+    created_at: emp.created_at || new Date().toISOString(),
+  });
+  if (error) {
+    console.error("Supabase insert employees error:", error);
+    throw new Error(error.message);
+  }
+  return { ...emp, id };
+}
+
+export async function updateEmployeeInDb(id: string, updates: Partial<Employee>): Promise<void> {
+  const supabase = createClient();
+  const dbUpdates: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (updates.first_name !== undefined) dbUpdates.first_name = updates.first_name;
+  if (updates.last_name !== undefined) dbUpdates.last_name = updates.last_name;
+  if (updates.full_name !== undefined) dbUpdates.full_name = updates.full_name;
+  if (updates.email !== undefined) dbUpdates.email = updates.email.trim().toLowerCase();
+  if (updates.mobile_number !== undefined) dbUpdates.mobile_number = updates.mobile_number;
+  if (updates.designation_name !== undefined) dbUpdates.designation_name = updates.designation_name;
+  if (updates.designation_id !== undefined) dbUpdates.designation_id = isUuid(updates.designation_id) ? updates.designation_id : null;
+  if (updates.team_id !== undefined) dbUpdates.team_id = isUuid(updates.team_id) ? updates.team_id : null;
+  if (updates.team_name !== undefined) dbUpdates.team_name = updates.team_name;
+  if (updates.employment_status !== undefined) dbUpdates.employment_status = updates.employment_status;
+  if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
+  if (updates.role_code !== undefined) dbUpdates.role_code = updates.role_code;
+
+  const { error } = await supabase.from("employees").update(dbUpdates).eq("id", id);
+  if (error) {
+    console.error("Supabase update employees error:", error);
+    throw new Error(error.message);
+  }
+}
+
+export async function deleteEmployeeFromDb(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("employees").delete().eq("id", id);
+  if (error) {
+    console.error("Supabase delete employees error:", error);
+    throw new Error(error.message);
+  }
 }
 
 export async function fetchDocumentsFromDb(): Promise<FileObject[]> {

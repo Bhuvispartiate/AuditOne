@@ -57,7 +57,7 @@ export default function NewEmployeePage() {
   const [accountHolderName, setAccountHolderName] = useState("");
   const [bankRemarks, setBankRemarks] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim()) {
@@ -69,31 +69,35 @@ export default function NewEmployeePage() {
     const sup = currentEmployees.find((e) => e.id === supervisorId);
     const selectedTeam = teams.find((t) => t.id === teamId);
 
-    const newEmp = pmsStore.addEmployee({
-      first_name: firstName,
-      last_name: lastName,
-      full_name: `${firstName} ${lastName}`,
-      email,
-      mobile_number: mobileNumber,
-      father_name: fatherName,
-      date_of_birth: dateOfBirth,
-      designation_id: designationId,
-      designation_name: desig?.title,
-      supervisor_id: supervisorId,
-      supervisor_name: sup?.full_name,
-      team_id: selectedTeam?.id,
-      team_name: selectedTeam?.name,
-      joining_date: joiningDate,
-      employment_status: employmentStatus,
-      is_active: true,
-      role_code: roleCode,
-      assigned_projects_count: 0,
-      assigned_tasks_count: 0,
-      completed_tasks_count: 0,
-    });
+    try {
+      const newEmp = await pmsStore.addEmployee({
+        first_name: firstName,
+        last_name: lastName,
+        full_name: `${firstName} ${lastName}`,
+        email,
+        mobile_number: mobileNumber,
+        father_name: fatherName,
+        date_of_birth: dateOfBirth,
+        designation_id: designationId,
+        designation_name: desig?.title,
+        supervisor_id: supervisorId,
+        supervisor_name: sup?.full_name,
+        team_id: selectedTeam?.id,
+        team_name: selectedTeam?.name,
+        joining_date: joiningDate,
+        employment_status: employmentStatus,
+        is_active: true,
+        role_code: roleCode,
+        assigned_projects_count: 0,
+        assigned_tasks_count: 0,
+        completed_tasks_count: 0,
+      });
 
-    toast.success(`Employee ${newEmp.full_name} onboarded with ID ${newEmp.employee_code}`);
-    navigate(`/employees/${newEmp.id}`);
+      toast.success(`Employee ${newEmp.full_name} onboarded with ID ${newEmp.employee_code}`);
+      navigate(`/employees/${newEmp.id}`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to onboard employee to database.");
+    }
   };
 
   return (

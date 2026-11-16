@@ -99,9 +99,9 @@ export default function AdminsManagementPage() {
     .filter((l) => l.entity_type === "admin")
     .slice(0, 8);
 
-  const handleCreateAdmin = (e: React.FormEvent) => {
+  const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = pmsStore.createAdminUser({
+    const res = await pmsStore.createAdminUser({
       first_name: firstName,
       last_name: lastName,
       email,
@@ -121,13 +121,13 @@ export default function AdminsManagementPage() {
     setShowCreateForm(false);
   };
 
-  const handlePromoteStaff = () => {
+  const handlePromoteStaff = async () => {
     if (!promoteEmpId) {
       toast.error("Select an employee to promote.");
       return;
     }
     const target = allEmployees.find((e) => e.id === promoteEmpId);
-    const res = pmsStore.updateEmployeeRole(promoteEmpId, "ADMIN");
+    const res = await pmsStore.updateEmployeeRole(promoteEmpId, "ADMIN");
     if (!res.ok) {
       toast.error(res.error || "Could not promote employee.");
       return;
@@ -136,8 +136,8 @@ export default function AdminsManagementPage() {
     setPromoteEmpId("");
   };
 
-  const handleDemoteAdmin = (empId: string, fullName: string) => {
-    const res = pmsStore.updateEmployeeRole(empId, "EMPLOYEE");
+  const handleDemoteAdmin = async (empId: string, fullName: string) => {
+    const res = await pmsStore.updateEmployeeRole(empId, "EMPLOYEE");
     if (!res.ok) {
       toast.error(res.error || "Could not demote Admin.");
       return;
@@ -145,8 +145,8 @@ export default function AdminsManagementPage() {
     toast.success(`${fullName} moved back to Employee role.`);
   };
 
-  const handleToggleActive = (empId: string, fullName: string, nextActive: boolean) => {
-    const res = pmsStore.setEmployeeActiveStatus(empId, nextActive);
+  const handleToggleActive = async (empId: string, fullName: string, nextActive: boolean) => {
+    const res = await pmsStore.setEmployeeActiveStatus(empId, nextActive);
     if (!res.ok) {
       toast.error(res.error || "Could not update Admin status.");
       return;
