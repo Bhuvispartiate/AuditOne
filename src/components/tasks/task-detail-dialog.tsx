@@ -288,15 +288,15 @@ export function TaskDetailDialog({
 
               {/* Category & Sub-Category Breadcrumb Pill */}
               <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-violet-50 text-violet-900 border border-violet-200 text-xs font-bold">
-                  <FolderTree className="h-3.5 w-3.5 text-violet-600 shrink-0" />
-                  <span className="text-violet-600 font-semibold">Category:</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-[#EFE8DC] text-[#201815] border border-[#E2DACD] text-xs font-bold">
+                  <FolderTree className="h-3.5 w-3.5 text-[#201815] shrink-0" />
+                  <span className="text-[#201815] font-semibold">Category:</span>
                   <span className="font-extrabold">{task.category_name || activeCategory?.name || "General"}</span>
                 </span>
                 <span className="text-slate-400 font-bold text-xs">→</span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-purple-50 text-purple-900 border border-purple-200 text-xs font-bold">
-                  <Folder className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                  <span className="text-purple-600 font-semibold">Sub-group:</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-[#FAF8F5] text-[#201815] border border-[#E2DACD] text-xs font-bold">
+                  <Folder className="h-3.5 w-3.5 text-[#201815] shrink-0" />
+                  <span className="text-[#201815] font-semibold">Sub-group:</span>
                   <span className="font-extrabold">{task.sub_category_name || activeSubCategory?.name || "General"}</span>
                 </span>
               </div>
@@ -369,7 +369,7 @@ export function TaskDetailDialog({
           <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-4">
             <div className="flex items-center justify-between gap-2">
               <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-violet-600" />
+                <Calendar className="h-3.5 w-3.5 text-[#201815]" />
                 <span>{levelLabel} Overview &amp; Schedule</span>
               </h4>
             </div>
@@ -414,7 +414,7 @@ export function TaskDetailDialog({
               {/* 2. Category Selection */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
-                  <FolderTree className="h-3 w-3 text-violet-600" />
+                  <FolderTree className="h-3 w-3 text-[#201815]" />
                   <span>Category</span>
                 </label>
                 {isReadOnly ? (
@@ -455,7 +455,7 @@ export function TaskDetailDialog({
               {/* 3. Sub-Category / Sub-group Selection */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
-                  <Folder className="h-3 w-3 text-purple-600" />
+                  <Folder className="h-3 w-3 text-[#201815]" />
                   <span>Sub-group / Sub-Category</span>
                 </label>
                 {isReadOnly ? (
@@ -765,7 +765,7 @@ export function TaskDetailDialog({
           <div className="rounded-[20px] border-[1.5px] border-slate-300 bg-white p-4 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                <ListChecks className="h-4 w-4 text-violet-600" />
+                <ListChecks className="h-4 w-4 text-[#201815]" />
                 <span>Subtasks</span>
               </h4>
               {!isReadOnly && (

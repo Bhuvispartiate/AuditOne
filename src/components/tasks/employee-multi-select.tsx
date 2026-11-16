@@ -106,7 +106,7 @@ export const EmployeeMultiSelect: React.FC<EmployeeMultiSelectProps> = ({
       {label && (
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5 text-violet-600" />
+            <Users className="h-3.5 w-3.5 text-[#201815]" />
             <span>{label}</span>
           </label>
           <div className="flex items-center gap-2">
@@ -142,9 +142,9 @@ export const EmployeeMultiSelect: React.FC<EmployeeMultiSelectProps> = ({
             return (
               <span
                 key={emp.id}
-                className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-lg bg-white border border-slate-300 shadow-xs text-xs font-semibold text-slate-800 transition-all hover:border-violet-300"
+                className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-lg bg-white border border-slate-300 shadow-xs text-xs font-semibold text-slate-800 transition-all hover:border-[#201815]"
               >
-                <span className="h-5 w-5 rounded-full bg-violet-100 text-violet-800 font-bold text-[10px] flex items-center justify-center shrink-0">
+                <span className="h-5 w-5 rounded-full bg-[#EFE8DC] text-[#201815] font-bold text-[10px] flex items-center justify-center shrink-0">
                   {initials}
                 </span>
                 <span className="truncate max-w-[130px]">{emp.full_name}</span>
@@ -216,7 +216,7 @@ export const EmployeeMultiSelect: React.FC<EmployeeMultiSelectProps> = ({
                   key={emp.id}
                   onClick={() => handleToggle(emp.id)}
                   className={`flex items-center justify-between p-2.5 cursor-pointer text-xs transition-colors ${
-                    isSelected ? "bg-violet-50/80 font-bold" : "hover:bg-slate-50 font-medium"
+                    isSelected ? "bg-[#EFE8DC]/80 text-[#201815] font-bold" : "hover:bg-slate-50 font-medium"
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -244,7 +244,7 @@ export const EmployeeMultiSelect: React.FC<EmployeeMultiSelectProps> = ({
                   </div>
 
                   {isSelected && (
-                    <Badge variant="outline" className="border-violet-200 bg-violet-100/60 text-violet-800 text-[10px] font-bold rounded-md shrink-0">
+                    <Badge variant="outline" className="border-[#E2DACD] bg-[#EFE8DC] text-[#201815] text-[10px] font-bold rounded-md shrink-0">
                       Assigned
                     </Badge>
                   )}

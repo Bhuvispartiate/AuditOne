@@ -74,8 +74,10 @@
   background: #B8AE9F;
 }
 
-/* Global Brown Theme Overrides for Buttons, Bars & Controls */
-/* Whenever a button or bar is brown, the text and icons MUST be white */
+/* ========================================================================== */
+/* Global Luxury Brown Theme Overrides for Buttons, Bars & Controls          */
+/* Whenever a button or bar is brown, the text and icons MUST be crisp white */
+/* ========================================================================== */
 .bg-neutral-900,
 .bg-\[\#201815\],
 .bg-\[\#241713\],
@@ -85,7 +87,13 @@
 .bg-violet-600,
 .bg-violet-700,
 .bg-violet-800,
-.bg-violet-900 {
+.bg-violet-900,
+.bg-indigo-600,
+.bg-indigo-700,
+.bg-indigo-800,
+.bg-purple-600,
+.bg-purple-700,
+.bg-purple-800 {
   background-color: #201815 !important;
   color: #FAF8F5 !important;
 }
@@ -99,7 +107,13 @@
 .bg-violet-600 *,
 .bg-violet-700 *,
 .bg-violet-800 *,
-.bg-violet-900 * {
+.bg-violet-900 *,
+.bg-indigo-600 *,
+.bg-indigo-700 *,
+.bg-indigo-800 *,
+.bg-purple-600 *,
+.bg-purple-700 *,
+.bg-purple-800 * {
   color: #FAF8F5 !important;
 }
 
@@ -110,7 +124,11 @@
 .hover\:bg-\[\#5b4cdb\]:hover,
 .hover\:bg-\[\#5a4ad8\]:hover,
 .hover\:bg-violet-700:hover,
-.hover\:bg-violet-800:hover {
+.hover\:bg-violet-800:hover,
+.hover\:bg-indigo-700:hover,
+.hover\:bg-indigo-800:hover,
+.hover\:bg-purple-700:hover,
+.hover\:bg-purple-800:hover {
   background-color: #342722 !important;
   color: #FAF8F5 !important;
 }
@@ -121,19 +139,31 @@
 .hover\:bg-\[\#5b4cdb\]:hover *,
 .hover\:bg-\[\#5a4ad8\]:hover *,
 .hover\:bg-violet-700:hover *,
-.hover\:bg-violet-800:hover * {
+.hover\:bg-violet-800:hover *,
+.hover\:bg-indigo-700:hover *,
+.hover\:bg-indigo-800:hover *,
+.hover\:bg-purple-700:hover *,
+.hover\:bg-purple-800:hover * {
   color: #FAF8F5 !important;
 }
 
-/* Change violet text, badges, borders to rich luxury brown */
+/* Change violet/indigo/purple text, badges, borders to rich luxury brown */
 .text-violet-600,
 .text-violet-700,
 .text-violet-800,
 .text-violet-900,
+.text-indigo-600,
+.text-indigo-700,
+.text-indigo-800,
+.text-purple-600,
+.text-purple-700,
+.text-purple-800,
 .group-hover\:text-violet-700:hover,
 .group-hover\:text-violet-800:hover,
+.group-hover\:text-indigo-700:hover,
 .hover\:text-violet-700:hover,
-.hover\:text-violet-800:hover {
+.hover\:text-violet-800:hover,
+.hover\:text-indigo-700:hover {
   color: #201815 !important;
 }
 
@@ -141,19 +171,28 @@
 .border-violet-700,
 .border-violet-800,
 .border-violet-900,
+.border-indigo-600,
+.border-indigo-700,
+.border-purple-600,
 .hover\:border-violet-600:hover,
-.hover\:border-violet-700:hover {
+.hover\:border-violet-700:hover,
+.hover\:border-indigo-500:hover {
   border-color: #201815 !important;
 }
 
 .border-violet-200,
 .border-violet-300,
-.border-violet-400 {
+.border-violet-400,
+.border-indigo-200,
+.border-indigo-300,
+.border-purple-200 {
   border-color: #E2DACD !important;
 }
 
 .bg-violet-50,
-.bg-violet-100 {
+.bg-violet-100,
+.bg-indigo-50,
+.bg-purple-50 {
   background-color: #FAF8F5 !important;
   color: #201815 !important;
 }
@@ -161,102 +200,7 @@
 .ring-violet-500,
 .ring-violet-600,
 .focus\:ring-violet-500:focus,
-.focus\:ring-violet-600:focus {
+.focus\:ring-violet-600:focus,
+.focus\:ring-indigo-500:focus {
   --tw-ring-color: #201815 !important;
 }
-
-
-
-/* Global Brown Theme Overrides for Buttons, Bars & Controls */
-/* Whenever a button or bar is brown, the text and icons MUST be white */
-.bg-neutral-900,
-.bg-\[\#201815\],
-.bg-\[\#241713\],
-.bg-\[\#2A1C17\],
-.bg-\[\#2E1F1A\],
-.bg-\[\#6c5ce7\],
-.bg-violet-600,
-.bg-violet-700,
-.bg-violet-800,
-.bg-violet-900 {
-  background-color: #201815 !important;
-  color: #FAF8F5 !important;
-}
-
-.bg-neutral-900 *,
-.bg-\[\#201815\] *,
-.bg-\[\#241713\] *,
-.bg-\[\#2A1C17\] *,
-.bg-\[\#2E1F1A\] *,
-.bg-\[\#6c5ce7\] *,
-.bg-violet-600 *,
-.bg-violet-700 *,
-.bg-violet-800 *,
-.bg-violet-900 * {
-  color: #FAF8F5 !important;
-}
-
-/* Hover states for brown buttons */
-.hover\:bg-black:hover,
-.hover\:bg-neutral-900:hover,
-.hover\:bg-\[\#342722\]:hover,
-.hover\:bg-\[\#5b4cdb\]:hover,
-.hover\:bg-\[\#5a4ad8\]:hover,
-.hover\:bg-violet-700:hover,
-.hover\:bg-violet-800:hover {
-  background-color: #342722 !important;
-  color: #FAF8F5 !important;
-}
-
-.hover\:bg-black:hover *,
-.hover\:bg-neutral-900:hover *,
-.hover\:bg-\[\#342722\]:hover *,
-.hover\:bg-\[\#5b4cdb\]:hover *,
-.hover\:bg-\[\#5a4ad8\]:hover *,
-.hover\:bg-violet-700:hover *,
-.hover\:bg-violet-800:hover * {
-  color: #FAF8F5 !important;
-}
-
-/* Change violet text, badges, borders to rich luxury brown */
-.text-violet-600,
-.text-violet-700,
-.text-violet-800,
-.text-violet-900,
-.group-hover\:text-violet-700:hover,
-.group-hover\:text-violet-800:hover,
-.hover\:text-violet-700:hover,
-.hover\:text-violet-800:hover {
-  color: #201815 !important;
-}
-
-.border-violet-600,
-.border-violet-700,
-.border-violet-800,
-.border-violet-900,
-.hover\:border-violet-600:hover,
-.hover\:border-violet-700:hover {
-  border-color: #201815 !important;
-}
-
-.border-violet-200,
-.border-violet-300,
-.border-violet-400 {
-  border-color: #E2DACD !important;
-}
-
-.bg-violet-50,
-.bg-violet-100 {
-  background-color: #FAF8F5 !important;
-  color: #201815 !important;
-}
-
-.ring-violet-500,
-.ring-violet-600,
-.focus\:ring-violet-500:focus,
-.focus\:ring-violet-600:focus {
-  --tw-ring-color: #201815 !important;
-}
-
-
-

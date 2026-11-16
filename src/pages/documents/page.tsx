@@ -432,24 +432,24 @@ function DocumentsContent() {
     }
   };
 
-  const handleRestoreUniversalItem = (item: UniversalRecycleBinItem) => {
-    pmsStore.restoreRecycleBinItem(item.id, currentUser);
+  const handleRestoreUniversalItem = async (item: UniversalRecycleBinItem) => {
+    await pmsStore.restoreRecycleBinItem(item.id, currentUser);
     toast.success(`Restored ${item.item_type} "${item.title}" back to active workspace.`);
   };
 
-  const handleRestoreAll = () => {
-    const count = pmsStore.restoreAllUniversalRecycleBin(currentUser);
+  const handleRestoreAll = async () => {
+    const count = await pmsStore.restoreAllUniversalRecycleBin(currentUser);
     toast.success(`Restored all ${count} item(s) from Recycle Bin back to repository.`);
   };
 
-  const handleExecutePermanentDelete = () => {
+  const handleExecutePermanentDelete = async () => {
     if (!permDeleteTarget || !isPermDeleteMatch) return;
 
     if (permDeleteTarget.type === "all") {
       const purged = pmsStore.emptyUniversalRecycleBin(currentUser);
       toast.success(`Emptied Recycle Bin: Permanently purged ${purged} item(s).`);
     } else if (permDeleteTarget.id) {
-      pmsStore.permanentlyDeleteRecycleBinItem(permDeleteTarget.id, currentUser);
+      await pmsStore.permanentlyDeleteRecycleBinItem(permDeleteTarget.id, currentUser);
       toast.success(`Permanently deleted ${permDeleteTarget.type} "${permDeleteTarget.name}".`);
     }
 

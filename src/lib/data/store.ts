@@ -261,18 +261,15 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplate[] = [
   },
 ];
 
-const STORAGE_KEY = "acru_pms_store_v1";
-
 class PMSDataStore {
-  // PURE PRODUCTION REPOSITORIES — ZERO MOCK DATA (PERSISTED TO LOCALSTORAGE + SUPABASE SYNC)
+  // DIRECT SUPABASE PERSISTENCE ENGINE — ZERO LOCAL-FIRST FALLBACK
+  // Supabase PostgreSQL is the authoritative single source of truth.
   private clients: Client[] = [];
   private services: Service[] = [];
   private engagements: ServiceEngagement[] = [];
   private projects: Project[] = [];
   private tasks: Task[] = [];
   private taskComments: TaskComment[] = [];
-  private deletedTaskProjectIds: string[] = [];
-  private deletedTaskIds: string[] = [];
   private workflows: WorkflowTemplate[] = [];
   private employees: Employee[] = [DEFAULT_SYSTEM_ADMIN];
   private teams: Team[] = [];
@@ -288,7 +285,6 @@ class PMSDataStore {
   private attendanceRecords: AttendanceRecord[] = [];
   private taskStatuses: TaskStatusConfig[] = [...DEFAULT_TASK_STATUSES];
   private taskCategories: TaskCategory[] = [...DEFAULT_TASK_CATEGORIES];
-  private deletedTaskCategoryIds: string[] = [];
   private vaultCredentials: VaultCredential[] = [];
   private vaultAuditLogs: VaultAuditLog[] = [];
   private invoiceRequests: InvoiceRequest[] = [];
@@ -298,21 +294,24 @@ class PMSDataStore {
   private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
   private authenticated: boolean = false;
   private listeners: Set<() => void> = new Set();
-  private cloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
-  private isHydratingFromCloud: boolean = false;
-  private cloudHydratePromise: Promise<void> | null = null;
-  private localUpdatedAt: number = 0;
+  private isStoreLoaded: boolean = false;
   private loadAllPromise: Promise<void> | null = null;
 
   constructor() {
-    this.hydrate();
-    this.ensureDefaultData();
+    // Purge legacy local storage cache completely
+    if (typeof window !== "undefined" && window.localStorage) {
+      try {
+        window.localStorage.removeItem("acru_pms_store_v1");
+        window.localStorage.removeItem("acru_pms_store_backup");
+      } catch {
+        // ignore storage access errors
+      }
+    }
+
+    // Immediately fetch authoritative data directly from Supabase
     void this.loadAllFromSupabase();
 
     if (typeof window !== "undefined") {
-      window.addEventListener("beforeunload", () => {
-        this.writeLocalSnapshot();
-      });
       window.addEventListener("focus", () => {
         void this.loadAllFromSupabase();
       });
@@ -322,6 +321,10 @@ class PMSDataStore {
         }
       });
     }
+  }
+
+  isLoaded(): boolean {
+    return this.isStoreLoaded;
   }
 
   async loadAllFromSupabase(): Promise<void> {
@@ -376,240 +379,42 @@ class PMSDataStore {
         fetchApprovalLogsFromDb().catch((e) => { console.warn("Direct Supabase fetch approval_logs failed:", e); return null; }),
       ]);
 
-      if (recycleBin !== null) {
-        this.universalRecycleBin = recycleBin;
-      }
-      if (clients !== null) {
-        this.clients = this.mergeRemoteEntities(this.clients, clients);
-      }
-      if (services !== null) {
-        this.services = this.mergeRemoteEntities(this.services, services);
-      }
-      if (engagements !== null) {
-        this.engagements = this.mergeRemoteEntities(this.engagements, engagements);
-      }
-      if (projects !== null) {
-        this.projects = this.mergeRemoteEntities(this.projects, projects);
-      }
-      // Ensure active entities are never suppressed by deleted ID tracking
-      this.deletedTaskProjectIds = this.deletedTaskProjectIds.filter(
-        (projId) => !this.projects.some((p) => p.id === projId)
-      );
-      this.deletedTaskCategoryIds = this.deletedTaskCategoryIds.filter(
-        (cid) => !this.taskCategories.some((c) => c.id === cid)
-      );
-      this.deletedTaskIds = this.deletedTaskIds.filter(
-        (tid) => !this.tasks.some((t) => t.id === tid || (t.task_code && t.task_code.toUpperCase() === tid))
-      );
-      if (categories !== null) {
-        this.taskCategories = this.mergeRemoteCategories(this.taskCategories, categories);
-      }
+      // Direct assignment from Supabase PostgreSQL — authoritative cloud state
+      if (clients !== null) this.clients = clients;
+      if (services !== null) this.services = services;
+      if (engagements !== null) this.engagements = engagements;
+      if (projects !== null) this.projects = projects;
+      if (categories !== null) this.taskCategories = categories;
       if (tasks !== null) {
-        const mergedTasks = this.mergeRemoteEntities(this.tasks, tasks);
-        // Deduplicate any exact duplicate tasks spawned by legacy auto-backfill loops
-        const seen = new Set<string>();
-        this.tasks = mergedTasks
-          .filter((t) => {
-            if (t.title && t.title.includes("Client Delivery Project — Initial Deliverable")) {
-              const key = `${t.project_id || t.project_name}_${t.title}`;
-              if (seen.has(key)) return false;
-              seen.add(key);
-            }
-            return true;
-          })
-          .map((t) => this.ensureTaskCategorized(t));
+        this.tasks = tasks.map((t) => this.ensureTaskCategorized(t));
       }
-      if (workflows !== null) {
-        this.workflows = this.mergeRemoteEntities(this.workflows, workflows);
-      }
-      if (invoices !== null) {
-        this.invoices = this.mergeRemoteEntities(this.invoices, invoices);
-      }
-      if (payments !== null) {
-        this.payments = this.mergeRemoteEntities(this.payments, payments);
-      }
+      if (workflows !== null) this.workflows = workflows;
+      if (invoices !== null) this.invoices = invoices;
+      if (payments !== null) this.payments = payments;
       if (whatsappTemplates !== null && whatsappTemplates.length > 0) {
-        this.whatsAppTemplates = this.mergeRemoteEntities(this.whatsAppTemplates, whatsappTemplates);
+        this.whatsAppTemplates = whatsappTemplates;
       }
       if (employees !== null) {
-        this.employees = this.mergeRemoteEntities(this.employees, employees);
+        this.employees = employees;
         const adminEmp = this.employees.find((e) => isSuperAdminEmail(e.email));
         if (adminEmp) {
           this.currentUser = adminEmp;
         }
       }
-      if (documents !== null) {
-        this.documents = this.mergeRemoteEntities(this.documents, documents);
-      }
-      if (vaultCreds !== null) {
-        this.vaultCredentials = this.mergeRemoteEntities(this.vaultCredentials, vaultCreds);
-      }
-      if (vaultLogs !== null) {
-        this.vaultAuditLogs = this.mergeRemoteEntities(this.vaultAuditLogs, vaultLogs);
-      }
-      if (invoiceRequests !== null) {
-        this.invoiceRequests = this.mergeRemoteEntities(this.invoiceRequests, invoiceRequests);
-      }
-      if (recurringInvoices !== null) {
-        this.recurringInvoices = this.mergeRemoteEntities(this.recurringInvoices, recurringInvoices);
-      }
-      if (bulkBatches !== null) {
-        this.bulkBatches = this.mergeRemoteEntities(this.bulkBatches, bulkBatches);
-      }
-      if (approvalLogs !== null) {
-        this.approvalLogs = this.mergeRemoteEntities(this.approvalLogs, approvalLogs);
-      }
+      if (documents !== null) this.documents = documents;
+      if (recycleBin !== null) this.universalRecycleBin = recycleBin;
+      if (vaultCreds !== null) this.vaultCredentials = vaultCreds;
+      if (vaultLogs !== null) this.vaultAuditLogs = vaultLogs;
+      if (invoiceRequests !== null) this.invoiceRequests = invoiceRequests;
+      if (recurringInvoices !== null) this.recurringInvoices = recurringInvoices;
+      if (bulkBatches !== null) this.bulkBatches = bulkBatches;
+      if (approvalLogs !== null) this.approvalLogs = approvalLogs;
 
-      this.persist();
+      this.isStoreLoaded = true;
       this.notify();
     } catch (err) {
       console.error("Direct Supabase load error:", err);
     }
-  }
-
-  private mergeRemoteEntities<T extends { id: string; updated_at?: string; created_at?: string; client_name?: string; title?: string; task_code?: string; client_code?: string; email?: string }>(
-    localList: T[],
-    remoteList: T[] | null
-  ): T[] {
-    if (remoteList === null) {
-      return localList;
-    }
-
-    const localMap = new Map<string, T>();
-    localList.forEach((loc) => {
-      if (loc?.id) localMap.set(loc.id, loc);
-      if (loc?.task_code) localMap.set(loc.task_code.toUpperCase(), loc);
-      if (loc?.client_code) localMap.set(loc.client_code.toUpperCase(), loc);
-      if ((loc as any)?.email) localMap.set(((loc as any).email as string).trim().toLowerCase(), loc);
-    });
-
-    const recycleBinIdSet = new Set<string>();
-    this.universalRecycleBin.forEach((item) => {
-      if (item.item_id) recycleBinIdSet.add(item.item_id);
-      if (item.id) recycleBinIdSet.add(item.id);
-      if (item.code) recycleBinIdSet.add(item.code.toUpperCase());
-    });
-    const deletedTaskProjectSet = new Set(this.deletedTaskProjectIds);
-    const deletedTaskSet = new Set(this.deletedTaskIds);
-
-    const merged: T[] = [];
-    const handledLocalIds = new Set<string>();
-
-    for (const remote of remoteList) {
-      if (recycleBinIdSet.has(remote.id)) continue;
-      if (deletedTaskSet.has(remote.id)) continue;
-      if ((remote as any).project_id && deletedTaskProjectSet.has((remote as any).project_id)) continue;
-
-      const local = localMap.get(remote.id) ||
-        (remote.task_code ? localMap.get(remote.task_code.toUpperCase()) : undefined) ||
-        (remote.client_code ? localMap.get(remote.client_code.toUpperCase()) : undefined) ||
-        (remote.email ? localMap.get(remote.email.trim().toLowerCase()) : undefined);
-
-      if (!local) {
-        merged.push(remote);
-        continue;
-      }
-
-      handledLocalIds.add(local.id);
-
-      const localTime = new Date(local.updated_at || local.created_at || 0).getTime();
-      const remoteTime = new Date(remote.updated_at || remote.created_at || 0).getTime();
-
-      if (localTime >= remoteTime) {
-        // Local is fresher or equal: preserve local updates firmly
-        merged.push({
-          ...remote,
-          ...local,
-        });
-      } else {
-        // Remote is newer: take remote values, but preserve rich local client structures if remote omitted them
-        const mergedItem: any = { ...remote };
-        for (const key of Object.keys(local)) {
-          const lVal = (local as any)[key];
-          const rVal = (remote as any)[key];
-          if (lVal !== undefined && lVal !== null) {
-            if (rVal === undefined || rVal === null) {
-              mergedItem[key] = lVal;
-            } else if (Array.isArray(lVal) && lVal.length > 0 && Array.isArray(rVal) && rVal.length === 0) {
-              mergedItem[key] = lVal;
-            } else if (typeof lVal === "object" && !Array.isArray(lVal) && (!rVal || Object.keys(rVal).length === 0)) {
-              mergedItem[key] = lVal;
-            }
-          }
-        }
-        merged.push(mergedItem);
-      }
-    }
-
-    const remoteIdSet = new Set(remoteList.map((r) => r.id));
-    const MOCK_TASK_PREFIXES = ["tsk-gen-", "tsk-gst-", "tsk-inc-"];
-
-    // Preserve ALL local items that were not found in remote — NEVER discard real user data after 3 minutes!
-    for (const local of localList) {
-      if (handledLocalIds.has(local.id)) continue;
-      if (remoteIdSet.has(local.id)) continue;
-      if (local.task_code && remoteList.some((r) => r.task_code?.toUpperCase() === local.task_code?.toUpperCase())) continue;
-      if (local.client_code && remoteList.some((r) => r.client_code?.toUpperCase() === local.client_code?.toUpperCase())) continue;
-      if (local.email && remoteList.some((r) => r.email?.trim().toLowerCase() === local.email?.trim().toLowerCase())) continue;
-
-      if (recycleBinIdSet.has(local.id)) continue;
-      if (deletedTaskSet.has(local.id)) continue;
-      if ((local as any).project_id && deletedTaskProjectSet.has((local as any).project_id)) continue;
-
-      // Filter out legacy mock data
-      if (!isUuid(local.id) && MOCK_TASK_PREFIXES.some((p) => local.id && local.id.toLowerCase().startsWith(p))) continue;
-
-      merged.push(local);
-    }
-
-    return merged;
-  }
-
-  private mergeRemoteCategories(localCats: TaskCategory[], remoteCats: TaskCategory[] | null): TaskCategory[] {
-    if (remoteCats === null) return localCats;
-
-    const recycleBinIdSet = new Set<string>();
-    this.universalRecycleBin.forEach((item) => {
-      if (item.item_id) recycleBinIdSet.add(item.item_id);
-      if (item.id) recycleBinIdSet.add(item.id);
-      if (item.code) recycleBinIdSet.add(item.code.toUpperCase());
-    });
-    const deletedCatSet = new Set(this.deletedTaskCategoryIds);
-
-    const filteredRemote = remoteCats.filter((c) => !recycleBinIdSet.has(c.id) && !deletedCatSet.has(c.id));
-    const categoryMap = new Map<string, TaskCategory>();
-
-    filteredRemote.forEach((rCat) => {
-      categoryMap.set(rCat.id, rCat);
-    });
-
-    const validLocalCats = localCats.filter((loc) => !recycleBinIdSet.has(loc.id) && !deletedCatSet.has(loc.id));
-    validLocalCats.forEach((lCat) => {
-      const existing = categoryMap.get(lCat.id);
-      if (!existing) {
-        categoryMap.set(lCat.id, lCat);
-      } else {
-        const remoteSubs = existing.sub_categories || [];
-        const localSubs = lCat.sub_categories || [];
-        const subMap = new Map<string, TaskSubCategory>();
-        remoteSubs.forEach((s) => subMap.set(s.id, s));
-        localSubs.forEach((s) => {
-          if (!subMap.has(s.id)) {
-            subMap.set(s.id, s);
-          } else {
-            const cur = subMap.get(s.id)!;
-            subMap.set(s.id, { ...cur, ...s });
-          }
-        });
-        categoryMap.set(lCat.id, {
-          ...existing,
-          ...lCat,
-          sub_categories: Array.from(subMap.values()),
-        });
-      }
-    });
-
-    return Array.from(categoryMap.values());
   }
 
   private addDaysIso(baseIso: string, days: number): string {
@@ -643,549 +448,12 @@ class PMSDataStore {
     });
   }
 
-  private mergeById<T extends { id: string; updated_at?: string; created_at?: string }>(currentList: T[], incomingList: T[]): T[] {
-    if (!Array.isArray(incomingList) || incomingList.length === 0) return currentList;
-    if (!Array.isArray(currentList) || currentList.length === 0) return incomingList;
-
-    const map = new Map<string, T>();
-    currentList.forEach((item) => {
-      if (item && item.id) map.set(item.id, item);
-    });
-    incomingList.forEach((incoming) => {
-      if (!incoming || !incoming.id) return;
-      const current = map.get(incoming.id);
-      if (!current) {
-        map.set(incoming.id, incoming);
-        return;
-      }
-      const curTime = new Date(current.updated_at || current.created_at || 0).getTime();
-      const incTime = new Date(incoming.updated_at || incoming.created_at || 0).getTime();
-      if (curTime >= incTime) {
-        map.set(incoming.id, { ...incoming, ...current });
-      } else {
-        map.set(incoming.id, { ...current, ...incoming });
-      }
-    });
-    return Array.from(map.values());
-  }
-
-  private ensureDefaultData() {
-    let changed = false;
-
-    // 1. Ensure Services
-    if (this.services.length === 0) {
-      this.services = [...DEFAULT_SERVICES];
-      changed = true;
-    }
-
-    // 2. Ensure Workflows
-    if (this.workflows.length === 0) {
-      this.workflows = [...DEFAULT_WORKFLOWS];
-      changed = true;
-    }
-
-    if (changed) {
-      this.writeLocalSnapshot();
-    }
-  }
-
-  private applyWorkspaceDataSnapshot(parsed: any) {
-    if (!parsed || typeof parsed !== "object") return;
-    if (Array.isArray(parsed.clients) && parsed.clients.length > 0) {
-      this.clients = this.mergeById(this.clients, parsed.clients);
-    }
-    if (Array.isArray(parsed.services) && parsed.services.length > 0) {
-      this.services = this.mergeById(this.services, parsed.services);
-    }
-    if (Array.isArray(parsed.engagements) && parsed.engagements.length > 0) {
-      this.engagements = this.mergeById(this.engagements, parsed.engagements);
-    }
-    if (Array.isArray(parsed.projects) && parsed.projects.length > 0) {
-      this.projects = this.mergeById(this.projects, parsed.projects);
-    }
-    if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
-      this.tasks = this.mergeById(this.tasks, parsed.tasks);
-    }
-    if (Array.isArray(parsed.taskComments) && parsed.taskComments.length > 0) {
-      this.taskComments = this.mergeById(this.taskComments, parsed.taskComments);
-    }
-    if (Array.isArray(parsed.deletedTaskProjectIds)) {
-      this.deletedTaskProjectIds = Array.from(
-        new Set([...this.deletedTaskProjectIds, ...parsed.deletedTaskProjectIds])
-      );
-    }
-    if (Array.isArray(parsed.workflows) && parsed.workflows.length > 0) {
-      this.workflows = this.mergeById(this.workflows, parsed.workflows);
-    }
-    if (Array.isArray(parsed.employees) && parsed.employees.length > 0) {
-      this.employees = this.mergeById(this.employees, parsed.employees);
-    }
-    if (Array.isArray(parsed.teams) && parsed.teams.length > 0) {
-      this.teams = this.mergeById(this.teams, parsed.teams);
-    }
-    if (Array.isArray(parsed.invoices) && parsed.invoices.length > 0) {
-      this.invoices = this.mergeById(this.invoices, parsed.invoices);
-    }
-    if (Array.isArray(parsed.payments) && parsed.payments.length > 0) {
-      this.payments = this.mergeById(this.payments, parsed.payments);
-    }
-    if (Array.isArray(parsed.documents) && parsed.documents.length > 0) {
-      this.documents = this.mergeById(this.documents, parsed.documents);
-    }
-    if (Array.isArray(parsed.documentFolders) && parsed.documentFolders.length > 0) {
-      this.documentFolders = this.mergeById(this.documentFolders, parsed.documentFolders);
-    } else if (this.documentFolders.length === 0) {
-      this.documentFolders = [...DEFAULT_DOCUMENT_FOLDERS];
-    }
-    if (Array.isArray(parsed.notifications) && parsed.notifications.length > 0) {
-      this.notifications = this.mergeById(this.notifications, parsed.notifications);
-    }
-    if (Array.isArray(parsed.activityLogs) && parsed.activityLogs.length > 0) {
-      this.activityLogs = this.mergeById(this.activityLogs, parsed.activityLogs);
-    }
-    if (parsed.officeGeoConfig && typeof parsed.officeGeoConfig.latitude === "number") {
-      this.officeGeoConfig = parsed.officeGeoConfig;
-    }
-    if (Array.isArray(parsed.attendanceRecords) && parsed.attendanceRecords.length > 0) {
-      this.attendanceRecords = this.mergeById(this.attendanceRecords, parsed.attendanceRecords);
-    }
-    if (Array.isArray(parsed.taskStatuses) && parsed.taskStatuses.length > 0) {
-      this.taskStatuses = this.mergeById(this.taskStatuses, parsed.taskStatuses);
-    }
-    if (Array.isArray(parsed.taskCategories) && parsed.taskCategories.length > 0) {
-      this.taskCategories = this.mergeById(this.taskCategories, parsed.taskCategories);
-    } else if (this.taskCategories.length === 0 && (!parsed.deletedTaskCategoryIds || parsed.deletedTaskCategoryIds.length === 0)) {
-      this.taskCategories = [...DEFAULT_TASK_CATEGORIES];
-    }
-    if (Array.isArray(parsed.deletedTaskCategoryIds)) {
-      this.deletedTaskCategoryIds = Array.from(
-        new Set([...this.deletedTaskCategoryIds, ...parsed.deletedTaskCategoryIds])
-      );
-    }
-    if (Array.isArray(parsed.deletedTaskIds)) {
-      this.deletedTaskIds = Array.from(
-        new Set([...this.deletedTaskIds, ...parsed.deletedTaskIds])
-      );
-    }
-    if (Array.isArray(parsed.vaultCredentials) && parsed.vaultCredentials.length > 0) {
-      this.vaultCredentials = this.mergeById(this.vaultCredentials, parsed.vaultCredentials);
-    }
-    if (Array.isArray(parsed.vaultAuditLogs) && parsed.vaultAuditLogs.length > 0) {
-      this.vaultAuditLogs = this.mergeById(this.vaultAuditLogs, parsed.vaultAuditLogs);
-    }
-    if (Array.isArray(parsed.invoiceRequests) && parsed.invoiceRequests.length > 0) {
-      this.invoiceRequests = this.mergeById(this.invoiceRequests, parsed.invoiceRequests);
-    }
-    if (Array.isArray(parsed.recurringInvoices) && parsed.recurringInvoices.length > 0) {
-      this.recurringInvoices = this.mergeById(this.recurringInvoices, parsed.recurringInvoices);
-    }
-    if (Array.isArray(parsed.bulkBatches) && parsed.bulkBatches.length > 0) {
-      this.bulkBatches = this.mergeById(this.bulkBatches, parsed.bulkBatches);
-    }
-    if (Array.isArray(parsed.approvalLogs) && parsed.approvalLogs.length > 0) {
-      this.approvalLogs = this.mergeById(this.approvalLogs, parsed.approvalLogs);
-    }
-    if (Array.isArray(parsed.universalRecycleBin) && parsed.universalRecycleBin.length > 0) {
-      this.universalRecycleBin = this.mergeById(this.universalRecycleBin, parsed.universalRecycleBin);
-    }
-    if (typeof parsed.updatedAt === "number") {
-      this.localUpdatedAt = Math.max(this.localUpdatedAt, parsed.updatedAt);
-    }
-    // Keep default System Admin email synced with VITE_SUPERADMIN_EMAIL
-    this.employees = this.employees.map((e) =>
-      e.id === "emp-admin-01" && e.email === "admin@pmsfirm.com"
-        ? { ...e, email: SUPERADMIN_EMAIL }
-        : e
-    );
-  }
-
-  private buildWorkspaceDataSnapshot(updatedAt: number) {
-    return {
-      clients: this.clients,
-      services: this.services,
-      engagements: this.engagements,
-      projects: this.projects,
-      tasks: this.tasks,
-      taskComments: this.taskComments,
-      deletedTaskProjectIds: this.deletedTaskProjectIds,
-      deletedTaskIds: this.deletedTaskIds,
-      workflows: this.workflows,
-      employees: this.employees,
-      teams: this.teams,
-      invoices: this.invoices,
-      payments: this.payments,
-      documents: this.documents,
-      documentFolders: this.documentFolders,
-      notifications: this.notifications,
-      activityLogs: this.activityLogs,
-      officeGeoConfig: this.officeGeoConfig,
-      attendanceRecords: this.attendanceRecords,
-      taskStatuses: this.taskStatuses,
-      taskCategories: this.taskCategories,
-      deletedTaskCategoryIds: this.deletedTaskCategoryIds,
-      vaultCredentials: this.vaultCredentials,
-      vaultAuditLogs: this.vaultAuditLogs,
-      invoiceRequests: this.invoiceRequests,
-      recurringInvoices: this.recurringInvoices,
-      bulkBatches: this.bulkBatches,
-      approvalLogs: this.approvalLogs,
-      universalRecycleBin: this.universalRecycleBin,
-      updatedAt,
-    };
-  }
-
-  private hydrate() {
-    if (typeof window === "undefined" || !window.localStorage) return;
-    try {
-      let raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        raw = window.localStorage.getItem("acru_pms_store_backup");
-      }
-      if (!raw) return;
-      try {
-        window.localStorage.setItem("acru_pms_store_backup", raw);
-      } catch {
-        // ignore backup quota error
-      }
-      const parsed = JSON.parse(raw);
-      this.applyWorkspaceDataSnapshot(parsed);
-      if (parsed.currentUser && parsed.currentUser.id) {
-        this.currentUser = parsed.currentUser;
-      }
-      if (typeof parsed.authenticated === "boolean") {
-        this.authenticated = parsed.authenticated;
-      }
-      if (this.currentUser.id === "emp-admin-01" && this.currentUser.email === "admin@pmsfirm.com") {
-        this.currentUser = { ...this.currentUser, email: SUPERADMIN_EMAIL };
-      }
-
-      // Self-healing sanitization: active projects, categories, and tasks must NEVER be suppressed
-      this.deletedTaskProjectIds = this.deletedTaskProjectIds.filter(
-        (projId) => !this.projects.some((p) => p.id === projId)
-      );
-      this.deletedTaskCategoryIds = this.deletedTaskCategoryIds.filter(
-        (cid) => !this.taskCategories.some((c) => c.id === cid)
-      );
-      this.deletedTaskIds = this.deletedTaskIds.filter(
-        (tid) => !this.tasks.some((t) => t.id === tid || (t.task_code && t.task_code.toUpperCase() === tid))
-      );
-
-      // Purge all legacy mock practice tasks, mock categories, mock workflows, and mock services permanently
-      const MOCK_TASK_PREFIXES = ["tsk-gen-", "tsk-gst-", "tsk-inc-"];
-      const MOCK_CAT_IDS = ["cat-general", "cat-tax", "cat-audit", "cat-roc", "cat-acc", "cat-adv"];
-      const MOCK_WF_IDS = ["wf-company-incorp", "wf-gst-reg", "wf-tax-audit", "wf-stat-audit"];
-      const MOCK_SRV_PREFIXES = ["srv-"];
-
-      this.workflows = this.workflows.filter((w) => isUuid(w.id) && !MOCK_WF_IDS.includes(w.id));
-      this.services = this.services.filter((s) => isUuid(s.id) && !MOCK_SRV_PREFIXES.some((p) => s.id.startsWith(p)));
-      const initialCatCount = this.taskCategories.length;
-      this.taskCategories = this.taskCategories.filter((c) => !MOCK_CAT_IDS.includes(c.id));
-      MOCK_CAT_IDS.forEach((cid) => {
-        if (!this.deletedTaskCategoryIds.includes(cid)) {
-          this.deletedTaskCategoryIds.push(cid);
-        }
-      });
-
-      const initialTaskCount = this.tasks.length;
-      const seenBackfillKeys = new Set<string>();
-      this.tasks = this.tasks.filter((t) => {
-        if (MOCK_CAT_IDS.includes(t.category_id || "")) return false;
-        if (this.deletedTaskIds.includes(t.id) || (t.task_code && this.deletedTaskIds.includes(t.task_code.toUpperCase()))) return false;
-        // Never purge real tasks with valid UUIDs or legitimate production task codes (TSK-001, etc.)
-        if (!isUuid(t.id) && MOCK_TASK_PREFIXES.some((p) => t.id && t.id.toLowerCase().startsWith(p))) return false;
-        if (t.title && t.title.includes("Client Delivery Project — Initial Deliverable")) {
-          const key = `${t.project_id || t.project_name}`;
-          if (seenBackfillKeys.has(key)) return false;
-          seenBackfillKeys.add(key);
-        }
-        return true;
-      });
-      if (this.tasks.length !== initialTaskCount || this.taskCategories.length !== initialCatCount) {
-        this.writeLocalSnapshot();
-      }
-    } catch (error) {
-      console.error("Failed to hydrate PMS store from localStorage:", error);
-    }
-  }
-
-  private writeLocalSnapshot() {
-    if (typeof window === "undefined" || !window.localStorage) return;
-    try {
-      const snapshot = {
-        ...this.buildWorkspaceDataSnapshot(this.localUpdatedAt || Date.now()),
-        currentUser: this.currentUser,
-        authenticated: this.authenticated,
-      };
-      const serialized = JSON.stringify(snapshot);
-      window.localStorage.setItem(STORAGE_KEY, serialized);
-      try {
-        window.localStorage.setItem("acru_pms_store_backup", serialized);
-      } catch {
-        // ignore backup quota error
-      }
-    } catch (error) {
-      console.error("Failed to persist PMS store to localStorage:", error);
-    }
-  }
-
   private persist() {
-    if (!this.isHydratingFromCloud) {
-      this.localUpdatedAt = Date.now();
-    }
-    this.writeLocalSnapshot();
-    if (!this.isHydratingFromCloud) {
-      this.scheduleCloudSync();
-    }
     this.notify();
   }
 
-  private scheduleCloudSync() {
-    if (typeof window === "undefined") return;
-    if (this.cloudSyncTimer) clearTimeout(this.cloudSyncTimer);
-    this.cloudSyncTimer = setTimeout(() => {
-      void this.pushSnapshotToSupabase();
-    }, 350);
-  }
-
-  private async pushSnapshotToSupabase() {
-    if (typeof window === "undefined") return;
-    try {
-      const supabase = createClient();
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) return;
-
-      const snapshot = this.buildWorkspaceDataSnapshot(this.localUpdatedAt || Date.now());
-      const { error } = await supabase.from("system_settings").upsert(
-        {
-          setting_key: "pms_workspace_snapshot_v1",
-          setting_value: snapshot,
-          description: "Cross-device PMS workspace state",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "setting_key" }
-      );
-      if (error) {
-        console.warn("Supabase workspace sync skipped:", error.message);
-      }
-    } catch {
-      // Non-fatal if offline
-    }
-  }
-
-  async hydrateFromSupabase(force = false): Promise<void> {
-    if (typeof window === "undefined") return;
-    if (this.cloudHydratePromise && !force) return this.cloudHydratePromise;
-
-    const run = async () => {
-      try {
-        const supabase = createClient();
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData?.session) return;
-
-        const { data, error } = await supabase
-          .from("system_settings")
-          .select("setting_value")
-          .eq("setting_key", "pms_workspace_snapshot_v1")
-          .maybeSingle();
-
-        if (error) {
-          console.warn("Supabase workspace hydrate skipped:", error.message);
-          return;
-        }
-
-        const remote = data?.setting_value as Record<string, any> | undefined;
-        if (remote && typeof remote === "object") {
-          // If remote cloud snapshot is older than local state, do not overwrite local state with stale snapshot!
-          if (typeof remote.updatedAt === "number" && this.localUpdatedAt && remote.updatedAt < this.localUpdatedAt) {
-            void this.pushSnapshotToSupabase();
-            return;
-          }
-          this.isHydratingFromCloud = true;
-          try {
-            this.applyWorkspaceDataSnapshot(remote);
-            this.ensureDefaultData();
-            if (this.currentUser?.id) {
-              const matched = this.employees.find(
-                (e) =>
-                  e.id === this.currentUser.id ||
-                  (e.email || "").toLowerCase() === (this.currentUser.email || "").toLowerCase()
-              );
-              if (matched) this.currentUser = matched;
-            }
-            this.writeLocalSnapshot();
-            void this.pushSnapshotToSupabase();
-          } finally {
-            this.isHydratingFromCloud = false;
-          }
-          this.notify();
-        } else {
-          // First-time cloud seed from current device
-          await this.pushSnapshotToSupabase();
-        }
-      } catch {
-        // Non-fatal if offline
-      } finally {
-        this.cloudHydratePromise = null;
-      }
-    };
-
-    this.cloudHydratePromise = run();
-    return this.cloudHydratePromise;
-  }
-
-  private async syncClientsFromSupabase() {
-    if (typeof window === "undefined") return;
-    try {
-      const supabase = createClient();
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) return;
-
-      const { data, error } = await supabase
-        .from("clients")
-        .select("*, client_contacts(*), client_addresses(*), client_registrations(*), client_bank_accounts(*)")
-        .order("created_at", { ascending: false });
-
-      if (error || !Array.isArray(data) || data.length === 0) return;
-
-      const remoteClients: Client[] = data.map((row: any) => {
-        const reg = Array.isArray(row.client_registrations)
-          ? row.client_registrations[0]
-          : row.client_registrations;
-        const contacts = Array.isArray(row.client_contacts) ? row.client_contacts : [];
-        const primaryContact = contacts.find((c: any) => c.is_primary) || contacts[0];
-        const addresses = Array.isArray(row.client_addresses) ? row.client_addresses : [];
-        const bankAccounts: ClientBankAccount[] = Array.isArray(row.client_bank_accounts)
-          ? row.client_bank_accounts.map((b: any) => ({
-              id: b.id,
-              client_id: b.client_id,
-              bank_name: b.bank_name,
-              account_number: b.account_number_encrypted || b.account_number || "",
-              account_holder_name: b.account_holder_name || undefined,
-              ifsc_code: b.ifsc_code,
-              branch_name: b.branch_name || undefined,
-              account_type: b.account_type || "Current",
-              upi_id: b.upi_id || undefined,
-              is_primary: Boolean(b.is_primary),
-            }))
-          : [];
-
-        return {
-          id: row.id,
-          client_code: row.client_code,
-          client_name: row.client_name,
-          legal_name: row.legal_name,
-          reference_name: row.reference_name || undefined,
-          constitution: row.constitution,
-          category: row.category || undefined,
-          nature_of_income: row.nature_of_income || undefined,
-          remarks: row.remarks || undefined,
-          relationship_manager_id: row.relationship_manager_id || undefined,
-          status: row.status,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-          contact: primaryContact,
-          addresses,
-          registration: reg,
-          bank_accounts: bankAccounts.length > 0 ? bankAccounts : undefined,
-        };
-      });
-
-      const localOnly = this.clients.filter(
-        (lc) => !remoteClients.some((rc) => rc.id === lc.id || rc.client_code === lc.client_code)
-      );
-      this.clients = [...localOnly, ...remoteClients];
-      this.persist();
-    } catch {
-      // Non-fatal if offline or Supabase RLS denies unauthenticated read
-    }
-  }
-
-  private async pushClientToSupabase(client: Client) {
-    if (typeof window === "undefined") return;
-    try {
-      const supabase = createClient();
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) return;
-
-      const { error } = await supabase.from("clients").upsert({
-        id: client.id,
-        client_code: client.client_code,
-        client_name: client.client_name,
-        legal_name: client.legal_name,
-        reference_name: client.reference_name || null,
-        constitution: client.constitution,
-        category: client.category || null,
-        nature_of_income: client.nature_of_income || null,
-        remarks: client.remarks || null,
-        status: client.status,
-      });
-
-      if (error) return;
-
-      if (client.contact) {
-        await supabase.from("client_contacts").upsert({
-          client_id: client.id,
-          contact_person: client.contact.contact_person,
-          designation: client.contact.designation || null,
-          mobile_number: client.contact.mobile_number,
-          email: client.contact.email,
-          is_primary: true,
-        });
-      }
-
-      if (client.addresses && client.addresses.length > 0) {
-        await supabase.from("client_addresses").insert(
-          client.addresses.map((addr) => ({
-            client_id: client.id,
-            address_type: addr.address_type,
-            street_address: addr.street_address,
-            city: addr.city,
-            state: addr.state,
-            pin_code: addr.pin_code,
-            country: addr.country,
-            is_primary: addr.is_primary,
-          }))
-        );
-      }
-
-      if (client.registration) {
-        await supabase.from("client_registrations").upsert({
-          client_id: client.id,
-          pan: client.registration.pan,
-          gstin: client.registration.gstin || null,
-          cin: client.registration.cin || null,
-          dob_or_doi: client.registration.dob_or_doi || null,
-          additional_registrations: client.registration.additional_registrations || [],
-        });
-      }
-
-      if (client.bank_accounts && client.bank_accounts.length > 0) {
-        await supabase.from("client_bank_accounts").insert(
-          client.bank_accounts.map((acc, idx) => ({
-            client_id: client.id,
-            bank_name: acc.bank_name,
-            account_number_encrypted: acc.account_number,
-            ifsc_code: acc.ifsc_code,
-            account_type: acc.account_type || "Current",
-            is_primary: acc.is_primary !== undefined ? acc.is_primary : idx === 0,
-          }))
-        );
-      }
-    } catch {
-      // Local persistence already succeeded
-    }
-  }
-
-  private async deleteClientFromSupabase(clientId: string) {
-    if (typeof window === "undefined") return;
-    try {
-      const supabase = createClient();
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) return;
-      await supabase.from("clients").delete().eq("id", clientId);
-    } catch {
-      // Local deletion already succeeded
-    }
+  async hydrateFromSupabase(_force = false): Promise<void> {
+    return this.loadAllFromSupabase();
   }
 
   // Active Session User
@@ -1433,19 +701,11 @@ class PMSDataStore {
       outstanding_amount: 0,
     };
 
-    // Persist to local store first so user data is NEVER lost
-    this.clients.unshift(client);
-    this.addActivityLog(`Onboarded new client: ${client.client_name}`, "client", id);
-    this.persist();
-
-    // Direct database write — awaits DB confirmation, safely logs if offline or non-blocking
-    try {
-      await insertClientToDb(client);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase client insert warning (persisted locally):", dbErr.message || dbErr);
-    }
-
-    return this.enrichClient(client);
+    const confirmed = await insertClientToDb(client);
+    this.clients.unshift(confirmed);
+    this.addActivityLog(`Onboarded new client: ${confirmed.client_name}`, "client", confirmed.id);
+    this.notify();
+    return this.enrichClient(confirmed);
   }
 
   async updateClient(id: string, updates: Partial<Client>): Promise<Client | null> {
@@ -1542,9 +802,6 @@ class PMSDataStore {
     this.projects = this.projects.filter((p) => p.client_id !== id);
     this.tasks = this.tasks.filter((t) => !removedProjectIds.has(t.project_id));
     this.taskComments = this.taskComments.filter((c) => !removedTaskIds.has(c.task_id));
-    this.deletedTaskProjectIds = this.deletedTaskProjectIds.filter(
-      (pid) => !removedProjectIds.has(pid)
-    );
     this.invoices = this.invoices.filter((i) => i.client_id !== id);
     this.payments = this.payments.filter((p) => p.client_id !== id);
     this.documents = this.documents.filter((d) => d.entity_id !== id);
@@ -1562,17 +819,11 @@ class PMSDataStore {
   async addService(service: Omit<Service, "id" | "created_at">): Promise<Service> {
     const id = ensureUuid();
     const newService: Service = { ...service, id, created_at: new Date().toISOString() };
-    this.services.push(newService);
-    this.addActivityLog(`Added service to catalog: ${newService.service_name}`, "service", id);
-    this.persist();
-
-    try {
-      await insertServiceToDb(newService);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase service insert warning (persisted locally):", dbErr.message || dbErr);
-    }
-
-    return newService;
+    const confirmed = await insertServiceToDb(newService);
+    this.services.push(confirmed);
+    this.addActivityLog(`Added service to catalog: ${confirmed.service_name}`, "service", confirmed.id);
+    this.notify();
+    return confirmed;
   }
 
   async updateService(id: string, updates: Partial<Omit<Service, "id" | "created_at">>): Promise<Service | null> {
@@ -1877,29 +1128,21 @@ class PMSDataStore {
       updated_at: new Date().toISOString(),
     };
 
-    // Persist to local store first so user data is NEVER lost
-    this.projects.unshift(newProject);
-    this.addActivityLog(`Created project: ${newProject.project_name}`, "project", id);
-    if (newProject.project_manager_id) {
+    const confirmed = await insertProjectToDb(newProject);
+    this.projects.unshift(confirmed);
+    this.addActivityLog(`Created project: ${confirmed.project_name}`, "project", confirmed.id);
+    if (confirmed.project_manager_id) {
       this.addNotification(
-        newProject.project_manager_id,
-        `New Project Assigned: ${newProject.project_name}`,
-        `You have been assigned as Project Manager for ${newProject.project_name}.`,
+        confirmed.project_manager_id,
+        `New Project Assigned: ${confirmed.project_name}`,
+        `You have been assigned as Project Manager for ${confirmed.project_name}.`,
         "project_created",
         "project",
-        id
+        confirmed.id
       );
     }
-    this.persist();
-
-    // Direct database write — awaits DB confirmation, safely logs if offline or non-blocking
-    try {
-      await insertProjectToDb(newProject);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase project insert warning (persisted locally):", dbErr.message || dbErr);
-    }
-
-    return newProject;
+    this.notify();
+    return confirmed;
   }
 
   async updateProject(id: string, updates: Partial<Project>): Promise<Project | null> {
@@ -1925,7 +1168,6 @@ class PMSDataStore {
     await deleteProjectFromDb(id);
     this.projects = this.projects.filter((p) => p.id !== id);
     this.tasks = this.tasks.filter((t) => t.project_id !== id);
-    this.deletedTaskProjectIds.push(id);
     this.persist();
     return true;
   }
@@ -2132,17 +1374,11 @@ class PMSDataStore {
       ],
     };
 
-    this.taskCategories.push(newCategory);
-    this.addActivityLog(`Created task category: ${newCategory.name}`, "task", id);
-    this.persist();
-
-    try {
-      await insertTaskCategoryToDb(newCategory);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase task category insert warning (persisted locally):", dbErr.message || dbErr);
-    }
-
-    return newCategory;
+    const confirmed = await insertTaskCategoryToDb(newCategory);
+    this.taskCategories.push(confirmed);
+    this.addActivityLog(`Created task category: ${confirmed.name}`, "task", confirmed.id);
+    this.notify();
+    return confirmed;
   }
 
   async updateTaskCategory(id: string, updates: Partial<TaskCategory>): Promise<boolean> {
@@ -2171,9 +1407,6 @@ class PMSDataStore {
 
     // Remove from active taskCategories in memory
     this.taskCategories = this.taskCategories.filter((c) => c.id !== id);
-    if (!this.deletedTaskCategoryIds.includes(id)) {
-      this.deletedTaskCategoryIds.push(id);
-    }
     // Also remove any tasks and subtasks associated with this deleted category
     this.tasks = this.tasks.filter((t) => t.category_id !== id);
 
@@ -2224,18 +1457,12 @@ class PMSDataStore {
       whatsapp_enabled: data.whatsapp_enabled ?? true,
       created_at: new Date().toISOString(),
     };
+    const confirmed = await insertTaskSubCategoryToDb(newSub);
     if (!cat.sub_categories) cat.sub_categories = [];
-    cat.sub_categories.push(newSub);
-    this.addActivityLog(`Added sub-category "${newSub.name}" under ${cat.name}`, "task", subId);
-    this.persist();
-
-    try {
-      await insertTaskSubCategoryToDb(newSub);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase sub-category insert warning (persisted locally):", dbErr.message || dbErr);
-    }
-
-    return newSub;
+    cat.sub_categories.push(confirmed);
+    this.addActivityLog(`Added sub-category "${confirmed.name}" under ${cat.name}`, "task", confirmed.id);
+    this.notify();
+    return confirmed;
   }
 
   async updateTaskSubCategory(
@@ -2704,42 +1931,33 @@ class PMSDataStore {
       currency,
     };
 
-    // Persist to local store first so user data is NEVER lost
-    this.tasks.unshift(newTask);
-
-    this.refreshProjectProgress(newTask.project_id);
-    this.addActivityLog(`Created task: ${newTask.title}`, "task", id);
+    const confirmed = await insertTaskToDb(newTask);
+    this.tasks.unshift(confirmed);
+    this.refreshProjectProgress(confirmed.project_id);
+    this.addActivityLog(`Created task: ${confirmed.title}`, "task", confirmed.id);
     if (finalAssignedEmployees.length > 0) {
       for (const emp of finalAssignedEmployees) {
         this.addNotification(
           emp.id,
-          `New Task Assigned: ${newTask.title}`,
-          `You have been assigned to task ${newTask.task_code}: "${newTask.title}".`,
+          `New Task Assigned: ${confirmed.title}`,
+          `You have been assigned to task ${confirmed.task_code}: "${confirmed.title}".`,
           "task_assigned",
           "task",
-          id
+          confirmed.id
         );
       }
-    } else if (newTask.assigned_employee_id) {
+    } else if (confirmed.assigned_employee_id) {
       this.addNotification(
-        newTask.assigned_employee_id,
-        `New Task Assigned: ${newTask.title}`,
-        `You have been assigned to task ${newTask.task_code}: "${newTask.title}".`,
+        confirmed.assigned_employee_id,
+        `New Task Assigned: ${confirmed.title}`,
+        `You have been assigned to task ${confirmed.task_code}: "${confirmed.title}".`,
         "task_assigned",
         "task",
-        id
+        confirmed.id
       );
     }
-    this.persist();
-
-    // Direct database write — awaits DB confirmation, safely logs if offline or non-blocking
-    try {
-      await insertTaskToDb(newTask);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase task insert warning (persisted locally):", dbErr.message || dbErr);
-    }
-
-    return this.enrichTask(newTask);
+    this.notify();
+    return this.enrichTask(confirmed);
   }
 
   async addSubtask(
@@ -2783,18 +2001,12 @@ class PMSDataStore {
       created_at: new Date().toISOString(),
     };
 
-    this.tasks.push(sub);
+    const confirmed = await insertTaskToDb(sub);
+    this.tasks.push(confirmed);
     this.refreshProjectProgress(parent.project_id);
-    this.addActivityLog(`Added subtask "${sub.title}" to ${parent.task_code}`, "task", parent.id);
-    this.persist();
-
-    try {
-      await insertTaskToDb(sub);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase subtask insert warning (persisted locally):", dbErr.message || dbErr);
-    }
-
-    return this.enrichTask(sub);
+    this.addActivityLog(`Added subtask "${confirmed.title}" to ${parent.task_code}`, "task", parent.id);
+    this.notify();
+    return this.enrichTask(confirmed);
   }
 
   async updateTask(taskId: string, updates: Partial<Task>): Promise<Task | null> {
@@ -2915,12 +2127,7 @@ class PMSDataStore {
       updated_at: new Date().toISOString(),
     };
 
-    // Direct database write — awaits DB confirmation, safely logs if offline or non-UUID id
-    try {
-      await updateTaskInDb(taskId, mergedUpdates);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase task update warning:", dbErr.message || dbErr);
-    }
+    await updateTaskInDb(taskId, mergedUpdates);
 
     this.tasks[index] = {
       ...current,
@@ -3335,14 +2542,7 @@ class PMSDataStore {
       }
     }
 
-    removedIds.forEach((id) => {
-      if (!this.deletedTaskIds.includes(id)) {
-        this.deletedTaskIds.push(id);
-      }
-    });
-    if (target.task_code && !this.deletedTaskIds.includes(target.task_code.toUpperCase())) {
-      this.deletedTaskIds.push(target.task_code.toUpperCase());
-    }
+    
 
     this.tasks = this.tasks.filter((t) => !removedIds.has(t.id));
     this.taskComments = this.taskComments.filter((c) => !removedIds.has(c.task_id));
@@ -3371,17 +2571,11 @@ class PMSDataStore {
   async addWorkflow(wfData: Omit<WorkflowTemplate, "id" | "created_at">): Promise<WorkflowTemplate> {
     const id = ensureUuid();
     const newWf: WorkflowTemplate = { ...wfData, id, created_at: new Date().toISOString() };
-    this.workflows.unshift(newWf);
-    this.addActivityLog(`Published workflow template: ${newWf.workflow_name}`, "workflow", id);
-    this.persist();
-
-    try {
-      await insertWorkflowToDb(newWf);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase workflow insert warning (persisted locally):", dbErr.message || dbErr);
-    }
-
-    return newWf;
+    const confirmed = await insertWorkflowToDb(newWf);
+    this.workflows.unshift(confirmed);
+    this.addActivityLog(`Published workflow template: ${confirmed.workflow_name}`, "workflow", confirmed.id);
+    this.notify();
+    return confirmed;
   }
 
   async updateWorkflow(id: string, updates: Partial<WorkflowTemplate>): Promise<WorkflowTemplate | null> {
@@ -4120,16 +3314,10 @@ class PMSDataStore {
       });
     }
 
-    this.persist();
-
-    // Direct database write — awaits DB confirmation, safely logs if offline or non-blocking
-    try {
-      await insertInvoiceToDb(newInvoice);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase invoice insert warning (persisted locally):", dbErr.message || dbErr);
-    }
-
-    return newInvoice;
+    const confirmed = await insertInvoiceToDb(newInvoice);
+    this.invoices.unshift(confirmed);
+    this.notify();
+    return confirmed;
   }
 
   async deleteInvoice(invoiceId: string): Promise<boolean> {
@@ -4185,7 +3373,8 @@ class PMSDataStore {
       updated_at: new Date().toISOString(),
     };
 
-    this.payments.unshift(newPayment);
+    const confirmed = await insertPaymentToDb(newPayment);
+    this.payments.unshift(confirmed);
 
     // If allocated to an invoice, recalculate outstanding balance automatically
     if (newPayment.invoice_id) {
@@ -4218,13 +3407,6 @@ class PMSDataStore {
       id
     );
     this.persist();
-
-    // Direct database write — awaits DB confirmation, safely logs if offline or non-blocking
-    try {
-      await insertPaymentToDb(newPayment);
-    } catch (dbErr: any) {
-      console.warn("Direct Supabase payment insert warning (persisted locally):", dbErr.message || dbErr);
-    }
 
     return newPayment;
   }
@@ -5631,13 +4813,9 @@ class PMSDataStore {
       deleted_by_name: user.full_name,
       recovery_deadline,
     };
+    await insertRecycleBinItemToDb(binItem);
     this.universalRecycleBin.unshift(binItem);
-    try {
-      await insertRecycleBinItemToDb(binItem);
-    } catch (e) {
-      console.warn("Could not persist recycle bin item to Supabase:", e);
-    }
-    this.persist();
+    this.notify();
     return binItem;
   }
 
@@ -5656,7 +4834,7 @@ class PMSDataStore {
     void this.moveToRecycleBin(itemType, itemId, title, rawData, options);
   }
 
-  restoreRecycleBinItem(binId: string, currentUser?: Employee): boolean {
+  async restoreRecycleBinItem(binId: string, currentUser?: Employee): Promise<boolean> {
     const itemIdx = this.universalRecycleBin.findIndex((i) => i.id === binId);
     if (itemIdx === -1) return false;
     const item = this.universalRecycleBin[itemIdx];
@@ -5668,76 +4846,65 @@ class PMSDataStore {
       this.restoreFolder(item.item_id, user);
     } else if (item.item_type === "task" && item.raw_data) {
       const taskData = item.raw_data as Task;
-      this.deletedTaskIds = this.deletedTaskIds.filter(
-        (tid) => tid !== taskData.id && tid !== (taskData.task_code?.toUpperCase() || "")
-      );
-      if (Array.isArray(taskData.subtasks)) {
-        taskData.subtasks.forEach((st) => {
-          this.deletedTaskIds = this.deletedTaskIds.filter(
-            (tid) => tid !== st.id && tid !== (st.task_code?.toUpperCase() || "")
-          );
-        });
-      }
+      await insertTaskToDb(taskData);
       if (!this.tasks.some((t) => t.id === taskData.id)) {
         this.tasks.unshift(taskData);
       }
-      void insertTaskToDb(taskData).catch((e) => console.warn("Failed to re-insert task in Supabase:", e));
       if (Array.isArray(taskData.subtasks)) {
         for (const st of taskData.subtasks) {
+          await insertTaskToDb(st).catch(() => {});
           if (!this.tasks.some((t) => t.id === st.id)) {
             this.tasks.push(st);
-            void insertTaskToDb(st).catch(() => {});
           }
         }
       }
     } else if (item.item_type === "category" && item.raw_data) {
       const catData = item.raw_data as TaskCategory & { tasks?: Task[] };
-      this.deletedTaskCategoryIds = this.deletedTaskCategoryIds.filter((cid) => cid !== catData.id);
+      await insertTaskCategoryToDb(catData);
       if (!this.taskCategories.some((c) => c.id === catData.id)) {
         this.taskCategories.push(catData);
       }
-      void insertTaskCategoryToDb(catData).catch((e) => console.warn("Failed to re-insert category in Supabase:", e));
       if (Array.isArray(catData.tasks)) {
         for (const t of catData.tasks) {
+          await insertTaskToDb(t).catch(() => {});
           if (!this.tasks.some((existing) => existing.id === t.id)) {
             this.tasks.push(t);
-            void insertTaskToDb(t).catch(() => {});
           }
         }
       }
     } else if ((item.item_type === "sub-category" || (item.item_type as string) === "sub_category") && item.raw_data) {
       const subData = item.raw_data as TaskSubCategory & { parent_category_id: string; tasks?: Task[] };
+      await insertTaskSubCategoryToDb(subData);
       const parentCat = this.taskCategories.find((c) => c.id === subData.parent_category_id);
       if (parentCat) {
         if (!parentCat.sub_categories) parentCat.sub_categories = [];
         if (!parentCat.sub_categories.some((s) => s.id === subData.id)) {
           parentCat.sub_categories.push(subData);
         }
-        void insertTaskSubCategoryToDb(subData).catch((e) => console.warn("Failed to re-insert sub-category in Supabase:", e));
       }
       if (Array.isArray(subData.tasks)) {
         for (const t of subData.tasks) {
+          await insertTaskToDb(t).catch(() => {});
           if (!this.tasks.some((existing) => existing.id === t.id)) {
             this.tasks.push(t);
-            void insertTaskToDb(t).catch(() => {});
           }
         }
       }
     } else if (item.item_type === "client" && item.raw_data) {
+      await insertClientToDb(item.raw_data);
       if (!this.clients.some((c) => c.id === item.raw_data.id)) {
         this.clients.unshift(item.raw_data);
       }
-      void insertClientToDb(item.raw_data).catch(() => {});
     } else if (item.item_type === "workflow" && item.raw_data) {
+      await insertWorkflowToDb(item.raw_data);
       if (!this.workflows.some((w) => w.id === item.raw_data.id)) {
         this.workflows.unshift(item.raw_data);
       }
-      void insertWorkflowToDb(item.raw_data).catch(() => {});
     } else if (item.item_type === "vault-credential" && item.raw_data) {
+      await insertVaultCredentialToDb(item.raw_data);
       if (!this.vaultCredentials.some((c) => c.id === item.raw_data.id)) {
         this.vaultCredentials.unshift(item.raw_data);
       }
-      void insertVaultCredentialToDb(item.raw_data).catch(() => {});
       this.logVaultActivity({
         credential_id: item.raw_data.id,
         portal_name: item.title,
@@ -5749,23 +4916,24 @@ class PMSDataStore {
       });
     }
 
+    await deleteRecycleBinItemFromDb(binId);
     this.universalRecycleBin.splice(itemIdx, 1);
-    void deleteRecycleBinItemFromDb(binId).catch(() => {});
     this.addActivityLog(
       `Restored ${item.item_type} "${item.title}" from Recycle Bin by ${user.full_name}`,
       "document",
       item.item_id
     );
-    this.persist();
+    this.notify();
     return true;
   }
 
-  restoreAllUniversalRecycleBin(currentUser?: Employee): number {
+  async restoreAllUniversalRecycleBin(currentUser?: Employee): Promise<number> {
     const user = currentUser || this.currentUser;
     let count = 0;
     const items = [...this.universalRecycleBin];
     for (const item of items) {
-      if (this.restoreRecycleBinItem(item.id, user)) {
+      const ok = await this.restoreRecycleBinItem(item.id, user);
+      if (ok) {
         count++;
       }
     }
@@ -5787,30 +4955,31 @@ class PMSDataStore {
     return count;
   }
 
-  permanentlyDeleteRecycleBinItem(binId: string, currentUser?: Employee): boolean {
+  async permanentlyDeleteRecycleBinItem(binId: string, currentUser?: Employee): Promise<boolean> {
     const user = currentUser || this.currentUser;
     const item = this.universalRecycleBin.find((i) => i.id === binId);
     if (!item) return false;
-    this.universalRecycleBin = this.universalRecycleBin.filter((i) => i.id !== binId);
-    void deleteRecycleBinItemFromDb(binId).catch(() => {});
+
+    await deleteRecycleBinItemFromDb(binId);
 
     // Permanently remove from Supabase DB tables
     if (item.item_type === "task") {
-      void deleteTaskFromDb(item.item_id).catch(() => {});
+      await deleteTaskFromDb(item.item_id).catch(() => {});
     } else if (item.item_type === "category") {
-      void deleteTaskCategoryFromDb(item.item_id).catch(() => {});
-    } else if (item.item_type === "sub-category") {
-      void deleteTaskSubCategoryFromDb(item.item_id).catch(() => {});
+      await deleteTaskCategoryFromDb(item.item_id).catch(() => {});
+    } else if (item.item_type === "sub-category" || (item.item_type as string) === "sub_category") {
+      await deleteTaskSubCategoryFromDb(item.item_id).catch(() => {});
     } else if (item.item_type === "client") {
-      void deleteClientFromDb(item.item_id).catch(() => {});
+      await deleteClientFromDb(item.item_id).catch(() => {});
     }
 
+    this.universalRecycleBin = this.universalRecycleBin.filter((i) => i.id !== binId);
     this.addActivityLog(
       `Permanently deleted ${item.item_type} "${item.title}" from Recycle Bin (${user.full_name})`,
       "document",
       item.item_id
     );
-    this.persist();
+    this.notify();
     return true;
   }
 
