@@ -56,6 +56,8 @@ export default function ClientsListPage() {
       c.client_name.toLowerCase().includes(search.toLowerCase()) ||
       c.legal_name.toLowerCase().includes(search.toLowerCase()) ||
       c.client_code.toLowerCase().includes(search.toLowerCase()) ||
+      (c.folder_name && c.folder_name.toLowerCase().includes(search.toLowerCase())) ||
+      (c.nick_name && c.nick_name.toLowerCase().includes(search.toLowerCase())) ||
       (c.registration?.pan && c.registration.pan.toLowerCase().includes(search.toLowerCase())) ||
       (c.registration?.gstin && c.registration.gstin.toLowerCase().includes(search.toLowerCase()));
 
@@ -216,6 +218,11 @@ export default function ClientsListPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
           {filteredClients.map((client) => {
             const isActive = client.status === "Active";
+            const folderName =
+              client.folder_name ||
+              (client.nick_name
+                ? `${client.nick_name} ${client.client_code}`
+                : `${client.client_name} ${client.client_code}`);
 
             return (
               <Link
@@ -234,7 +241,7 @@ export default function ClientsListPage() {
                           {client.client_name}
                         </span>
                         <p className="text-[11px] font-mono text-[#6b7280] mt-1 leading-snug break-words">
-                          {client.client_code} · <span className="font-sans">{client.constitution}</span>
+                          {client.client_code} · <span className="font-sans">{client.constitution}</span> · <span className="font-mono text-slate-700 font-semibold">{folderName}</span>
                         </p>
                       </div>
 
