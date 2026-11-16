@@ -2016,18 +2016,22 @@ function TasksContent() {
                       onDragLeave={() =>
                         setDragOverEmployeeId((prev) => (prev === emp.id ? null : prev))
                       }
-                      onDrop={(e) => {
+                      onDrop={async (e) => {
                         if (isEmployee) return;
                         e.preventDefault();
                         setDragOverEmployeeId(null);
                         if (draggingTaskId) {
-                          pmsStore.updateTask(draggingTaskId, {
-                            assigned_employee_id: emp.id,
-                            assigned_employee_name: emp.full_name,
-                          });
-                          setDraggingTaskId(null);
-                          toast.success(`Task reassigned to ${emp.full_name}`);
-                          setTick((t) => t + 1);
+                          try {
+                            await pmsStore.updateTask(draggingTaskId, {
+                              assigned_employee_id: emp.id,
+                              assigned_employee_name: emp.full_name,
+                            });
+                            setDraggingTaskId(null);
+                            toast.success(`Task reassigned to ${emp.full_name}`);
+                            setTick((t) => t + 1);
+                          } catch (err: any) {
+                            toast.error(err?.message || "Failed to reassign task in database.");
+                          }
                         }
                       }}
                       className={`rounded-[24px] border-[1.5px] transition-all flex flex-col max-h-[82vh] ${
@@ -2136,18 +2140,22 @@ function TasksContent() {
                       onDragLeave={() =>
                         setDragOverEmployeeId((prev) => (prev === "unassigned" ? null : prev))
                       }
-                      onDrop={(e) => {
+                      onDrop={async (e) => {
                         if (isEmployee) return;
                         e.preventDefault();
                         setDragOverEmployeeId(null);
                         if (draggingTaskId) {
-                          pmsStore.updateTask(draggingTaskId, {
-                            assigned_employee_id: "",
-                            assigned_employee_name: "Unassigned",
-                          });
-                          setDraggingTaskId(null);
-                          toast.success("Task unassigned");
-                          setTick((t) => t + 1);
+                          try {
+                            await pmsStore.updateTask(draggingTaskId, {
+                              assigned_employee_id: "",
+                              assigned_employee_name: "Unassigned",
+                            });
+                            setDraggingTaskId(null);
+                            toast.success("Task unassigned");
+                            setTick((t) => t + 1);
+                          } catch (err: any) {
+                            toast.error(err?.message || "Failed to unassign task in database.");
+                          }
                         }
                       }}
                       className={`rounded-[24px] border-[1.5px] transition-all flex flex-col max-h-[82vh] ${
@@ -2494,18 +2502,22 @@ function TasksContent() {
                     onDragLeave={() =>
                       setDragOverEmployeeId((prev) => (prev === emp.id ? null : prev))
                     }
-                    onDrop={(e) => {
+                    onDrop={async (e) => {
                       if (isEmployee) return;
                       e.preventDefault();
                       setDragOverEmployeeId(null);
                       if (draggingTaskId) {
-                        pmsStore.updateTask(draggingTaskId, {
-                          assigned_employee_id: emp.id,
-                          assigned_employee_name: emp.full_name,
-                        });
-                        setDraggingTaskId(null);
-                        toast.success(`Task reassigned to ${emp.full_name}`);
-                        setTick((t) => t + 1);
+                        try {
+                          await pmsStore.updateTask(draggingTaskId, {
+                            assigned_employee_id: emp.id,
+                            assigned_employee_name: emp.full_name,
+                          });
+                          setDraggingTaskId(null);
+                          toast.success(`Task reassigned to ${emp.full_name}`);
+                          setTick((t) => t + 1);
+                        } catch (err: any) {
+                          toast.error(err?.message || "Failed to reassign task in database.");
+                        }
                       }
                     }}
                     className={`rounded-[24px] border-[1.5px] transition-all flex flex-col max-h-[82vh] ${
@@ -2574,21 +2586,21 @@ function TasksContent() {
                         <Button
                           type="button"
                           size="sm"
-                          onClick={() => {
+                          onClick={async () => {
                             for (const tid of taskClipboard.taskIds) {
                               if (taskClipboard.mode === "copy") {
                                 const original = tasks.find((t) => t.id === tid);
                                 if (original?.sub_category_id) {
-                                  const cloned = pmsStore.copyTaskToSubCategory(tid, original.sub_category_id);
+                                  const cloned = await pmsStore.copyTaskToSubCategory(tid, original.sub_category_id);
                                   if (cloned) {
-                                    pmsStore.updateTask(cloned.id, {
+                                    await pmsStore.updateTask(cloned.id, {
                                       assigned_employee_id: emp.id,
                                       assigned_employee_name: emp.full_name,
                                     });
                                   }
                                 }
                               } else {
-                                pmsStore.updateTask(tid, {
+                                await pmsStore.updateTask(tid, {
                                   assigned_employee_id: emp.id,
                                   assigned_employee_name: emp.full_name,
                                 });
@@ -2673,18 +2685,22 @@ function TasksContent() {
                     onDragLeave={() =>
                       setDragOverEmployeeId((prev) => (prev === "unassigned" ? null : prev))
                     }
-                    onDrop={(e) => {
+                    onDrop={async (e) => {
                       if (isEmployee) return;
                       e.preventDefault();
                       setDragOverEmployeeId(null);
                       if (draggingTaskId) {
-                        pmsStore.updateTask(draggingTaskId, {
-                          assigned_employee_id: "",
-                          assigned_employee_name: "",
-                        });
-                        setDraggingTaskId(null);
-                        toast.info("Task moved to Unassigned");
-                        setTick((t) => t + 1);
+                        try {
+                          await pmsStore.updateTask(draggingTaskId, {
+                            assigned_employee_id: "",
+                            assigned_employee_name: "",
+                          });
+                          setDraggingTaskId(null);
+                          toast.info("Task moved to Unassigned");
+                          setTick((t) => t + 1);
+                        } catch (err: any) {
+                          toast.error(err?.message || "Failed to unassign task in database.");
+                        }
                       }
                     }}
                     className={`rounded-[24px] border-[1.5px] border-dashed transition-all flex flex-col max-h-[82vh] ${

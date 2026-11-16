@@ -382,53 +382,65 @@ function DocumentsContent() {
     }
   };
 
-  const handleCreateFolder = (e: React.FormEvent) => {
+  const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!folderName.trim()) {
       toast.error("Please provide a folder name.");
       return;
     }
 
-    const created = pmsStore.addDocumentFolder({
-      name: folderName.trim(),
-      client_id: folderClientId || undefined,
-      description: folderDesc.trim(),
-    });
+    try {
+      const created = await pmsStore.addDocumentFolder({
+        name: folderName.trim(),
+        client_id: folderClientId || undefined,
+        description: folderDesc.trim(),
+      });
 
-    toast.success(`Folder "${created.name}" created.`);
-    setIsFolderModalOpen(false);
-    setFolderName("");
-    setFolderClientId("");
-    setFolderDesc("");
+      toast.success(`Folder "${created.name}" created.`);
+      setIsFolderModalOpen(false);
+      setFolderName("");
+      setFolderClientId("");
+      setFolderDesc("");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to create folder in database.");
+    }
   };
 
   const handleDownload = (doc: FileObject) => {
     toast.success(`Generated presigned R2 secure URL for ${doc.file_name} (Expires in 60m)`);
   };
 
-  const handleConfirmSoftDelete = () => {
+  const handleConfirmSoftDelete = async () => {
     if (!softDeleteTarget) return;
-    if (softDeleteTarget.type === "document") {
-      pmsStore.softDeleteDocument(softDeleteTarget.id, currentUser);
-      toast.success(
-        `Moved "${softDeleteTarget.name}" to Recycle Bin. You can restore it within 25 days.`
-      );
-    } else {
-      pmsStore.softDeleteFolder(softDeleteTarget.id, currentUser);
-      toast.success(
-        `Moved folder "${softDeleteTarget.name}" to Recycle Bin. Retained for 25 days.`
-      );
+    try {
+      if (softDeleteTarget.type === "document") {
+        await pmsStore.softDeleteDocument(softDeleteTarget.id, currentUser);
+        toast.success(
+          `Moved "${softDeleteTarget.name}" to Recycle Bin. You can restore it within 25 days.`
+        );
+      } else {
+        await pmsStore.softDeleteFolder(softDeleteTarget.id, currentUser);
+        toast.success(
+          `Moved folder "${softDeleteTarget.name}" to Recycle Bin. Retained for 25 days.`
+        );
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to move item to Recycle Bin in database.");
     }
     setSoftDeleteTarget(null);
   };
 
-  const handleRestore = (item: { type: "document" | "folder"; id: string; name: string }) => {
-    if (item.type === "document") {
-      pmsStore.restoreDocument(item.id, currentUser);
-      toast.success(`Restored "${item.name}" back to Active Documents.`);
-    } else {
-      pmsStore.restoreFolder(item.id, currentUser);
-      toast.success(`Restored folder "${item.name}" and contained documents.`);
+  const handleRestore = async (item: { type: "document" | "folder"; id: string; name: string }) => {
+    try {
+      if (item.type === "document") {
+        await pmsStore.restoreDocument(item.id, currentUser);
+        toast.success(`Restored "${item.name}" back to Active Documents.`);
+      } else {
+        await pmsStore.restoreFolder(item.id, currentUser);
+        toast.success(`Restored folder "${item.name}" and contained documents.`);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to restore item in database.");
     }
   };
 

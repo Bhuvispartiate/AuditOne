@@ -113,30 +113,34 @@ export default function ProjectDetailPage() {
     setIsTaskModalOpen(true);
   };
 
-  const handleCreateTask = (e: React.FormEvent) => {
+  const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) {
       toast.error("Please enter a task title.");
       return;
     }
     const emp = employees.find((item) => item.id === newTaskAssigneeId);
-    pmsStore.addTask({
-      title: newTaskTitle.trim(),
-      project_id: project.id,
-      project_name: project.project_name,
-      assigned_employee_id: emp?.id || project.project_manager_id,
-      assigned_employee_name: emp?.full_name || project.project_manager_name,
-      priority: newTaskPriority,
-      start_date: newTaskStartDate || project.start_date,
-      due_date: newTaskDueDate || project.due_date,
-      status: "To Do",
-      description: `Deliverable task under ${project.project_name}.`,
-      created_by: pmsStore.getCurrentUser().id,
-      created_by_name: pmsStore.getCurrentUser().full_name,
-    });
-    setNewTaskTitle("");
-    toast.success("Task created.");
-    setTick((t) => t + 1);
+    try {
+      await pmsStore.addTask({
+        title: newTaskTitle.trim(),
+        project_id: project.id,
+        project_name: project.project_name,
+        assigned_employee_id: emp?.id || project.project_manager_id,
+        assigned_employee_name: emp?.full_name || project.project_manager_name,
+        priority: newTaskPriority,
+        start_date: newTaskStartDate || project.start_date,
+        due_date: newTaskDueDate || project.due_date,
+        status: "To Do",
+        description: `Deliverable task under ${project.project_name}.`,
+        created_by: pmsStore.getCurrentUser().id,
+        created_by_name: pmsStore.getCurrentUser().full_name,
+      });
+      setNewTaskTitle("");
+      toast.success("Task created.");
+      setTick((t) => t + 1);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to create task in database.");
+    }
   };
 
   return (
@@ -190,9 +194,14 @@ export default function ProjectDetailPage() {
             ) : (
               <select
                 value={project.status}
-                onChange={(e) => {
-                  pmsStore.updateProject(project.id, { status: e.target.value as ProjectStatus });
-                  toast.success(`Project status changed to ${e.target.value}`);
+                onChange={async (e) => {
+                  const nextStatus = e.target.value as ProjectStatus;
+                  try {
+                    await pmsStore.updateProject(project.id, { status: nextStatus });
+                    toast.success(`Project status changed to ${nextStatus}`);
+                  } catch (err: any) {
+                    toast.error(err?.message || "Failed to update project status in database.");
+                  }
                 }}
                 className="h-10 rounded-2xl border-[1.5px] border-slate-300 bg-white px-3.5 text-xs font-bold text-[#111827]"
               >
@@ -369,10 +378,15 @@ export default function ProjectDetailPage() {
                     ) : (
                       <select
                         value={task.status}
-                        onChange={(e) => {
-                          pmsStore.updateTaskStatus(task.id, e.target.value as TaskStatus);
-                          toast.success(`Task status updated to ${e.target.value}`);
-                          setTick((t) => t + 1);
+                        onChange={async (e) => {
+                          const nextStatus = e.target.value as TaskStatus;
+                          try {
+                            await pmsStore.updateTaskStatus(task.id, nextStatus);
+                            toast.success(`Task status updated to ${nextStatus}`);
+                            setTick((t) => t + 1);
+                          } catch (err: any) {
+                            toast.error(err?.message || "Failed to update task status in database.");
+                          }
                         }}
                         className="h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-[#111827]"
                       >
@@ -449,14 +463,18 @@ export default function ProjectDetailPage() {
                           >
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (isEmployee) {
                                   handleOpenTask(sub.id);
                                   return;
                                 }
                                 const next = sub.status === "Completed" ? "To Do" : "Completed";
-                                pmsStore.updateTaskStatus(sub.id, next);
-                                setTick((t) => t + 1);
+                                try {
+                                  await pmsStore.updateTaskStatus(sub.id, next);
+                                  setTick((t) => t + 1);
+                                } catch (err: any) {
+                                  toast.error(err?.message || "Failed to update subtask status in database.");
+                                }
                               }}
                               className="flex items-center gap-2 text-left min-w-0 flex-1"
                             >
@@ -509,10 +527,14 @@ export default function ProjectDetailPage() {
                           type="button"
                           size="icon"
                           variant="outline"
-                          onClick={() => {
-                            pmsStore.deleteTask(task.id);
-                            toast.success(`Deleted task ${task.task_code}`);
-                            setTick((t) => t + 1);
+                          onClick={async () => {
+                            try {
+                              await pmsStore.deleteTask(task.id);
+                              toast.success(`Deleted task ${task.task_code}`);
+                              setTick((t) => t + 1);
+                            } catch (err: any) {
+                              toast.error(err?.message || "Failed to delete task from database.");
+                            }
                           }}
                           className="h-8 w-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shrink-0"
                           title="Delete Task"

@@ -92,20 +92,28 @@ export default function InvoiceDetailsPage() {
       : 18;
   const halfGstRate = Math.round((effectiveGstRate / 2) * 10) / 10;
 
-  const handleFinalize = () => {
-    pmsStore.finalizeInvoice(invoice.id);
-    toast.success(`Invoice ${invoice.invoice_number} finalized.`);
+  const handleFinalize = async () => {
+    try {
+      await pmsStore.finalizeInvoice(invoice.id);
+      toast.success(`Invoice ${invoice.invoice_number} finalized.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to finalize invoice in database.");
+    }
   };
 
-  const handleCancelInvoice = (e: React.FormEvent) => {
+  const handleCancelInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cancelReason.trim()) return;
-    pmsStore.cancelInvoice(invoice.id, cancelReason);
-    toast.error(`Invoice ${invoice.invoice_number} cancelled.`);
-    setIsCancelModalOpen(false);
+    try {
+      await pmsStore.cancelInvoice(invoice.id, cancelReason);
+      toast.error(`Invoice ${invoice.invoice_number} cancelled.`);
+      setIsCancelModalOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to cancel invoice in database.");
+    }
   };
 
-  const handleRecordPayment = (e: React.FormEvent) => {
+  const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = Number(paymentAmount);
     if (!amt || amt <= 0 || amt > invoice.outstanding_balance + 0.01) {
@@ -113,21 +121,25 @@ export default function InvoiceDetailsPage() {
       return;
     }
 
-    pmsStore.recordPayment({
-      client_id: invoice.client_id,
-      client_name: invoice.client_name || invoice.client_legal_name,
-      invoice_id: invoice.id,
-      invoice_number: invoice.invoice_number,
-      payment_date: new Date().toISOString().split("T")[0],
-      amount: amt,
-      payment_mode: paymentMode,
-      transaction_reference: paymentRef.trim(),
-      received_by_name: pmsStore.getCurrentUser()?.full_name || "Partner",
-      status: "Completed",
-    });
+    try {
+      await pmsStore.recordPayment({
+        client_id: invoice.client_id,
+        client_name: invoice.client_name || invoice.client_legal_name,
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        payment_date: new Date().toISOString().split("T")[0],
+        amount: amt,
+        payment_mode: paymentMode,
+        transaction_reference: paymentRef.trim(),
+        received_by_name: pmsStore.getCurrentUser()?.full_name || "Partner",
+        status: "Completed",
+      });
 
-    toast.success(`Payment of ${formatInrExact(amt)} allocated!`);
-    setIsPaymentModalOpen(false);
+      toast.success(`Payment of ${formatInrExact(amt)} allocated!`);
+      setIsPaymentModalOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to record payment in database.");
+    }
   };
 
   const handleDownloadHTML = async () => {

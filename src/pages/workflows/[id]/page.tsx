@@ -151,16 +151,20 @@ export default function WorkflowKanbanPage() {
 
   const employees = pmsStore.getEmployees();
 
-  const saveWorkflowTasks = (nextTasks: WorkflowProjectTaskTemplate[]) => {
+  const saveWorkflowTasks = async (nextTasks: WorkflowProjectTaskTemplate[]) => {
     if (!workflow) return;
-    pmsStore.updateWorkflow(workflow.id, {
-      template_tasks: nextTasks,
-      stages_count: nextTasks.length,
-    });
-    setTick((t) => t + 1);
+    try {
+      await pmsStore.updateWorkflow(workflow.id, {
+        template_tasks: nextTasks,
+        stages_count: nextTasks.length,
+      });
+      setTick((t) => t + 1);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update workflow in database.");
+    }
   };
 
-  const handleAddTemplateTask = (e: React.FormEvent) => {
+  const handleAddTemplateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!workflow) return;
     if (!taskTitle.trim()) {
@@ -184,13 +188,13 @@ export default function WorkflowKanbanPage() {
       default_comments: [],
     };
 
-    saveWorkflowTasks([...tplTasks, nextTask]);
+    await saveWorkflowTasks([...tplTasks, nextTask]);
     setTaskTitle("");
     setTaskDesc("");
     toast.success(`Added task "${nextTask.task_name}" to workflow template.`);
   };
 
-  const updateTemplateTask = (
+  const updateTemplateTask = async (
     taskId: string,
     updater: (prev: WorkflowProjectTaskTemplate) => WorkflowProjectTaskTemplate
   ) => {
@@ -206,11 +210,15 @@ export default function WorkflowKanbanPage() {
         })),
       })),
     }));
-    pmsStore.updateWorkflow(workflow.id, {
-      template_tasks: nextTasks,
-      ...(nextMilestones ? { milestones: nextMilestones } : {}),
-    });
-    setTick((t) => t + 1);
+    try {
+      await pmsStore.updateWorkflow(workflow.id, {
+        template_tasks: nextTasks,
+        ...(nextMilestones ? { milestones: nextMilestones } : {}),
+      });
+      setTick((t) => t + 1);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update workflow in database.");
+    }
   };
 
   const handleDeleteTemplateTask = (taskId: string) => {
@@ -461,32 +469,44 @@ export default function WorkflowKanbanPage() {
       return;
     }
 
-    pmsStore.updateTaskStatus(targetTask.id, nextStatus);
-    toast.success(`${entry.clientName} — "${tplTask.task_name}" marked ${nextStatus}.`);
+    try {
+      await pmsStore.updateTaskStatus(targetTask.id, nextStatus);
+      toast.success(`${entry.clientName} — "${tplTask.task_name}" marked ${nextStatus}.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update task status in database.");
+    }
   };
 
-  const handleStatusDrop = (taskId: string, nextStatus: TaskStatus) => {
-    pmsStore.updateTaskStatus(taskId, nextStatus);
-    toast.success(`Task moved to "${nextStatus}".`);
+  const handleStatusDrop = async (taskId: string, nextStatus: TaskStatus) => {
+    try {
+      await pmsStore.updateTaskStatus(taskId, nextStatus);
+      toast.success(`Task moved to "${nextStatus}".`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update task status in database.");
+    }
   };
 
-  const handleAddSubtaskInModal = (parentTask: Task) => {
+  const handleAddSubtaskInModal = async (parentTask: Task) => {
     const title = (subtaskTitleByTask[parentTask.id] || "").trim();
     if (!title) {
       toast.error("Please enter a subtask title.");
       return;
     }
-    pmsStore.addSubtask(parentTask.id, {
-      title,
-      start_date: parentTask.start_date,
-      due_date: parentTask.due_date,
-      priority: parentTask.priority,
-      status: "To Do",
-      assigned_employee_id: parentTask.assigned_employee_id,
-      assigned_employee_name: parentTask.assigned_employee_name,
-    });
-    setSubtaskTitleByTask((prev) => ({ ...prev, [parentTask.id]: "" }));
-    toast.success(`Added subtask "${title}".`);
+    try {
+      await pmsStore.addSubtask(parentTask.id, {
+        title,
+        start_date: parentTask.start_date,
+        due_date: parentTask.due_date,
+        priority: parentTask.priority,
+        status: "To Do",
+        assigned_employee_id: parentTask.assigned_employee_id,
+        assigned_employee_name: parentTask.assigned_employee_name,
+      });
+      setSubtaskTitleByTask((prev) => ({ ...prev, [parentTask.id]: "" }));
+      toast.success(`Added subtask "${title}".`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to add subtask in database.");
+    }
   };
 
   if (!workflow) {
@@ -1238,15 +1258,19 @@ export default function WorkflowKanbanPage() {
                                     <button
                                       key={sub.id}
                                       type="button"
-                                      onClick={() => {
+                                      onClick={async () => {
                                         if (isEmployee) {
                                           setDetailTaskId(sub.id);
                                           return;
                                         }
-                                        pmsStore.updateTaskStatus(
-                                          sub.id,
-                                          sub.status === "Completed" ? "To Do" : "Completed"
-                                        );
+                                        try {
+                                          await pmsStore.updateTaskStatus(
+                                            sub.id,
+                                            sub.status === "Completed" ? "To Do" : "Completed"
+                                          );
+                                        } catch (err: any) {
+                                          toast.error(err?.message || "Failed to update subtask in database.");
+                                        }
                                       }}
                                       className="w-full flex items-center gap-2 text-left rounded-lg border border-slate-200 bg-slate-50/70 px-2 py-1 text-[11px] hover:border-slate-400"
                                     >
@@ -1650,9 +1674,14 @@ export default function WorkflowKanbanPage() {
                           ) : (
                             <select
                               value={task.status}
-                              onChange={(e) => {
-                                pmsStore.updateTaskStatus(task.id, e.target.value as TaskStatus);
-                                toast.success(`Updated "${task.title}" to ${e.target.value}`);
+                              onChange={async (e) => {
+                                const newStatus = e.target.value as TaskStatus;
+                                try {
+                                  await pmsStore.updateTaskStatus(task.id, newStatus);
+                                  toast.success(`Updated "${task.title}" to ${newStatus}`);
+                                } catch (err: any) {
+                                  toast.error(err?.message || "Failed to update task status in database.");
+                                }
                               }}
                               className="h-8 rounded-xl border-[1.5px] border-slate-300 bg-white px-2.5 text-xs font-bold"
                             >

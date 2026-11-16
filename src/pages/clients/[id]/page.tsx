@@ -254,7 +254,7 @@ export default function Client360ProfilePage() {
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => {
+              onClick={async () => {
                 if (
                   !window.confirm(
                     `Delete client "${client.client_name}" along with all linked engagements, projects & tasks?`
@@ -262,9 +262,13 @@ export default function Client360ProfilePage() {
                 ) {
                   return;
                 }
-                pmsStore.deleteClient(client.id);
-                toast.success(`Deleted client "${client.client_name}".`);
-                navigate("/clients");
+                try {
+                  await pmsStore.deleteClient(client.id);
+                  toast.success(`Deleted client "${client.client_name}".`);
+                  navigate("/clients");
+                } catch (err: any) {
+                  toast.error(err?.message || "Failed to delete client from database.");
+                }
               }}
               className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 gap-1.5 shadow-xs"
             >
@@ -751,7 +755,7 @@ export default function Client360ProfilePage() {
                           {!isEmployee && (
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (
                                   !window.confirm(
                                     `Remove subscribed service "${eng.service_name}" and its linked project/tasks from ${client.client_name}?`
@@ -759,8 +763,12 @@ export default function Client360ProfilePage() {
                                 ) {
                                   return;
                                 }
-                                pmsStore.deleteServiceEngagement(eng.id);
-                                toast.success(`Removed service "${eng.service_name}".`);
+                                try {
+                                  await pmsStore.deleteServiceEngagement(eng.id);
+                                  toast.success(`Removed service "${eng.service_name}".`);
+                                } catch (err: any) {
+                                  toast.error(err?.message || "Failed to delete engagement from database.");
+                                }
                               }}
                               className="p-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
                               title="Delete Service Subscription"
@@ -893,9 +901,14 @@ export default function Client360ProfilePage() {
                           ) : (
                             <select
                               value={t.status}
-                              onChange={(e) => {
-                                pmsStore.updateTaskStatus(t.id, e.target.value as TaskStatus);
-                                toast.success(`Status updated to ${e.target.value}`);
+                              onChange={async (e) => {
+                                const newStatus = e.target.value as TaskStatus;
+                                try {
+                                  await pmsStore.updateTaskStatus(t.id, newStatus);
+                                  toast.success(`Status updated to ${newStatus}`);
+                                } catch (err: any) {
+                                  toast.error(err?.message || "Failed to update task status in database.");
+                                }
                               }}
                               className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-800"
                             >
@@ -949,9 +962,13 @@ export default function Client360ProfilePage() {
                                 type="button"
                                 size="icon"
                                 variant="outline"
-                                onClick={() => {
-                                  pmsStore.deleteTask(t.id);
-                                  toast.success(`Deleted task ${t.task_code}`);
+                                onClick={async () => {
+                                  try {
+                                    await pmsStore.deleteTask(t.id);
+                                    toast.success(`Deleted task ${t.task_code}`);
+                                  } catch (err: any) {
+                                    toast.error(err?.message || "Failed to delete task from database.");
+                                  }
                                 }}
                                 className="h-7 w-7 rounded-lg border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                                 title="Delete Task"

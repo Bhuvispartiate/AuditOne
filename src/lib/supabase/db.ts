@@ -36,6 +36,9 @@ import {
   RecurringInvoice,
   BulkInvoiceBatch,
   InvoiceApprovalLog,
+  Team,
+  TeamMember,
+  DocumentFolder,
 } from "@/types";
 
 export function isUuid(id?: string | null): boolean {
@@ -1080,6 +1083,10 @@ export async function updateWorkflowInDb(id: string, updates: Partial<WorkflowTe
 
   const { error } = await supabase.from("workflow_templates").update(dbUpdates).eq("id", targetId);
   if (error) throw new Error(error.message);
+
+  if (updates.milestones && Array.isArray(updates.milestones)) {
+    await saveWorkflowMilestonesToDb(targetId, updates.milestones);
+  }
 }
 
 export async function deleteWorkflowFromDb(id: string): Promise<void> {
@@ -2207,3 +2214,319 @@ export async function insertVaultAuditLogToDb(log: VaultAuditLog): Promise<void>
     console.warn("Supabase insert vault_audit_logs warning:", error.message || error);
   }
 }
+
+// ----------------------------------------------------------------------------
+// WORKFLOW BUILDER MILESTONES & TEMPLATE TASKS PERSISTENCE
+// ----------------------------------------------------------------------------
+
+export async function saveWorkflowMilestonesToDb(
+  workflowId: string,
+  milestones: WorkflowMilestoneTemplate[]
+): Promise<void> {
+  const supabase = createClient();
+  let targetWfId = workflowId;
+  if (!isUuid(targetWfId)) {
+    const { data: found } = await supabase.from("workflow_templates").select("id").eq("workflow_code", workflowId.toUpperCase()).maybeSingle();
+    if (found?.id) targetWfId = found.id;
+    else return;
+  }
+
+  // Ensure template version exists
+  const { data: existingVer } = await supabase
+    .from("workflow_template_versions")
+    .select("id")
+    .eq("workflow_template_id", targetWfId)
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let versionId = existingVer?.id;
+  if (!versionId) {
+    const newVer = await supabase.from("workflow_template_versions").insert({
+      workflow_template_id: targetWfId,
+      version_number: 1,
+      is_published: true,
+    }).select("id").single();
+    if (newVer.data) versionId = newVer.data.id;
+  }
+
+  // Clean out existing milestones for this workflow template
+  await supabase.from("workflow_milestones").delete().eq("workflow_template_id", targetWfId);
+
+  // Re-insert milestones, stages, and tasks
+  for (let mIdx = 0; mIdx < milestones.length; mIdx++) {
+    const m = milestones[mIdx];
+    const milestoneId = ensureUuid(m.id);
+    const { error: mErr } = await supabase.from("workflow_milestones").insert({
+      id: milestoneId,
+      workflow_template_id: targetWfId,
+      title: m.title,
+      sequence_number: m.sequence_number || mIdx + 1,
+      start_date: m.start_date || null,
+      end_date: m.end_date || null,
+      description: m.description || null,
+    });
+    if (mErr) {
+      console.warn("Supabase insert workflow_milestone error:", mErr);
+      continue;
+    }
+
+    const stages = m.stages || [];
+    for (let sIdx = 0; sIdx < stages.length; sIdx++) {
+      const s = stages[sIdx];
+      const stageId = ensureUuid(s.id);
+      const { error: sErr } = await supabase.from("workflow_stages").insert({
+        id: stageId,
+        template_version_id: versionId,
+        milestone_id: milestoneId,
+        stage_name: s.stage_name,
+        sequence_number: s.sequence_number || sIdx + 1,
+      });
+      if (sErr) {
+        console.warn("Supabase insert workflow_stage error:", sErr);
+        continue;
+      }
+
+      const stageTasks = (s.sub_stages || []).flatMap((sub) => sub.tasks || []);
+      for (let tIdx = 0; tIdx < stageTasks.length; tIdx++) {
+        const t = stageTasks[tIdx];
+        const taskId = ensureUuid(t.id);
+        const { error: tErr } = await supabase.from("workflow_tasks").insert({
+          id: taskId,
+          stage_id: stageId,
+          task_name: t.task_name,
+          sequence_number: t.sequence_number || tIdx + 1,
+          description: t.description || null,
+          priority: t.priority || "Medium",
+          default_days: t.duration_days || 2,
+        });
+        if (tErr) console.warn("Supabase insert workflow_task error:", tErr);
+      }
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
+// TASK STATUSES
+// ----------------------------------------------------------------------------
+
+export async function fetchTaskStatusesFromDb(): Promise<TaskStatusConfig[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("task_statuses")
+    .select("*")
+    .order("sort_order", { ascending: true });
+  if (error) {
+    console.warn("Supabase fetch task_statuses error:", error);
+    return [];
+  }
+  return (data || []).map((row: any): TaskStatusConfig => ({
+    id: row.id,
+    label: row.label,
+    color: row.color,
+    isCompleted: Boolean(row.is_completed),
+  }));
+}
+
+export async function insertTaskStatusToDb(status: TaskStatusConfig): Promise<TaskStatusConfig> {
+  const supabase = createClient();
+  const id = ensureUuid(status.id);
+  const { error } = await supabase.from("task_statuses").insert({
+    id,
+    label: status.label,
+    color: status.color,
+    is_completed: Boolean(status.isCompleted),
+  });
+  if (error) throw new Error(error.message);
+  return { ...status, id };
+}
+
+export async function updateTaskStatusInDb(id: string, updates: Partial<TaskStatusConfig>): Promise<void> {
+  const supabase = createClient();
+  const dbUpdates: Record<string, any> = {};
+  if (updates.label !== undefined) dbUpdates.label = updates.label;
+  if (updates.color !== undefined) dbUpdates.color = updates.color;
+  if (updates.isCompleted !== undefined) dbUpdates.is_completed = updates.isCompleted;
+
+  let targetId = id;
+  if (!isUuid(targetId)) {
+    const { data: found } = await supabase.from("task_statuses").select("id").eq("label", id).maybeSingle();
+    if (found?.id) targetId = found.id;
+    else return;
+  }
+  const { error } = await supabase.from("task_statuses").update(dbUpdates).eq("id", targetId);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteTaskStatusFromDb(id: string): Promise<void> {
+  const supabase = createClient();
+  let targetId = id;
+  if (!isUuid(targetId)) {
+    const { data: found } = await supabase.from("task_statuses").select("id").eq("label", id).maybeSingle();
+    if (found?.id) targetId = found.id;
+    else return;
+  }
+  const { error } = await supabase.from("task_statuses").delete().eq("id", targetId);
+  if (error) throw new Error(error.message);
+}
+
+// ----------------------------------------------------------------------------
+// TASK COMMENTS
+// ----------------------------------------------------------------------------
+
+export async function fetchTaskCommentsFromDb(): Promise<TaskComment[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("task_comments")
+    .select("*, employees(full_name)")
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.warn("Supabase fetch task_comments error:", error);
+    return [];
+  }
+  return (data || []).map((row: any): TaskComment => ({
+    id: row.id,
+    task_id: row.task_id,
+    employee_id: row.employee_id || "",
+    employee_name: row.employees?.full_name || "Employee",
+    comment: row.comment,
+    read_by: [],
+    mentioned_employee_ids: [],
+    created_at: row.created_at,
+  }));
+}
+
+export async function insertTaskCommentToDb(comment: TaskComment): Promise<TaskComment> {
+  const supabase = createClient();
+  const id = ensureUuid(comment.id);
+  const { error } = await supabase.from("task_comments").insert({
+    id,
+    task_id: ensureUuid(comment.task_id),
+    employee_id: isUuid(comment.employee_id) ? comment.employee_id : null,
+    comment: comment.comment,
+    created_at: comment.created_at || new Date().toISOString(),
+  });
+  if (error) throw new Error(error.message);
+  return { ...comment, id };
+}
+
+export async function deleteTaskCommentFromDb(id: string): Promise<void> {
+  if (!isUuid(id)) return;
+  const supabase = createClient();
+  const { error } = await supabase.from("task_comments").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// ----------------------------------------------------------------------------
+// TEAMS & TEAM MEMBERS
+// ----------------------------------------------------------------------------
+
+export async function fetchTeamsFromDb(): Promise<Team[]> {
+  const supabase = createClient();
+  const [teamsRes, membersRes] = await Promise.all([
+    supabase.from("teams").select("*, employees!teams_supervisor_id_fkey(full_name)"),
+    supabase.from("team_members").select("*, employees(full_name, designation_name)"),
+  ]);
+  if (teamsRes.error) {
+    console.warn("Supabase fetch teams error:", teamsRes.error);
+    return [];
+  }
+  const membersByTeam = new Map<string, TeamMember[]>();
+  (membersRes.data || []).forEach((m: any) => {
+    const list = membersByTeam.get(m.team_id) || [];
+    list.push({
+      id: m.id,
+      team_id: m.team_id,
+      employee_id: m.employee_id,
+      employee_name: m.employees?.full_name || "Member",
+      designation: m.employees?.designation_name || "",
+      role_in_team: m.role_in_team || "Member",
+      is_active: Boolean(m.is_active),
+      joined_at: m.joined_at,
+    });
+    membersByTeam.set(m.team_id, list);
+  });
+
+  return (teamsRes.data || []).map((row: any): Team => {
+    const members = membersByTeam.get(row.id) || [];
+    return {
+      id: row.id,
+      name: row.name,
+      supervisor_id: row.supervisor_id || undefined,
+      supervisor_name: row.employees?.full_name || undefined,
+      description: row.description || undefined,
+      status: (row.status as "Active" | "Inactive") || "Active",
+      members,
+      member_count: members.length,
+    };
+  });
+}
+
+export async function insertTeamToDb(team: Team): Promise<Team> {
+  const supabase = createClient();
+  const id = ensureUuid(team.id);
+  const defaultDeptId = "33333333-3333-3333-3333-333333330001";
+  const { error } = await supabase.from("teams").insert({
+    id,
+    name: team.name,
+    department_id: defaultDeptId,
+    supervisor_id: isUuid(team.supervisor_id) ? team.supervisor_id : null,
+    description: team.description || null,
+    status: team.status || "Active",
+  });
+  if (error) throw new Error(error.message);
+  return { ...team, id };
+}
+
+export async function updateTeamInDb(id: string, updates: Partial<Team>): Promise<void> {
+  if (!isUuid(id)) return;
+  const supabase = createClient();
+  const dbUpdates: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (updates.name !== undefined) dbUpdates.name = updates.name;
+  if (updates.supervisor_id !== undefined) dbUpdates.supervisor_id = isUuid(updates.supervisor_id) ? updates.supervisor_id : null;
+  if (updates.description !== undefined) dbUpdates.description = updates.description || null;
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
+
+  const { error } = await supabase.from("teams").update(dbUpdates).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteTeamFromDb(id: string): Promise<void> {
+  if (!isUuid(id)) return;
+  const supabase = createClient();
+  const { error } = await supabase.from("teams").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// ----------------------------------------------------------------------------
+// DOCUMENT FOLDERS
+// ----------------------------------------------------------------------------
+
+export async function fetchDocumentFoldersFromDb(): Promise<DocumentFolder[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("system_settings")
+    .select("setting_value")
+    .eq("setting_key", "pms_document_folders_v1")
+    .maybeSingle();
+  if (error || !data || !Array.isArray(data.setting_value)) {
+    return [];
+  }
+  return data.setting_value as DocumentFolder[];
+}
+
+export async function saveDocumentFoldersToDb(folders: DocumentFolder[]): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("system_settings").upsert({
+    setting_key: "pms_document_folders_v1",
+    setting_value: folders,
+    description: "Configured document folder structure",
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "setting_key" });
+  if (error) {
+    console.warn("Supabase save document_folders warning:", error.message || error);
+  }
+}
+

@@ -28,7 +28,7 @@ export default function TeamsPage() {
   const [supervisorId, setSupervisorId] = useState(employees[0]?.id || "");
   const [description, setDescription] = useState("");
 
-  const handleCreateTeam = (e: React.FormEvent) => {
+  const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teamName.trim()) {
       toast.error("Please enter a team name.");
@@ -37,19 +37,23 @@ export default function TeamsPage() {
 
     const sup = employees.find((e) => e.id === supervisorId);
 
-    pmsStore.addTeam({
-      name: teamName,
-      supervisor_id: supervisorId,
-      supervisor_name: sup?.full_name,
-      description,
-      status: "Active",
-      member_count: 1,
-    });
+    try {
+      await pmsStore.addTeam({
+        name: teamName,
+        supervisor_id: supervisorId,
+        supervisor_name: sup?.full_name,
+        description,
+        status: "Active",
+        member_count: 1,
+      });
 
-    toast.success(`Team "${teamName}" created.`);
-    setIsModalOpen(false);
-    setTeamName("");
-    setDescription("");
+      toast.success(`Team "${teamName}" created.`);
+      setIsModalOpen(false);
+      setTeamName("");
+      setDescription("");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to create team in database.");
+    }
   };
 
   return (

@@ -133,6 +133,20 @@ import {
   insertBulkBatchToDb,
   fetchApprovalLogsFromDb,
   insertApprovalLogToDb,
+  saveWorkflowMilestonesToDb,
+  fetchTaskStatusesFromDb,
+  insertTaskStatusToDb,
+  updateTaskStatusInDb,
+  deleteTaskStatusFromDb,
+  fetchTaskCommentsFromDb,
+  insertTaskCommentToDb,
+  deleteTaskCommentFromDb,
+  fetchTeamsFromDb,
+  insertTeamToDb,
+  updateTeamInDb,
+  deleteTeamFromDb,
+  fetchDocumentFoldersFromDb,
+  saveDocumentFoldersToDb,
   ensureUuid,
   isUuid,
 } from "@/lib/supabase/db";
@@ -360,6 +374,10 @@ class PMSDataStore {
         recurringInvoices,
         bulkBatches,
         approvalLogs,
+        taskStatuses,
+        taskComments,
+        teams,
+        documentFolders,
       ] = await Promise.all([
         fetchClientsFromDb().catch((e) => { console.warn("Direct Supabase fetch clients failed:", e); return null; }),
         fetchServicesFromDb().catch((e) => { console.warn("Direct Supabase fetch services failed:", e); return null; }),
@@ -380,6 +398,10 @@ class PMSDataStore {
         fetchRecurringInvoicesFromDb().catch((e) => { console.warn("Direct Supabase fetch recurring_invoices failed:", e); return null; }),
         fetchBulkBatchesFromDb().catch((e) => { console.warn("Direct Supabase fetch bulk_batches failed:", e); return null; }),
         fetchApprovalLogsFromDb().catch((e) => { console.warn("Direct Supabase fetch approval_logs failed:", e); return null; }),
+        fetchTaskStatusesFromDb().catch((e) => { console.warn("Direct Supabase fetch task_statuses failed:", e); return null; }),
+        fetchTaskCommentsFromDb().catch((e) => { console.warn("Direct Supabase fetch task_comments failed:", e); return null; }),
+        fetchTeamsFromDb().catch((e) => { console.warn("Direct Supabase fetch teams failed:", e); return null; }),
+        fetchDocumentFoldersFromDb().catch((e) => { console.warn("Direct Supabase fetch document_folders failed:", e); return null; }),
       ]);
 
       // Direct assignment from Supabase PostgreSQL — authoritative cloud state
@@ -412,6 +434,10 @@ class PMSDataStore {
       if (recurringInvoices !== null) this.recurringInvoices = recurringInvoices;
       if (bulkBatches !== null) this.bulkBatches = bulkBatches;
       if (approvalLogs !== null) this.approvalLogs = approvalLogs;
+      if (taskStatuses !== null && taskStatuses.length > 0) this.taskStatuses = taskStatuses;
+      if (taskComments !== null) this.taskComments = taskComments;
+      if (teams !== null) this.teams = teams;
+      if (documentFolders !== null && documentFolders.length > 0) this.documentFolders = documentFolders;
 
       this.isStoreLoaded = true;
       this.notify();
@@ -890,12 +916,14 @@ class PMSDataStore {
     return [...this.engagements];
   }
 
-  addServiceEngagement(engagement: Omit<ServiceEngagement, "id" | "created_at">): ServiceEngagement {
+  async addServiceEngagement(engagement: Omit<ServiceEngagement, "id" | "created_at">): Promise<ServiceEngagement> {
     const id = generateId("eng");
     const newEngagement: ServiceEngagement = { ...engagement, id, created_at: new Date().toISOString() };
-    this.engagements.push(newEngagement);
-    this.addActivityLog(`Contracted service engagement: ${engagement.service_name}`, "service_engagement", id);
-    return newEngagement;
+    const saved = await insertEngagementToDb(newEngagement);
+    this.engagements.push(saved);
+    this.addActivityLog(`Contracted service engagement: ${engagement.service_name}`, "service_engagement", saved.id);
+    this.notify();
+    return saved;
   }
 
   /**
@@ -905,7 +933,7 @@ class PMSDataStore {
   async addServiceEngagementCascade(
     engagement: Omit<ServiceEngagement, "id" | "created_at">
   ): Promise<{ engagement: ServiceEngagement; project: Project; tasks: Task[] }> {
-    const createdEngagement = this.addServiceEngagement(engagement);
+    const createdEngagement = await this.addServiceEngagement(engagement);
     const matchedService = this.services.find((s) => s.id === engagement.service_id);
     const today = new Date().toISOString().slice(0, 10);
     const startDate = engagement.start_date || today;
@@ -1210,11 +1238,11 @@ class PMSDataStore {
     );
   }
 
-  addTaskStatusConfig(input: {
+  async addTaskStatusConfig(input: {
     label: string;
     color?: TaskStatusColor;
     isCompleted?: boolean;
-  }): TaskStatusConfig | null {
+  }): Promise<TaskStatusConfig | null> {
     if (!this.isCurrentUserAdmin()) return null;
     const trimmed = input.label.trim();
     if (!trimmed) return null;
@@ -1222,15 +1250,16 @@ class PMSDataStore {
       return null;
     }
     const created: TaskStatusConfig = {
-      id: generateId("st"),
+      id: ensureUuid(),
       label: trimmed,
       color: input.color || "slate",
       isCompleted: Boolean(input.isCompleted),
     };
-    this.taskStatuses.push(created);
-    this.addActivityLog(`Added custom task status: "${created.label}"`, "settings");
-    this.persist();
-    return { ...created };
+    const saved = await insertTaskStatusToDb(created);
+    this.taskStatuses.push(saved);
+    this.addActivityLog(`Added custom task status: "${saved.label}"`, "settings");
+    this.notify();
+    return { ...saved };
   }
 
   private migrateTaskStatusLabel(oldLabel: string, newLabel: string) {
@@ -1252,10 +1281,10 @@ class PMSDataStore {
     affectedProjectIds.forEach((pid) => this.refreshProjectProgress(pid));
   }
 
-  updateTaskStatusConfig(
+  async updateTaskStatusConfig(
     statusId: string,
     updates: Partial<Pick<TaskStatusConfig, "label" | "color" | "isCompleted">>
-  ): TaskStatusConfig | null {
+  ): Promise<TaskStatusConfig | null> {
     if (!this.isCurrentUserAdmin()) return null;
     const idx = this.taskStatuses.findIndex((s) => s.id === statusId);
     if (idx === -1) return null;
@@ -1280,6 +1309,7 @@ class PMSDataStore {
       color: updates.color ?? current.color,
       isCompleted: updates.isCompleted !== undefined ? updates.isCompleted : current.isCompleted,
     };
+    await updateTaskStatusInDb(statusId, updated);
     this.taskStatuses[idx] = updated;
 
     // Migrate existing tasks and workflow template tasks if renamed
@@ -1290,7 +1320,7 @@ class PMSDataStore {
       this.addActivityLog(`Updated task status "${updated.label}"`, "settings");
     }
 
-    this.persist();
+    this.notify();
     return { ...updated };
   }
 
@@ -1305,15 +1335,17 @@ class PMSDataStore {
     const [moved] = copy.splice(idx, 1);
     copy.splice(swapIdx, 0, moved);
     this.taskStatuses = copy;
-    this.persist();
+    this.notify();
     return true;
   }
 
-  deleteTaskStatusConfig(statusId: string, fallbackStatus?: TaskStatus): boolean {
+  async deleteTaskStatusConfig(statusId: string, fallbackStatus?: TaskStatus): Promise<boolean> {
     if (!this.isCurrentUserAdmin()) return false;
     if (this.taskStatuses.length <= 1) return false;
     const target = this.taskStatuses.find((s) => s.id === statusId);
     if (!target) return false;
+
+    await deleteTaskStatusFromDb(statusId);
 
     const remaining = this.taskStatuses.filter((s) => s.id !== statusId);
     const replacement = fallbackStatus || remaining[0]?.label || "To Do";
@@ -1325,7 +1357,7 @@ class PMSDataStore {
       `Deleted task status "${target.label}" (reassigned to "${replacement}")`,
       "settings"
     );
-    this.persist();
+    this.notify();
     return true;
   }
 
@@ -2305,11 +2337,11 @@ class PMSDataStore {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
-  addTaskComment(
+  async addTaskComment(
     taskId: string,
     commentText: string,
     mentionedEmployeeIds?: string[]
-  ): TaskComment | null {
+  ): Promise<TaskComment | null> {
     const task = this.tasks.find((t) => t.id === taskId);
     const trimmed = commentText.trim();
     if (!task || !trimmed) return null;
@@ -2326,7 +2358,7 @@ class PMSDataStore {
 
     const now = new Date().toISOString();
     const newComment: TaskComment = {
-      id: generateId("cmt"),
+      id: ensureUuid(),
       task_id: taskId,
       employee_id: this.currentUser.id,
       employee_name: this.currentUser.full_name,
@@ -2342,7 +2374,8 @@ class PMSDataStore {
       created_at: now,
     };
 
-    this.taskComments.push(newComment);
+    const saved = await insertTaskCommentToDb(newComment);
+    this.taskComments.push(saved);
     task.comments_count = this.taskComments.filter((c) => c.task_id === taskId).length;
 
     resolvedMentions.forEach((empId) => {
@@ -2359,8 +2392,8 @@ class PMSDataStore {
     });
 
     this.addActivityLog(`Commented on ${task.task_code}: "${trimmed.slice(0, 60)}"`, "task", taskId);
-    this.persist();
-    return newComment;
+    this.notify();
+    return saved;
   }
 
   markTaskCommentsRead(taskId: string, reader?: { id: string; full_name: string }): boolean {
@@ -3331,28 +3364,28 @@ class PMSDataStore {
     return true;
   }
 
-  finalizeInvoice(invoiceId: string): Invoice | null {
+  async finalizeInvoice(invoiceId: string): Promise<Invoice | null> {
     const inv = this.invoices.find(i => i.id === invoiceId);
     if (!inv || inv.status !== "Draft") return null;
+    await updateInvoiceInDb(invoiceId, { status: "Finalized" });
     inv.status = "Finalized";
     inv.finalized_at = new Date().toISOString();
     inv.updated_at = new Date().toISOString();
-    void updateInvoiceInDb(invoiceId, { status: "Finalized" }).catch(() => {});
     this.addActivityLog(`Finalized invoice ${inv.invoice_number}`, "invoice", invoiceId);
-    this.persist();
+    this.notify();
     return inv;
   }
 
-  cancelInvoice(invoiceId: string, reason: string): Invoice | null {
+  async cancelInvoice(invoiceId: string, reason: string): Promise<Invoice | null> {
     const inv = this.invoices.find(i => i.id === invoiceId);
     if (!inv || inv.status === "Cancelled") return null;
+    await updateInvoiceInDb(invoiceId, { status: "Cancelled", notes: reason });
     inv.status = "Cancelled";
     inv.cancelled_at = new Date().toISOString();
     inv.updated_at = new Date().toISOString();
     inv.cancel_reason = reason;
-    void updateInvoiceInDb(invoiceId, { status: "Cancelled", notes: reason }).catch(() => {});
     this.addActivityLog(`Cancelled invoice ${inv.invoice_number}. Reason: ${reason}`, "invoice", invoiceId);
-    this.persist();
+    this.notify();
     return inv;
   }
 
@@ -4498,12 +4531,14 @@ class PMSDataStore {
     return [...this.teams];
   }
 
-  addTeam(teamData: Omit<Team, "id">): Team {
-    const id = `team-${Date.now()}`;
+  async addTeam(teamData: Omit<Team, "id">): Promise<Team> {
+    const id = ensureUuid();
     const newTeam: Team = { ...teamData, id, members: [] };
-    this.teams.push(newTeam);
+    const saved = await insertTeamToDb(newTeam);
+    this.teams.push(saved);
     this.addActivityLog(`Created team: ${newTeam.name}`, "team", id);
-    return newTeam;
+    this.notify();
+    return saved;
   }
 
   // Documents (Cloudflare R2 Metadata) & Centralized Recycle Bin Recovery Engine
@@ -4537,11 +4572,11 @@ class PMSDataStore {
   }
 
   // Soft Delete (Moves to Recycle Bin with 25 days recovery window)
-  deleteDocument(docId: string, user?: Employee): boolean {
+  async deleteDocument(docId: string, user?: Employee): Promise<boolean> {
     return this.softDeleteDocument(docId, user);
   }
 
-  softDeleteDocument(docId: string, currentUser?: Employee): boolean {
+  async softDeleteDocument(docId: string, currentUser?: Employee): Promise<boolean> {
     const doc = this.documents.find((d) => d.id === docId);
     if (!doc) return false;
     const user = currentUser || this.currentUser;
@@ -4551,16 +4586,19 @@ class PMSDataStore {
     doc.deleted_by_name = user.full_name;
     // 25 Days recovery deadline
     doc.recovery_deadline = new Date(Date.now() + 25 * 86400000).toISOString();
+    await this.moveToRecycleBin("document", doc.id, doc.file_name, doc, {
+      subtitle: doc.category,
+    });
     this.addActivityLog(
       `Moved document "${doc.file_name}" to Recycle Bin (25-day recovery window) by ${user.full_name}`,
       "document",
       docId
     );
-    this.persist();
+    this.notify();
     return true;
   }
 
-  restoreDocument(docId: string, currentUser?: Employee): boolean {
+  async restoreDocument(docId: string, currentUser?: Employee): Promise<boolean> {
     const doc = this.documents.find((d) => d.id === docId);
     if (!doc) return false;
     const user = currentUser || this.currentUser;
@@ -4569,12 +4607,17 @@ class PMSDataStore {
     delete doc.deleted_by;
     delete doc.deleted_by_name;
     delete doc.recovery_deadline;
+    const binItem = this.universalRecycleBin.find(b => b.item_id === docId && b.item_type === "document");
+    if (binItem) {
+      await deleteRecycleBinItemFromDb(binItem.id).catch(() => {});
+      this.universalRecycleBin = this.universalRecycleBin.filter(b => b.id !== binItem.id);
+    }
     this.addActivityLog(
       `Restored document "${doc.file_name}" from Recycle Bin by ${user.full_name}`,
       "document",
       docId
     );
-    this.persist();
+    this.notify();
     return true;
   }
 
@@ -4589,7 +4632,7 @@ class PMSDataStore {
       "document",
       docId
     );
-    this.persist();
+    this.notify();
     return true;
   }
 
@@ -4597,7 +4640,6 @@ class PMSDataStore {
   getDocumentFolders(): DocumentFolder[] {
     if (!this.documentFolders || this.documentFolders.length === 0) {
       this.documentFolders = DEFAULT_DOCUMENT_FOLDERS.map((f) => ({ ...f }));
-      this.persist();
     }
     return this.documentFolders.filter((f) => !f.is_deleted);
   }
@@ -4606,11 +4648,11 @@ class PMSDataStore {
     return [...this.documentFolders];
   }
 
-  addDocumentFolder(data: {
+  async addDocumentFolder(data: {
     name: string;
     client_id?: string;
     description?: string;
-  }): DocumentFolder {
+  }): Promise<DocumentFolder> {
     const id = generateId("fld");
     const client = data.client_id ? this.getClientById(data.client_id) : undefined;
     const newFolder: DocumentFolder = {
@@ -4626,12 +4668,13 @@ class PMSDataStore {
       is_deleted: false,
     };
     this.documentFolders.unshift(newFolder);
+    await saveDocumentFoldersToDb(this.documentFolders);
     this.addActivityLog(`Created document folder: ${newFolder.name}`, "document", id);
-    this.persist();
+    this.notify();
     return newFolder;
   }
 
-  softDeleteFolder(folderId: string, currentUser?: Employee): boolean {
+  async softDeleteFolder(folderId: string, currentUser?: Employee): Promise<boolean> {
     const folder = this.documentFolders.find((f) => f.id === folderId);
     if (!folder) return false;
     const user = currentUser || this.currentUser;
@@ -4653,16 +4696,20 @@ class PMSDataStore {
       }
     });
 
+    await saveDocumentFoldersToDb(this.documentFolders);
+    await this.moveToRecycleBin("folder", folder.id, folder.name, folder, {
+      subtitle: folder.path,
+    });
     this.addActivityLog(
       `Moved folder "${folder.name}" (${containedDocs} items) to Recycle Bin (25-day recovery window) by ${user.full_name}`,
       "document",
       folderId
     );
-    this.persist();
+    this.notify();
     return true;
   }
 
-  restoreFolder(folderId: string, currentUser?: Employee): boolean {
+  async restoreFolder(folderId: string, currentUser?: Employee): Promise<boolean> {
     const folder = this.documentFolders.find((f) => f.id === folderId);
     if (!folder) return false;
     const user = currentUser || this.currentUser;
@@ -4682,12 +4729,18 @@ class PMSDataStore {
       }
     });
 
+    await saveDocumentFoldersToDb(this.documentFolders);
+    const binItem = this.universalRecycleBin.find(b => b.item_id === folderId && b.item_type === "folder");
+    if (binItem) {
+      await deleteRecycleBinItemFromDb(binItem.id).catch(() => {});
+      this.universalRecycleBin = this.universalRecycleBin.filter(b => b.id !== binItem.id);
+    }
     this.addActivityLog(
       `Restored folder "${folder.name}" from Recycle Bin by ${user.full_name}`,
       "document",
       folderId
     );
-    this.persist();
+    this.notify();
     return true;
   }
 
@@ -4859,8 +4912,8 @@ class PMSDataStore {
       category_name?: string;
       client_name?: string;
     }
-  ) {
-    void this.moveToRecycleBin(itemType, itemId, title, rawData, options);
+  ): Promise<UniversalRecycleBinItem> {
+    return this.moveToRecycleBin(itemType, itemId, title, rawData, options);
   }
 
   async restoreRecycleBinItem(binId: string, currentUser?: Employee): Promise<boolean> {
@@ -4870,9 +4923,9 @@ class PMSDataStore {
     const user = currentUser || this.currentUser;
 
     if (item.item_type === "document") {
-      this.restoreDocument(item.item_id, user);
+      await this.restoreDocument(item.item_id, user);
     } else if (item.item_type === "folder") {
-      this.restoreFolder(item.item_id, user);
+      await this.restoreFolder(item.item_id, user);
     } else if (item.item_type === "task" && item.raw_data) {
       const taskData = item.raw_data as Task;
       await insertTaskToDb(taskData);

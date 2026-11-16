@@ -67,25 +67,29 @@ export default function SettingsPage() {
     toast.success("Organization & Cloud settings saved successfully.");
   };
 
-  const handleAddStatus = (e: React.FormEvent) => {
+  const handleAddStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) {
       toast.error("Only Admin can customize task statuses.");
       return;
     }
-    const created = pmsStore.addTaskStatusConfig({
-      label: newStatusLabel,
-      color: newStatusColor,
-      isCompleted: newStatusCompleted,
-    });
-    if (!created) {
-      toast.error("Enter a unique status name.");
-      return;
+    try {
+      const created = await pmsStore.addTaskStatusConfig({
+        label: newStatusLabel,
+        color: newStatusColor,
+        isCompleted: newStatusCompleted,
+      });
+      if (!created) {
+        toast.error("Enter a unique status name.");
+        return;
+      }
+      setNewStatusLabel("");
+      setNewStatusColor("slate");
+      setNewStatusCompleted(false);
+      toast.success(`Added status "${created.label}".`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to add status to database.");
     }
-    setNewStatusLabel("");
-    setNewStatusColor("slate");
-    setNewStatusCompleted(false);
-    toast.success(`Added status "${created.label}".`);
   };
 
   const startEditingStatus = (statusId: string, label: string, color: TaskStatusColor, isCompleted?: boolean) => {
@@ -95,19 +99,23 @@ export default function SettingsPage() {
     setEditCompletedDraft(Boolean(isCompleted));
   };
 
-  const handleSaveEditStatus = (statusId: string) => {
+  const handleSaveEditStatus = async (statusId: string) => {
     if (!isAdmin) return;
-    const updated = pmsStore.updateTaskStatusConfig(statusId, {
-      label: editLabelDraft,
-      color: editColorDraft,
-      isCompleted: editCompletedDraft,
-    });
-    if (!updated) {
-      toast.error("Status name must be non-empty and unique.");
-      return;
+    try {
+      const updated = await pmsStore.updateTaskStatusConfig(statusId, {
+        label: editLabelDraft,
+        color: editColorDraft,
+        isCompleted: editCompletedDraft,
+      });
+      if (!updated) {
+        toast.error("Status name must be non-empty and unique.");
+        return;
+      }
+      setEditingStatusId(null);
+      toast.success(`Updated status "${updated.label}".`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update status in database.");
     }
-    setEditingStatusId(null);
-    toast.success(`Updated status "${updated.label}".`);
   };
 
   return (
@@ -298,10 +306,14 @@ export default function SettingsPage() {
                                 size="icon"
                                 variant="outline"
                                 disabled={taskStatuses.length <= 1}
-                                onClick={() => {
-                                  const ok = pmsStore.deleteTaskStatusConfig(st.id);
-                                  if (ok) toast.success(`Deleted status "${st.label}".`);
-                                  else toast.error("At least one status must remain.");
+                                onClick={async () => {
+                                  try {
+                                    const ok = await pmsStore.deleteTaskStatusConfig(st.id);
+                                    if (ok) toast.success(`Deleted status "${st.label}".`);
+                                    else toast.error("At least one status must remain.");
+                                  } catch (err: any) {
+                                    toast.error(err?.message || "Failed to delete status from database.");
+                                  }
                                 }}
                                 className="h-8 w-8 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50"
                                 title="Delete Status"

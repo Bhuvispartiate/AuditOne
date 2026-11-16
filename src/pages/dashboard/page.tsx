@@ -210,9 +210,13 @@ export default function DashboardPage() {
   const inProgressArc = totalTasksCount > 0 ? (inProgressTasks.length / totalTasksCount) * circumference : 0;
   const todoArc = totalTasksCount > 0 ? (reviewOrTodoTasks.length / totalTasksCount) * circumference : 0;
 
-  const handleToggleTaskDone = (taskId: string, title: string) => {
-    pmsStore.updateTaskStatus(taskId, "Completed");
-    toast.success(`Marked "${title}" as Completed.`);
+  const handleToggleTaskDone = async (taskId: string, title: string) => {
+    try {
+      await pmsStore.updateTaskStatus(taskId, "Completed");
+      toast.success(`Marked "${title}" as Completed.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update task in database.");
+    }
   };
 
   return (
