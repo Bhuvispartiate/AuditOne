@@ -69,9 +69,9 @@ export default function TeamsPage() {
         <Button
           onClick={() => setIsModalOpen(true)}
           size="sm"
-          className="bg-[#272769] hover:bg-[#1E1E4F] text-white gap-1.5 rounded-full px-5 h-10 shadow-xs font-bold text-xs cursor-pointer"
+          className="bg-[#272769] hover:bg-[#1E1E4F] text-[#E0A95C] gap-1.5 rounded-full px-5 h-10 shadow-xs font-bold text-xs cursor-pointer"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4 text-[#E0A95C]" />
           <span>Create New Team</span>
         </Button>
       </div>
@@ -79,8 +79,8 @@ export default function TeamsPage() {
       {/* Visual Hierarchy Architecture Card (Website Theme) */}
       <div className="rounded-[28px] border border-[#E6E4F0] bg-white shadow-xs p-5 sm:p-6">
         <div className="flex items-center gap-2.5 mb-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#272769] text-white shadow-2xs">
-            <GitPullRequest className="h-4 w-4 text-white" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#272769] text-[#E0A95C] shadow-2xs">
+            <GitPullRequest className="h-4 w-4 text-[#E0A95C]" />
           </div>
           <h3 className="font-extrabold text-sm text-[#1E1E4F] tracking-tight">
             Configurable Four-Tier Practice Hierarchy
@@ -224,7 +224,7 @@ export default function TeamsPage() {
               </Button>
               <Button
                 type="submit"
-                className="rounded-2xl bg-[#272769] hover:bg-[#1E1E4F] text-white font-bold text-xs px-5 shadow-xs"
+                className="rounded-2xl bg-[#272769] hover:bg-[#1E1E4F] text-[#E0A95C] font-bold text-xs px-5 shadow-xs"
               >
                 Save Team
               </Button>

@@ -9,7 +9,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-[#272769] text-white shadow-xs hover:bg-[#1E1E4F] active:bg-[#17173e]",
+          "bg-[#272769] text-[#E0A95C] shadow-xs hover:bg-[#1E1E4F] hover:text-[#E0A95C] active:bg-[#17173e]",
         destructive:
           "bg-rose-700 text-white shadow-xs hover:bg-rose-800",
         outline:
@@ -18,7 +18,7 @@ const buttonVariants = cva(
           "bg-[#E3E2F5] text-[#1E1E4F] hover:bg-[#D5D3F0]",
         ghost: "hover:bg-[#F6F5FB] hover:text-[#1E1E4F]",
         link: "text-[#272769] underline-offset-4 hover:underline",
-        navy: "bg-[#272769] text-white shadow-xs hover:bg-[#1E1E4F]",
+        navy: "bg-[#272769] text-[#E0A95C] shadow-xs hover:bg-[#1E1E4F] hover:text-[#E0A95C]",
         gold: "bg-[#E0A95C] text-[#1E1E4F] shadow-xs hover:bg-[#d89f4f]",
         success: "bg-emerald-700 text-white shadow-xs hover:bg-emerald-800",
         lime: "bg-[#E0A95C] text-[#1E1E4F] shadow-xs hover:bg-[#d89f4f]",

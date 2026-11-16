@@ -24,7 +24,7 @@ const COLOR_MAP: Record<TaskStatusColor, TaskStatusVisualStyle> = {
     columnContainer: "border-[#E6E4F0] bg-white",
     headerBorder: "border-[#E6E4F0]",
     badgeVariant: "default",
-    barClass: "bg-[#272769] text-white",
+    barClass: "bg-[#272769] text-[#E0A95C]",
     pillClass: "bg-[#E3E2F5] text-[#272769] border-[#E6E4F0]",
     dotClass: "bg-[#272769]",
     label: "Navy (On Track)",

@@ -76,8 +76,8 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
           </button>
 
           <Link to="/dashboard" className="flex items-center gap-2 lg:hidden">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#272769] text-white shadow-xs">
-              <Zap className="h-4 w-4 fill-white" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#272769] text-[#E0A95C] shadow-xs">
+              <Zap className="h-4 w-4 fill-[#E0A95C]" />
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-[#1E1E4F] tracking-tight text-xs sm:text-sm leading-tight">
@@ -219,7 +219,7 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 p-1 sm:p-1 sm:pr-3.5 rounded-full border border-[#E6E4F0] bg-white hover:bg-[#F6F5FB] transition-all shadow-2xs">
                 <Avatar className="h-8 w-8 rounded-full border border-[#E6E4F0]">
-                  <AvatarFallback className="bg-[#272769] text-white text-xs font-bold rounded-full">
+                  <AvatarFallback className="bg-[#272769] text-[#E0A95C] text-xs font-bold rounded-full">
                     {currentUser?.full_name?.split(" ").map(n => n[0]).join("") || "AD"}
                   </AvatarFallback>
                 </Avatar>
@@ -290,10 +290,10 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
           {!isEmployee && (
             <button
               onClick={() => setQuickCreateOpen(true)}
-              className="flex items-center justify-center gap-1.5 h-9 w-9 sm:h-10 sm:w-auto sm:px-4 rounded-full bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold transition-all shadow-[0_4px_14px_rgba(39,39,105,0.25)] shrink-0 cursor-pointer"
+              className="flex items-center justify-center gap-1.5 h-9 w-9 sm:h-10 sm:w-auto sm:px-4 rounded-full bg-[#272769] hover:bg-[#1E1E4F] text-[#E0A95C] text-xs font-bold transition-all shadow-[0_4px_14px_rgba(39,39,105,0.25)] shrink-0 cursor-pointer"
               title="Quick Action"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 text-[#E0A95C]" />
               <span className="hidden sm:inline">Quick Action</span>
             </button>
           )}
