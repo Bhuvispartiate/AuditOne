@@ -291,10 +291,11 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
             <button
               onClick={() => setQuickCreateOpen(true)}
               className="flex items-center justify-center gap-1.5 h-9 w-9 sm:h-10 sm:w-auto sm:px-4 rounded-full bg-[#272769] hover:bg-[#1E1E4F] !text-white text-xs font-bold transition-all shadow-[0_4px_14px_rgba(39,39,105,0.25)] shrink-0 cursor-pointer"
+              style={{ backgroundColor: "#272769", color: "#FFFFFF" }}
               title="Quick Action"
             >
-              <Plus className="h-4 w-4 !text-white" />
-              <span className="hidden sm:inline !text-white">Quick Action</span>
+              <Plus className="h-4 w-4 !text-white" style={{ color: "#FFFFFF", stroke: "#FFFFFF" }} />
+              <span className="hidden sm:inline !text-white" style={{ color: "#FFFFFF" }}>Quick Action</span>
             </button>
           )}
         </div>

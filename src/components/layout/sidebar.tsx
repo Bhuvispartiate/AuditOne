@@ -165,10 +165,16 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
           </div>
           {!effectiveCollapsed && (
             <div className="flex flex-col truncate">
-              <span className="font-extrabold text-white tracking-tight text-[15px] leading-tight">
+              <span
+                className="font-extrabold !text-white tracking-tight text-[15px] leading-tight"
+                style={{ color: "#FFFFFF" }}
+              >
                 Linear Audit
               </span>
-              <span className="text-[10px] font-bold text-[#E0A95C] uppercase tracking-widest mt-0.5">
+              <span
+                className="text-[10px] font-bold !text-[#E0A95C] uppercase tracking-widest mt-0.5"
+                style={{ color: "#E0A95C" }}
+              >
                 Practice OS
               </span>
             </div>
@@ -180,18 +186,20 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={onClose}
             title="Close menu"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-white hover:bg-[#3B3B88] hover:text-white transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] !text-white hover:bg-[#3B3B88] hover:text-white transition-colors"
+            style={{ color: "#FFFFFF" }}
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" style={{ color: "#FFFFFF", stroke: "#FFFFFF" }} />
           </button>
         ) : !effectiveCollapsed ? (
           <button
             type="button"
             onClick={() => setCollapsed(true)}
             title="Collapse sidebar"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-white hover:text-white hover:bg-[#3B3B88] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] !text-white hover:text-white hover:bg-[#3B3B88] transition-colors"
+            style={{ color: "#FFFFFF" }}
           >
-            <ChevronsLeft className="h-4 w-4" />
+            <ChevronsLeft className="h-4 w-4" style={{ color: "#FFFFFF", stroke: "#FFFFFF" }} />
           </button>
         ) : null}
       </div>
@@ -202,9 +210,10 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
             type="button"
             onClick={() => setCollapsed(false)}
             title="Expand sidebar"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] text-white hover:text-white hover:bg-[#3B3B88] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#3B3B88] bg-[#32327D] !text-white hover:text-white hover:bg-[#3B3B88] transition-colors"
+            style={{ color: "#FFFFFF" }}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4" style={{ color: "#FFFFFF", stroke: "#FFFFFF" }} />
           </button>
         </div>
       )}
@@ -225,7 +234,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 "group flex items-center rounded-full transition-all duration-150 relative",
                 isActive
                   ? "bg-[#E0A95C] text-[#1E1E4F] font-bold shadow-xs"
-                  : "text-white hover:bg-[#32327D] hover:text-white font-medium"
+                  : "!text-white hover:bg-[#32327D] hover:text-white font-medium"
               )}
             >
               <Link
@@ -235,18 +244,23 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 }}
                 className={cn(
                   "flex flex-1 min-w-0 items-center gap-3 px-3.5 py-2.5 text-[13px]",
-                  isActive ? "text-[#1E1E4F]" : "text-white"
+                  isActive ? "text-[#1E1E4F]" : "!text-white"
                 )}
+                style={isActive ? { color: "#1E1E4F" } : { color: "#FFFFFF" }}
                 title={effectiveCollapsed ? item.title : undefined}
               >
                 <Icon
                   className={cn(
                     "h-[17px] w-[17px] shrink-0 transition-transform duration-200 group-hover:scale-105",
-                    isActive ? "text-[#1E1E4F]" : "text-white group-hover:text-white"
+                    isActive ? "text-[#1E1E4F]" : "!text-white group-hover:!text-white"
                   )}
+                  style={isActive ? { color: "#1E1E4F", stroke: "#1E1E4F" } : { color: "#FFFFFF", stroke: "#FFFFFF" }}
                 />
                 {!effectiveCollapsed && (
-                  <span className={cn("truncate flex-1 tracking-tight", isActive ? "text-[#1E1E4F]" : "text-white")}>
+                  <span
+                    className={cn("truncate flex-1 tracking-tight", isActive ? "text-[#1E1E4F]" : "!text-white")}
+                    style={isActive ? { color: "#1E1E4F" } : { color: "#FFFFFF" }}
+                  >
                     {item.title}
                   </span>
                 )}
@@ -285,12 +299,23 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                   "group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium transition-all duration-150",
                   isActive
                     ? "bg-[#E0A95C] text-[#1E1E4F] font-bold shadow-xs"
-                    : "text-white hover:bg-[#32327D] hover:text-white"
+                    : "!text-white hover:bg-[#32327D] hover:text-white"
                 )}
+                style={isActive ? { color: "#1E1E4F" } : { color: "#FFFFFF" }}
                 title={effectiveCollapsed ? item.title : undefined}
               >
-                <Icon className={cn("h-[17px] w-[17px] shrink-0", isActive ? "text-[#1E1E4F]" : "text-white group-hover:text-white")} />
-                {!effectiveCollapsed && <span className={cn("truncate flex-1", isActive ? "text-[#1E1E4F]" : "text-white")}>{item.title}</span>}
+                <Icon
+                  className={cn("h-[17px] w-[17px] shrink-0", isActive ? "text-[#1E1E4F]" : "!text-white group-hover:!text-white")}
+                  style={isActive ? { color: "#1E1E4F", stroke: "#1E1E4F" } : { color: "#FFFFFF", stroke: "#FFFFFF" }}
+                />
+                {!effectiveCollapsed && (
+                  <span
+                    className={cn("truncate flex-1", isActive ? "text-[#1E1E4F]" : "!text-white")}
+                    style={isActive ? { color: "#1E1E4F" } : { color: "#FFFFFF" }}
+                  >
+                    {item.title}
+                  </span>
+                )}
                 {!effectiveCollapsed && badgeValue !== undefined && (
                   <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#3B3B88] px-1.5 text-[10px] font-bold text-white">
                     {badgeValue}
@@ -303,11 +328,19 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
           <Link
             to="/reports"
             onClick={() => { if (isMobile) onClose?.(); }}
-            className="group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#32327D] hover:text-white transition-all duration-150"
+            className="group flex items-center gap-3 rounded-full px-3.5 py-2 text-[13px] font-medium !text-white hover:bg-[#32327D] hover:text-white transition-all duration-150"
+            style={{ color: "#FFFFFF" }}
             title={effectiveCollapsed ? "Help & Support" : undefined}
           >
-            <HelpCircle className="h-[17px] w-[17px] shrink-0 text-white group-hover:text-white" />
-            {!effectiveCollapsed && <span className="truncate flex-1 text-white">Help & Support</span>}
+            <HelpCircle
+              className="h-[17px] w-[17px] shrink-0 !text-white group-hover:!text-white"
+              style={{ color: "#FFFFFF", stroke: "#FFFFFF" }}
+            />
+            {!effectiveCollapsed && (
+              <span className="truncate flex-1 !text-white" style={{ color: "#FFFFFF" }}>
+                Help & Support
+              </span>
+            )}
           </Link>
         </div>
       )}
@@ -325,7 +358,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
               title={effectiveCollapsed ? currentUser?.full_name || "User Profile" : undefined}
             >
               <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E0A95C] border border-[#E0A95C] text-xs font-bold text-[#1E1E4F] shadow-xs select-none">
-                <span>{initials}</span>
+                <span style={{ color: "#1E1E4F" }}>{initials}</span>
                 <span
                   className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[#272769]"
                   title="Active Session"
@@ -336,23 +369,35 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
                 <>
                   <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-xs font-bold text-white truncate leading-tight group-hover:text-white">
+                      <p
+                        className="text-xs font-bold !text-white truncate leading-tight group-hover:text-white"
+                        style={{ color: "#FFFFFF" }}
+                      >
                         {currentUser?.full_name || "Administrator"}
                       </p>
                       {isSuperAdminUser && (
-                        <span className="shrink-0 px-1 py-0.2 rounded text-[8px] font-extrabold uppercase tracking-wider bg-[#E0A95C] text-[#1E1E4F] border border-[#E0A95C]">
+                        <span
+                          className="shrink-0 px-1 py-0.2 rounded text-[8px] font-extrabold uppercase tracking-wider bg-[#E0A95C] text-[#1E1E4F] border border-[#E0A95C]"
+                          style={{ color: "#1E1E4F", backgroundColor: "#E0A95C" }}
+                        >
                           Root
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-white/80 truncate mt-0.5 leading-tight group-hover:text-white">
+                    <p
+                      className="text-[10px] text-white/80 truncate mt-0.5 leading-tight group-hover:text-white"
+                      style={{ color: "rgba(255, 255, 255, 0.85)" }}
+                    >
                       {currentUser?.designation_name
                         ? currentUser.designation_name
                         : formatRoleName(currentUser?.role_code, isSuperAdminUser)}
                       {isEmployee ? " • View Only" : ""}
                     </p>
                   </div>
-                  <ChevronDown className="h-3.5 w-3.5 text-white group-hover:text-white shrink-0 transition-transform duration-150" />
+                  <ChevronDown
+                    className="h-3.5 w-3.5 !text-white group-hover:text-white shrink-0 transition-transform duration-150"
+                    style={{ color: "#FFFFFF", stroke: "#FFFFFF" }}
+                  />
                 </>
               )}
             </button>

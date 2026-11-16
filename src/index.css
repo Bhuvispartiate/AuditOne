@@ -87,77 +87,82 @@
 /* Global Brand Theme Overrides: Navy (#272769), Gold (#E0A95C)              */
 /* Buttons, Main Bars, Sidebar -> Navy (#272769)                             */
 /* ========================================================================== */
-.bg-neutral-900,
-.bg-\[\#201815\],
-.bg-\[\#241713\],
-.bg-\[\#2A1C17\],
-.bg-\[\#2E1F1A\],
-.bg-\[\#6c5ce7\],
-.bg-violet-600,
-.bg-violet-700,
-.bg-violet-800,
-.bg-violet-900,
-.bg-indigo-600,
-.bg-indigo-700,
-.bg-indigo-800,
-.bg-purple-600,
-.bg-purple-700,
-.bg-purple-800,
-.bg-\[\#272769\],
-.bg-navy {
+.bg-navy,
+[class*="bg-[#272769]"],
+[class*="bg-[#1E1E4F]"] {
   background-color: #272769 !important;
   color: #FFFFFF !important;
 }
 
-.bg-neutral-900 *,
-.bg-\[\#201815\] *,
-.bg-\[\#241713\] *,
-.bg-\[\#2A1C17\] *,
-.bg-\[\#2E1F1A\] *,
-.bg-\[\#6c5ce7\] *,
-.bg-violet-600 *,
-.bg-violet-700 *,
-.bg-violet-800 *,
-.bg-violet-900 *,
-.bg-indigo-600 *,
-.bg-indigo-700 *,
-.bg-indigo-800 *,
-.bg-purple-600 *,
-.bg-purple-700 *,
-.bg-purple-800 *,
-.bg-\[\#272769\] *,
-.bg-navy * {
+.bg-navy *,
+[class*="bg-[#272769]"] *,
+[class*="bg-[#1E1E4F]"] * {
   color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
 }
 
-/* Explicit button text overrides for blue/navy buttons */
-button.bg-\[\#272769\],
+/* Explicit button & link text overrides for blue/navy buttons */
 button.bg-navy,
-a.bg-\[\#272769\],
-a.bg-navy,
-button.bg-\[\#272769\] *,
 button.bg-navy *,
-a.bg-\[\#272769\] *,
-a.bg-navy * {
+button[class*="bg-[#272769]"],
+button[class*="bg-[#272769]"] *,
+button[class*="bg-[#1E1E4F]"],
+button[class*="bg-[#1E1E4F]"] *,
+a.bg-navy,
+a.bg-navy *,
+a[class*="bg-[#272769]"],
+a[class*="bg-[#272769]"] *,
+a[class*="bg-[#1E1E4F]"],
+a[class*="bg-[#1E1E4F]"] * {
   color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}
+
+/* ========================================================================== */
+/* SIDEBAR: Complete protection against inherited dark text                   */
+/* All elements inside sidebar default to crisp pure white                    */
+/* ========================================================================== */
+aside,
+aside nav,
+aside a,
+aside a *,
+aside a span,
+aside a svg,
+aside button,
+aside button *,
+aside button span,
+aside button svg,
+aside p,
+aside span,
+aside svg {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
 }
 
 /* Active menu item in sidebar retains Gold background and Navy text */
-aside .bg-\[\#E0A95C\],
-aside .bg-\[\#E0A95C\] *,
-aside.bg-\[\#272769\] .bg-\[\#E0A95C\],
-aside.bg-\[\#272769\] .bg-\[\#E0A95C\] * {
+aside a.active,
+aside a.active *,
+aside .bg-gold,
+aside .bg-gold *,
+aside [class*="bg-[#E0A95C]"],
+aside [class*="bg-[#E0A95C]"] *,
+aside [class*="bg-[#E0A95C]"] span,
+aside [class*="bg-[#E0A95C]"] svg {
   background-color: #E0A95C !important;
+  color: #1E1E4F !important;
+  stroke: #1E1E4F !important;
+}
+
+/* User avatar initials pill in sidebar: Gold background with dark text */
+aside .bg-gold span,
+aside [class*="bg-[#E0A95C]"] span,
+aside .relative.flex.h-9.w-9.rounded-full span {
   color: #1E1E4F !important;
 }
 
 /* Hover states for Navy buttons */
 .hover\:bg-black:hover,
 .hover\:bg-neutral-900:hover,
-.hover\:bg-\[\#342722\]:hover,
-.hover\:bg-\[\#34241E\]:hover,
-.hover\:bg-\[\#5b4cdb\]:hover,
-.hover\:bg-\[\#5a4ad8\]:hover,
 .hover\:bg-violet-700:hover,
 .hover\:bg-violet-800:hover,
 .hover\:bg-indigo-700:hover,
@@ -170,10 +175,6 @@ aside.bg-\[\#272769\] .bg-\[\#E0A95C\] * {
 
 .hover\:bg-black:hover *,
 .hover\:bg-neutral-900:hover *,
-.hover\:bg-\[\#342722\]:hover *,
-.hover\:bg-\[\#34241E\]:hover *,
-.hover\:bg-\[\#5b4cdb\]:hover *,
-.hover\:bg-\[\#5a4ad8\]:hover *,
 .hover\:bg-violet-700:hover *,
 .hover\:bg-violet-800:hover *,
 .hover\:bg-indigo-700:hover *,
@@ -181,6 +182,7 @@ aside.bg-\[\#272769\] .bg-\[\#E0A95C\] * {
 .hover\:bg-purple-700:hover *,
 .hover\:bg-purple-800:hover * {
   color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
 }
 
 /* Headings and body text: Text navy #1E1E4F */
@@ -237,38 +239,36 @@ aside.bg-\[\#272769\] .bg-\[\#E0A95C\] * {
 }
 
 /* Luxury Almond & Espresso Migration to Navy & Gold Theme Spec */
-.bg-\[\#FAF8F5\] {
+[class*="FAF8F5"] {
   background-color: #FFFFFF !important;
 }
 
-.bg-\[\#EFE8DC\],
-.bg-\[\#E8E0D2\] {
+[class*="EFE8DC"],
+[class*="E8E0D2"] {
   background-color: #E3E2F5 !important;
 }
 
-.bg-\[\#EFE8DC\] *,
-.bg-\[\#E8E0D2\] * {
+[class*="EFE8DC"] *,
+[class*="E8E0D2"] * {
   color: #272769 !important;
 }
 
-.text-\[\#201815\],
-.group-hover\:text-\[\#201815\]:hover,
-.hover\:text-\[\#201815\]:hover {
+[class*="text-[#201815]"] {
   color: #1E1E4F !important;
 }
 
-.text-\[\#7C746A\],
-.text-\[\#6A6258\],
-.text-\[\#A8A095\],
-.text-\[\#9A97A8\] {
+[class*="text-[#7C746A]"],
+[class*="text-[#6A6258]"],
+[class*="text-[#A8A095]"],
+[class*="text-[#9A97A8]"] {
   color: #55557A !important;
 }
 
-.text-\[\#FAF8F5\] {
+[class*="text-[#FAF8F5]"] {
   color: #FFFFFF !important;
 }
 
-.border-\[\#E2DACD\] {
+[class*="border-[#E2DACD]"] {
   border-color: #E6E4F0 !important;
 }
 

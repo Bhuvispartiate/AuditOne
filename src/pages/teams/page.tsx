@@ -70,9 +70,10 @@ export default function TeamsPage() {
           onClick={() => setIsModalOpen(true)}
           size="sm"
           className="bg-[#272769] hover:bg-[#1E1E4F] !text-white gap-1.5 rounded-full px-5 h-10 shadow-xs font-bold text-xs cursor-pointer"
+          style={{ backgroundColor: "#272769", color: "#FFFFFF" }}
         >
-          <Plus className="h-4 w-4 !text-white" />
-          <span className="!text-white">Create New Team</span>
+          <Plus className="h-4 w-4 !text-white" style={{ color: "#FFFFFF", stroke: "#FFFFFF" }} />
+          <span className="!text-white" style={{ color: "#FFFFFF" }}>Create New Team</span>
         </Button>
       </div>
 
@@ -224,7 +225,8 @@ export default function TeamsPage() {
               </Button>
               <Button
                 type="submit"
-                className="rounded-2xl bg-[#272769] hover:bg-[#1E1E4F] text-white font-bold text-xs px-5 shadow-xs"
+                className="rounded-2xl bg-[#272769] hover:bg-[#1E1E4F] !text-white font-bold text-xs px-5 shadow-xs"
+                style={{ backgroundColor: "#272769", color: "#FFFFFF" }}
               >
                 Save Team
               </Button>
