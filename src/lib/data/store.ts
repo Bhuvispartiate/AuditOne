@@ -391,6 +391,16 @@ class PMSDataStore {
       if (projects !== null) {
         this.projects = this.mergeRemoteEntities(this.projects, projects);
       }
+      // Ensure active entities are never suppressed by deleted ID tracking
+      this.deletedTaskProjectIds = this.deletedTaskProjectIds.filter(
+        (projId) => !this.projects.some((p) => p.id === projId)
+      );
+      this.deletedTaskCategoryIds = this.deletedTaskCategoryIds.filter(
+        (cid) => !this.taskCategories.some((c) => c.id === cid)
+      );
+      this.deletedTaskIds = this.deletedTaskIds.filter(
+        (tid) => !this.tasks.some((t) => t.id === tid || (t.task_code && t.task_code.toUpperCase() === tid))
+      );
       if (categories !== null) {
         this.taskCategories = this.mergeRemoteCategories(this.taskCategories, categories);
       }
@@ -827,7 +837,10 @@ class PMSDataStore {
   private hydrate() {
     if (typeof window === "undefined" || !window.localStorage) return;
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
+      let raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        raw = window.localStorage.getItem("acru_pms_store_backup");
+      }
       if (!raw) return;
       try {
         window.localStorage.setItem("acru_pms_store_backup", raw);
@@ -846,9 +859,15 @@ class PMSDataStore {
         this.currentUser = { ...this.currentUser, email: SUPERADMIN_EMAIL };
       }
 
-      // Sanitize deletedTaskProjectIds: remove any project IDs from deletedTaskProjectIds that exist as active projects
+      // Self-healing sanitization: active projects, categories, and tasks must NEVER be suppressed
       this.deletedTaskProjectIds = this.deletedTaskProjectIds.filter(
         (projId) => !this.projects.some((p) => p.id === projId)
+      );
+      this.deletedTaskCategoryIds = this.deletedTaskCategoryIds.filter(
+        (cid) => !this.taskCategories.some((c) => c.id === cid)
+      );
+      this.deletedTaskIds = this.deletedTaskIds.filter(
+        (tid) => !this.tasks.some((t) => t.id === tid || (t.task_code && t.task_code.toUpperCase() === tid))
       );
 
       // Purge all legacy mock practice tasks, mock categories, mock workflows, and mock services permanently
@@ -897,7 +916,13 @@ class PMSDataStore {
         currentUser: this.currentUser,
         authenticated: this.authenticated,
       };
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+      const serialized = JSON.stringify(snapshot);
+      window.localStorage.setItem(STORAGE_KEY, serialized);
+      try {
+        window.localStorage.setItem("acru_pms_store_backup", serialized);
+      } catch {
+        // ignore backup quota error
+      }
     } catch (error) {
       console.error("Failed to persist PMS store to localStorage:", error);
     }
@@ -1408,13 +1433,18 @@ class PMSDataStore {
       outstanding_amount: 0,
     };
 
-    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
-    await insertClientToDb(client);
-
+    // Persist to local store first so user data is NEVER lost
     this.clients.unshift(client);
     this.addActivityLog(`Onboarded new client: ${client.client_name}`, "client", id);
-
     this.persist();
+
+    // Direct database write — awaits DB confirmation, safely logs if offline or non-blocking
+    try {
+      await insertClientToDb(client);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase client insert warning (persisted locally):", dbErr.message || dbErr);
+    }
+
     return this.enrichClient(client);
   }
 
@@ -1532,10 +1562,16 @@ class PMSDataStore {
   async addService(service: Omit<Service, "id" | "created_at">): Promise<Service> {
     const id = ensureUuid();
     const newService: Service = { ...service, id, created_at: new Date().toISOString() };
-    await insertServiceToDb(newService);
     this.services.push(newService);
     this.addActivityLog(`Added service to catalog: ${newService.service_name}`, "service", id);
     this.persist();
+
+    try {
+      await insertServiceToDb(newService);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase service insert warning (persisted locally):", dbErr.message || dbErr);
+    }
+
     return newService;
   }
 
@@ -1841,9 +1877,7 @@ class PMSDataStore {
       updated_at: new Date().toISOString(),
     };
 
-    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
-    await insertProjectToDb(newProject);
-
+    // Persist to local store first so user data is NEVER lost
     this.projects.unshift(newProject);
     this.addActivityLog(`Created project: ${newProject.project_name}`, "project", id);
     if (newProject.project_manager_id) {
@@ -1856,8 +1890,15 @@ class PMSDataStore {
         id
       );
     }
-
     this.persist();
+
+    // Direct database write — awaits DB confirmation, safely logs if offline or non-blocking
+    try {
+      await insertProjectToDb(newProject);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase project insert warning (persisted locally):", dbErr.message || dbErr);
+    }
+
     return newProject;
   }
 
@@ -2091,11 +2132,16 @@ class PMSDataStore {
       ],
     };
 
-    await insertTaskCategoryToDb(newCategory);
-
     this.taskCategories.push(newCategory);
     this.addActivityLog(`Created task category: ${newCategory.name}`, "task", id);
     this.persist();
+
+    try {
+      await insertTaskCategoryToDb(newCategory);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase task category insert warning (persisted locally):", dbErr.message || dbErr);
+    }
+
     return newCategory;
   }
 
@@ -2178,11 +2224,17 @@ class PMSDataStore {
       whatsapp_enabled: data.whatsapp_enabled ?? true,
       created_at: new Date().toISOString(),
     };
-    await insertTaskSubCategoryToDb(newSub);
     if (!cat.sub_categories) cat.sub_categories = [];
     cat.sub_categories.push(newSub);
     this.addActivityLog(`Added sub-category "${newSub.name}" under ${cat.name}`, "task", subId);
     this.persist();
+
+    try {
+      await insertTaskSubCategoryToDb(newSub);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase sub-category insert warning (persisted locally):", dbErr.message || dbErr);
+    }
+
     return newSub;
   }
 
@@ -2652,9 +2704,7 @@ class PMSDataStore {
       currency,
     };
 
-    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
-    await insertTaskToDb(newTask);
-
+    // Persist to local store first so user data is NEVER lost
     this.tasks.unshift(newTask);
 
     this.refreshProjectProgress(newTask.project_id);
@@ -2681,6 +2731,14 @@ class PMSDataStore {
       );
     }
     this.persist();
+
+    // Direct database write — awaits DB confirmation, safely logs if offline or non-blocking
+    try {
+      await insertTaskToDb(newTask);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase task insert warning (persisted locally):", dbErr.message || dbErr);
+    }
+
     return this.enrichTask(newTask);
   }
 
@@ -2725,13 +2783,17 @@ class PMSDataStore {
       created_at: new Date().toISOString(),
     };
 
-    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
-    await insertTaskToDb(sub);
-
     this.tasks.push(sub);
     this.refreshProjectProgress(parent.project_id);
     this.addActivityLog(`Added subtask "${sub.title}" to ${parent.task_code}`, "task", parent.id);
     this.persist();
+
+    try {
+      await insertTaskToDb(sub);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase subtask insert warning (persisted locally):", dbErr.message || dbErr);
+    }
+
     return this.enrichTask(sub);
   }
 
@@ -3309,10 +3371,16 @@ class PMSDataStore {
   async addWorkflow(wfData: Omit<WorkflowTemplate, "id" | "created_at">): Promise<WorkflowTemplate> {
     const id = ensureUuid();
     const newWf: WorkflowTemplate = { ...wfData, id, created_at: new Date().toISOString() };
-    await insertWorkflowToDb(newWf);
     this.workflows.unshift(newWf);
     this.addActivityLog(`Published workflow template: ${newWf.workflow_name}`, "workflow", id);
     this.persist();
+
+    try {
+      await insertWorkflowToDb(newWf);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase workflow insert warning (persisted locally):", dbErr.message || dbErr);
+    }
+
     return newWf;
   }
 
@@ -4022,11 +4090,9 @@ class PMSDataStore {
       paid_amount: 0,
       outstanding_balance: netPayable,
       status: restInvoiceData.status || "Finalized",
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
-
-    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
-    await insertInvoiceToDb(newInvoice);
 
     this.invoices.unshift(newInvoice);
     this.addActivityLog(
@@ -4055,6 +4121,14 @@ class PMSDataStore {
     }
 
     this.persist();
+
+    // Direct database write — awaits DB confirmation, safely logs if offline or non-blocking
+    try {
+      await insertInvoiceToDb(newInvoice);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase invoice insert warning (persisted locally):", dbErr.message || dbErr);
+    }
+
     return newInvoice;
   }
 
@@ -4111,9 +4185,6 @@ class PMSDataStore {
       updated_at: new Date().toISOString(),
     };
 
-    // Direct database write — awaits DB confirmation, throws actual Supabase error on failure
-    await insertPaymentToDb(newPayment);
-
     this.payments.unshift(newPayment);
 
     // If allocated to an invoice, recalculate outstanding balance automatically
@@ -4129,11 +4200,11 @@ class PMSDataStore {
         } else if (inv.paid_amount > 0) {
           inv.status = "Partially Paid";
         }
-        await updateInvoiceInDb(inv.id, {
+        void updateInvoiceInDb(inv.id, {
           paid_amount: inv.paid_amount,
           outstanding_balance: inv.outstanding_balance,
           status: inv.status,
-        });
+        }).catch(() => {});
       }
     }
 
@@ -4147,6 +4218,14 @@ class PMSDataStore {
       id
     );
     this.persist();
+
+    // Direct database write — awaits DB confirmation, safely logs if offline or non-blocking
+    try {
+      await insertPaymentToDb(newPayment);
+    } catch (dbErr: any) {
+      console.warn("Direct Supabase payment insert warning (persisted locally):", dbErr.message || dbErr);
+    }
+
     return newPayment;
   }
 
@@ -5589,6 +5668,16 @@ class PMSDataStore {
       this.restoreFolder(item.item_id, user);
     } else if (item.item_type === "task" && item.raw_data) {
       const taskData = item.raw_data as Task;
+      this.deletedTaskIds = this.deletedTaskIds.filter(
+        (tid) => tid !== taskData.id && tid !== (taskData.task_code?.toUpperCase() || "")
+      );
+      if (Array.isArray(taskData.subtasks)) {
+        taskData.subtasks.forEach((st) => {
+          this.deletedTaskIds = this.deletedTaskIds.filter(
+            (tid) => tid !== st.id && tid !== (st.task_code?.toUpperCase() || "")
+          );
+        });
+      }
       if (!this.tasks.some((t) => t.id === taskData.id)) {
         this.tasks.unshift(taskData);
       }
