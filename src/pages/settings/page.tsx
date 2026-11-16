@@ -21,7 +21,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
-import { isAdminUser } from "@/lib/access";
+import { isAdminUser, isSuperAdmin } from "@/lib/access";
+import { SuperAdminDatabaseResetCard } from "@/components/admin/super-admin-database-reset-card";
 import { TaskStatusColor } from "@/types";
 import { getStyleForColor, TASK_STATUS_COLOR_OPTIONS } from "@/lib/task-status-styles";
 import { toast } from "sonner";
@@ -502,6 +503,13 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Super Admin Database Control (Super Admin Exclusive) */}
+      {isSuperAdmin(currentUser) && (
+        <div className="pt-2">
+          <SuperAdminDatabaseResetCard />
+        </div>
+      )}
     </div>
   );
 }
