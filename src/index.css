@@ -248,15 +248,6 @@ aside .relative.flex.h-9.w-9.rounded-full span {
   background-color: #E3E2F5 !important;
 }
 
-[class*="EFE8DC"] *,
-[class*="E8E0D2"] * {
-  color: #272769 !important;
-}
-
-[class*="text-[#201815]"] {
-  color: #1E1E4F !important;
-}
-
 [class*="text-[#7C746A]"],
 [class*="text-[#6A6258]"],
 [class*="text-[#A8A095]"],
@@ -313,4 +304,55 @@ aside .relative.flex.h-9.w-9.rounded-full span {
   background-color: #F6E4C5 !important;
   color: #6B4A12 !important;
   border-color: transparent !important;
+}
+
+/* ========================================================================== */
+/* ABSOLUTE UNIVERSAL OVERRIDE: WHITE TEXT ON ALL BLUE / NAVY BACKGROUNDS     */
+/* Any element with a blue/navy background MUST render pure white text & SVGs */
+/* ========================================================================== */
+[class*="bg-[#272769]"],
+[class*="bg-[#1E1E4F]"],
+[class*="bg-[#32327D]"],
+[class*="bg-[#3B3B88]"],
+[class*="bg-[#444498]"],
+[class*="bg-navy"],
+.bg-navy,
+aside,
+header button[class*="bg-[#272769]"] {
+  color: #FFFFFF !important;
+}
+
+[class*="bg-[#272769]"] *,
+[class*="bg-[#1E1E4F]"] *,
+[class*="bg-[#32327D]"] *,
+[class*="bg-[#3B3B88]"] *,
+[class*="bg-[#444498]"] *,
+[class*="bg-navy"] *,
+.bg-navy *,
+aside *,
+aside nav *,
+aside a:not([class*="bg-[#E0A95C]"]),
+aside a:not([class*="bg-[#E0A95C]"]) *,
+aside button:not([class*="bg-[#E0A95C]"]),
+aside button:not([class*="bg-[#E0A95C]"]) *,
+header button[class*="bg-[#272769]"] * {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}
+
+/* Specific exclusion: Elements with Gold backgrounds keep dark text */
+[class*="bg-[#E0A95C]"],
+[class*="bg-[#E0A95C]"] *,
+aside [class*="bg-[#E0A95C]"],
+aside [class*="bg-[#E0A95C]"] *,
+aside .bg-gold,
+aside .bg-gold * {
+  background-color: #E0A95C !important;
+  color: #1E1E4F !important;
+  stroke: #1E1E4F !important;
+}
+
+/* Avatar circle in user card */
+aside .relative.flex.h-9.w-9 span {
+  color: #1E1E4F !important;
 }
