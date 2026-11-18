@@ -60,9 +60,11 @@ export default function LoginPage() {
           <CardContent className="space-y-4 pt-2">
             {/* Google OAuth Button */}
             <Button
+              type="button"
+              variant="outline"
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full h-11 bg-white hover:bg-[#f9fafb] text-[#111827] border border-[#e5e7eb] rounded-2xl font-bold shadow-xs flex items-center justify-center gap-3 transition-all"
+              className="w-full h-11 bg-white hover:bg-[#f9fafb] text-[#111827] hover:text-[#111827] border border-[#d1d5db] hover:border-[#9ca3af] rounded-2xl text-sm font-semibold shadow-xs flex items-center justify-center gap-3 transition-all"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24">
                 <path
