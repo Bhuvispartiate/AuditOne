@@ -240,12 +240,26 @@ export default function ClientsListPage() {
                         <span className="text-[14px] font-bold text-[#111827] group-hover:text-[#2563eb] transition-colors leading-snug block truncate">
                           {client.client_name}
                         </span>
-                        <p className="text-[11px] font-mono text-[#6b7280] mt-1 leading-snug break-words">
-                          {client.client_code} · <span className="font-sans">{client.constitution}</span> · <span className="font-mono text-slate-700 font-semibold">{folderName}</span>
-                          {client.reference_name && (
-                            <span className="font-sans text-blue-700 font-semibold"> · Ref: {client.reference_name}</span>
+                        <div className="mt-1.5 space-y-0.5 text-[11px] leading-tight">
+                          <div className="font-mono text-[#6b7280]">
+                            {client.client_code}
+                          </div>
+                          {client.constitution && (
+                            <div className="font-sans text-slate-600">
+                              {client.constitution}
+                            </div>
                           )}
-                        </p>
+                          {folderName && (
+                            <div className="font-mono text-slate-700 font-semibold truncate">
+                              {folderName}
+                            </div>
+                          )}
+                          {client.reference_name && (
+                            <div className="font-sans text-blue-700 font-semibold truncate">
+                              Ref: {client.reference_name}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <span

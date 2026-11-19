@@ -113,7 +113,9 @@
 [class*="bg-blue-800"] h1, [class*="bg-blue-800"] h2, [class*="bg-blue-800"] h3, [class*="bg-blue-800"] h4, [class*="bg-blue-800"] h5, [class*="bg-blue-800"] h6,
 [class*="bg-blue-900"] h1, [class*="bg-blue-900"] h2, [class*="bg-blue-900"] h3, [class*="bg-blue-900"] h4, [class*="bg-blue-900"] h5, [class*="bg-blue-900"] h6,
 [class*="bg-[#272769]"] h1, [class*="bg-[#272769]"] h2, [class*="bg-[#272769]"] h3, [class*="bg-[#272769]"] h4, [class*="bg-[#272769]"] h5, [class*="bg-[#272769]"] h6,
-[class*="bg-[#1E1E4F]"] h1, [class*="bg-[#1E1E4F]"] h2, [class*="bg-[#1E1E4F]"] h3, [class*="bg-[#1E1E4F]"] h4, [class*="bg-[#1E1E4F]"] h5, [class*="bg-[#1E1E4F]"] h6 {
+[class*="bg-[#1E1E4F]"] h1, [class*="bg-[#1E1E4F]"] h2, [class*="bg-[#1E1E4F]"] h3, [class*="bg-[#1E1E4F]"] h4, [class*="bg-[#1E1E4F]"] h5, [class*="bg-[#1E1E4F]"] h6,
+[class*="from-slate-900"] h1, [class*="from-slate-900"] h2, [class*="from-slate-900"] h3, [class*="from-slate-900"] h4, [class*="from-slate-900"] h5, [class*="from-slate-900"] h6,
+[class*="bg-slate-900"] h1, [class*="bg-slate-900"] h2, [class*="bg-slate-900"] h3, [class*="bg-slate-900"] h4, [class*="bg-slate-900"] h5, [class*="bg-slate-900"] h6 {
   color: #FFFFFF !important;
 }
 

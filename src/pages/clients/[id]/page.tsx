@@ -189,8 +189,8 @@ export default function Client360ProfilePage() {
       client.contacts && client.contacts.length > 0
         ? [...client.contacts]
         : client.contact
-        ? [{ ...client.contact }]
-        : [];
+          ? [{ ...client.contact }]
+          : [];
     setEditContacts(contactsList);
     setDeletedContactIds([]);
 
@@ -226,6 +226,7 @@ export default function Client360ProfilePage() {
     setNewBankName("");
     setNewAccountNumber("");
     setNewAccountType("Current");
+
     setNewIfscCode("");
     setNewBranchName("");
     setNewUpiId("");
@@ -499,13 +500,13 @@ export default function Client360ProfilePage() {
     try {
       // 1. Delete removed items from Supabase
       for (const cid of deletedContactIds) {
-        try { await pmsStore.deleteClientContact(client.id, cid); } catch {}
+        try { await pmsStore.deleteClientContact(client.id, cid); } catch { }
       }
       for (const aid of deletedAddressIds) {
-        try { await pmsStore.deleteClientAddress(client.id, aid); } catch {}
+        try { await pmsStore.deleteClientAddress(client.id, aid); } catch { }
       }
       for (const bid of deletedBankAccountIds) {
-        try { await pmsStore.deleteClientBankAccount(client.id, bid); } catch {}
+        try { await pmsStore.deleteClientBankAccount(client.id, bid); } catch { }
       }
 
       const rm = employees.find((e) => e.id === editRelationshipManagerId);
@@ -628,11 +629,11 @@ export default function Client360ProfilePage() {
     : rawClientProjects;
   const clientTasks = isEmployee
     ? allStoreTasks.filter(
-        (t) =>
-          clientProjects.some((p) => p.id === t.project_id) &&
-          (clientProjects.some((p) => p.id === t.project_id && p.project_manager_id === empId) ||
-            isTaskAssignedToEmployee(t, empId))
-      )
+      (t) =>
+        clientProjects.some((p) => p.id === t.project_id) &&
+        (clientProjects.some((p) => p.id === t.project_id && p.project_manager_id === empId) ||
+          isTaskAssignedToEmployee(t, empId))
+    )
     : allStoreTasks.filter((t) => clientProjects.some((p) => p.id === t.project_id));
 
   const assignedServiceNames = new Set(
@@ -643,10 +644,10 @@ export default function Client360ProfilePage() {
   );
   const engagements = isEmployee
     ? clientEngagementsAll.filter(
-        (e) =>
-          assignedEngagementIds.has(e.id) ||
-          (e.service_name ? assignedServiceNames.has(e.service_name) : false)
-      )
+      (e) =>
+        assignedEngagementIds.has(e.id) ||
+        (e.service_name ? assignedServiceNames.has(e.service_name) : false)
+    )
     : clientEngagementsAll;
 
   // Available catalog services not yet subscribed
@@ -687,7 +688,7 @@ export default function Client360ProfilePage() {
 
   // Quick Subscribe Service state
   const [selectedServiceId, setSelectedServiceId] = useState(allServices[0]?.id || "");
-  const [agreedFee, setAgreedFee] = useState(allServices[0]?.default_fee || 0);
+  const [agreedFee, setAgreedFee] = useState<number | string>(allServices[0]?.default_fee ?? "");
   const [billingFreq, setBillingFreq] = useState<any>("Monthly");
 
   if (!client) {
@@ -790,11 +791,14 @@ export default function Client360ProfilePage() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
               {client.client_name}
             </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Legal: <span className="font-medium text-slate-700">{client.legal_name}</span> &bull; Reference:{" "}
-              <span className="font-bold text-blue-700">{client.reference_name || "—"}</span> &bull; RM:{" "}
-              <span className="font-medium text-slate-700">{client.relationship_manager_name || "Unassigned"}</span> &bull; Onboarded: {formatDate(client.created_at)}
-            </p>
+            <div className="mt-2 space-y-1 text-xs text-slate-500">
+              <div>Legal: <span className="font-medium text-slate-700">{client.legal_name}</span></div>
+              {client.reference_name && (
+                <div>Reference: <span className="font-bold text-blue-700">{client.reference_name}</span></div>
+              )}
+              <div>RM: <span className="font-medium text-slate-700">{client.relationship_manager_name || "Unassigned"}</span></div>
+              <div>Onboarded: <span className="font-medium text-slate-700">{formatDate(client.created_at)}</span></div>
+            </div>
           </div>
         </div>
 
@@ -1090,8 +1094,8 @@ export default function Client360ProfilePage() {
                 {(client.contacts && client.contacts.length > 0
                   ? client.contacts
                   : client.contact
-                  ? [client.contact]
-                  : [
+                    ? [client.contact]
+                    : [
                       {
                         id: "fallback",
                         client_id: client.id,
@@ -1364,9 +1368,10 @@ export default function Client360ProfilePage() {
                     <input
                       type="number"
                       value={agreedFee}
-                      onChange={(e) => setAgreedFee(Number(e.target.value))}
+                      onChange={(e) => setAgreedFee(e.target.value)}
                       disabled={availableCatalogServices.length === 0}
                       className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs"
+                      placeholder="Agreed Fee"
                       required
                     />
                   </div>
@@ -1725,124 +1730,124 @@ export default function Client360ProfilePage() {
         {/* 9. FINANCE & PAYMENTS TAB (Admin Only) */}
         {!isEmployee && (
           <TabsContent value="finance" className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="border-l-4 border-l-blue-600">
-              <CardContent className="p-4">
-                <span className="text-xs text-slate-500 font-semibold uppercase">Total Invoiced</span>
-                <div className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(client.total_invoiced_amount || 0)}</div>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-emerald-600">
-              <CardContent className="p-4">
-                <span className="text-xs text-slate-500 font-semibold uppercase">Total Collected</span>
-                <div className="text-2xl font-bold text-emerald-700 mt-1">{formatCurrency(client.total_payments_received || 0)}</div>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-amber-500">
-              <CardContent className="p-4">
-                <span className="text-xs text-slate-500 font-semibold uppercase">Remaining Balance</span>
-                <div className="text-2xl font-bold text-amber-700 mt-1">{formatCurrency(client.outstanding_amount || 0)}</div>
-              </CardContent>
-            </Card>
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card className="border-l-4 border-l-blue-600">
+                <CardContent className="p-4">
+                  <span className="text-xs text-slate-500 font-semibold uppercase">Total Invoiced</span>
+                  <div className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(client.total_invoiced_amount || 0)}</div>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-emerald-600">
+                <CardContent className="p-4">
+                  <span className="text-xs text-slate-500 font-semibold uppercase">Total Collected</span>
+                  <div className="text-2xl font-bold text-emerald-700 mt-1">{formatCurrency(client.total_payments_received || 0)}</div>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-amber-500">
+                <CardContent className="p-4">
+                  <span className="text-xs text-slate-500 font-semibold uppercase">Remaining Balance</span>
+                  <div className="text-2xl font-bold text-amber-700 mt-1">{formatCurrency(client.outstanding_amount || 0)}</div>
+                </CardContent>
+              </Card>
+            </div>
 
-          <Card className="shadow-xs">
-            <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">Payment Receipts & Remittances ({clientPayments.length})</CardTitle>
-              <Link to={`/finance?action=record&clientId=${client.id}`}>
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1">
-                  <Plus className="h-3.5 w-3.5" /> Record Payment
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent className="p-5">
-              {clientPayments.length === 0 ? (
-                <p className="text-center py-8 text-xs text-slate-500">No payments recorded for this client yet.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {clientPayments.map((pay) => (
-                    <div key={pay.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-2.5 hover:border-neutral-900 transition-all">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
-                          {pay.payment_number}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <Badge variant="outline" className="text-[10px]">{pay.payment_mode}</Badge>
-                          <Badge variant="success" className="text-[10px]">{pay.status}</Badge>
+            <Card className="shadow-xs">
+              <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
+                <CardTitle className="text-base font-semibold">Payment Receipts & Remittances ({clientPayments.length})</CardTitle>
+                <Link to={`/finance?action=record&clientId=${client.id}`}>
+                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1">
+                    <Plus className="h-3.5 w-3.5" /> Record Payment
+                  </Button>
+                </Link>
+              </CardHeader>
+              <CardContent className="p-5">
+                {clientPayments.length === 0 ? (
+                  <p className="text-center py-8 text-xs text-slate-500">No payments recorded for this client yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {clientPayments.map((pay) => (
+                      <div key={pay.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-2.5 hover:border-neutral-900 transition-all">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                            {pay.payment_number}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className="text-[10px]">{pay.payment_mode}</Badge>
+                            <Badge variant="success" className="text-[10px]">{pay.status}</Badge>
+                          </div>
                         </div>
+                        <div className="text-lg font-extrabold text-slate-900">{formatCurrency(pay.amount)}</div>
+                        <div className="grid grid-cols-2 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
+                          <div>
+                            <span className="text-[10px] uppercase text-slate-400 block">Date</span>
+                            <span className="font-semibold text-slate-800">{formatDate(pay.payment_date)}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase text-slate-400 block">Txn Ref</span>
+                            <span className="font-mono font-semibold text-slate-800 truncate block">{pay.transaction_reference || "—"}</span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Received by {pay.received_by_name}</p>
                       </div>
-                      <div className="text-lg font-extrabold text-slate-900">{formatCurrency(pay.amount)}</div>
-                      <div className="grid grid-cols-2 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
-                        <div>
-                          <span className="text-[10px] uppercase text-slate-400 block">Date</span>
-                          <span className="font-semibold text-slate-800">{formatDate(pay.payment_date)}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] uppercase text-slate-400 block">Txn Ref</span>
-                          <span className="font-mono font-semibold text-slate-800 truncate block">{pay.transaction_reference || "—"}</span>
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-slate-500">Received by {pay.received_by_name}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         )}
 
         {/* 10. INVOICES TAB (Admin Only) */}
         {!isEmployee && (
           <TabsContent value="invoices">
-          <Card className="shadow-xs">
-            <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">Client Tax Invoices ({clientInvoices.length})</CardTitle>
-              <Link to={`/invoices/new?clientId=${client.id}`}>
-                <Button size="sm" className="bg-blue-600 text-white gap-1">
-                  <Plus className="h-3.5 w-3.5" /> Generate Invoice
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent className="p-5">
-              {clientInvoices.length === 0 ? (
-                <p className="text-center py-8 text-xs text-slate-500">No invoices generated yet.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {clientInvoices.map((inv) => (
-                    <div key={inv.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
-                          {inv.invoice_number}
-                        </span>
-                        <Badge variant={inv.status === "Paid" ? "success" : "warning"} className="text-[10px]">{inv.status}</Badge>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
-                        <div>
-                          <span className="text-[10px] uppercase text-slate-400 block">Total</span>
-                          <span className="font-bold text-slate-900">{formatCurrency(inv.grand_total)}</span>
+            <Card className="shadow-xs">
+              <CardHeader className="p-4 border-b border-slate-200 flex flex-row items-center justify-between">
+                <CardTitle className="text-base font-semibold">Client Tax Invoices ({clientInvoices.length})</CardTitle>
+                <Link to={`/invoices/new?clientId=${client.id}`}>
+                  <Button size="sm" className="bg-blue-600 text-white gap-1">
+                    <Plus className="h-3.5 w-3.5" /> Generate Invoice
+                  </Button>
+                </Link>
+              </CardHeader>
+              <CardContent className="p-5">
+                {clientInvoices.length === 0 ? (
+                  <p className="text-center py-8 text-xs text-slate-500">No invoices generated yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {clientInvoices.map((inv) => (
+                      <div key={inv.id} className="rounded-2xl border-[1.5px] border-slate-300 bg-white p-4 space-y-3 hover:border-neutral-900 transition-all">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                            {inv.invoice_number}
+                          </span>
+                          <Badge variant={inv.status === "Paid" ? "success" : "warning"} className="text-[10px]">{inv.status}</Badge>
                         </div>
-                        <div>
-                          <span className="text-[10px] uppercase text-slate-400 block">Paid</span>
-                          <span className="font-bold text-emerald-700">{formatCurrency(inv.paid_amount)}</span>
+                        <div className="grid grid-cols-3 gap-2 text-xs rounded-xl bg-slate-50 border border-slate-300 p-2.5">
+                          <div>
+                            <span className="text-[10px] uppercase text-slate-400 block">Total</span>
+                            <span className="font-bold text-slate-900">{formatCurrency(inv.grand_total)}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase text-slate-400 block">Paid</span>
+                            <span className="font-bold text-emerald-700">{formatCurrency(inv.paid_amount)}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase text-slate-400 block">Balance</span>
+                            <span className="font-bold text-amber-700">{formatCurrency(inv.outstanding_balance)}</span>
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-[10px] uppercase text-slate-400 block">Balance</span>
-                          <span className="font-bold text-amber-700">{formatCurrency(inv.outstanding_balance)}</span>
+                        <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200">
+                          <span className="text-slate-500">Due {formatDate(inv.due_date)}</span>
+                          <Link to={`/invoices/${inv.id}`}>
+                            <Button variant="outline" size="sm" className="h-7 text-xs border-slate-300">View / PDF</Button>
+                          </Link>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200">
-                        <span className="text-slate-500">Due {formatDate(inv.due_date)}</span>
-                        <Link to={`/invoices/${inv.id}`}>
-                          <Button variant="outline" size="sm" className="h-7 text-xs border-slate-300">View / PDF</Button>
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         )}
 
@@ -2330,9 +2335,8 @@ export default function Client360ProfilePage() {
                           ) : (
                             <div
                               key={cnt.id || idx}
-                              className={`p-3 rounded-lg border text-xs space-y-2 relative transition-colors ${
-                                cnt.is_primary ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border-slate-200"
-                              }`}
+                              className={`p-3 rounded-lg border text-xs space-y-2 relative transition-colors ${cnt.is_primary ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border-slate-200"
+                                }`}
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div>
@@ -2986,9 +2990,8 @@ export default function Client360ProfilePage() {
                           ) : (
                             <div
                               key={acc.id || idx}
-                              className={`p-3 rounded-lg border text-xs space-y-2 relative transition-colors ${
-                                acc.is_primary ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border-slate-200"
-                              }`}
+                              className={`p-3 rounded-lg border text-xs space-y-2 relative transition-colors ${acc.is_primary ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border-slate-200"
+                                }`}
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div>

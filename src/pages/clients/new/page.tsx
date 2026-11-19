@@ -135,7 +135,7 @@ export default function NewClientOnboardingPage() {
   // Section E — Retainer Services & Subscription Plan
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [retainerFrequency, setRetainerFrequency] = useState<BillingFrequency>("Monthly");
-  const [retainerFee, setRetainerFee] = useState<number>(0);
+  const [retainerFee, setRetainerFee] = useState<number | string>("");
   const [retainerStartDate, setRetainerStartDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -147,7 +147,7 @@ export default function NewClientOnboardingPage() {
     setSelectedServiceId(serviceId);
     const match = availableServices.find((s) => s.id === serviceId);
     if (match) {
-      setRetainerFee(match.default_fee);
+      setRetainerFee(match.default_fee !== undefined ? match.default_fee : "");
       setRetainerFrequency(match.billing_type === "One-time" ? "One-time" : "Monthly");
     }
   };
@@ -162,7 +162,8 @@ export default function NewClientOnboardingPage() {
       toast.error(`Service "${srv.service_name}" has already been added.`);
       return;
     }
-    if (retainerFee < 0 || Number.isNaN(Number(retainerFee))) {
+    const parsedFee = retainerFee === "" ? 0 : Number(retainerFee);
+    if (parsedFee < 0 || Number.isNaN(parsedFee)) {
       toast.error("Please enter a valid agreed fee.");
       return;
     }
@@ -174,7 +175,7 @@ export default function NewClientOnboardingPage() {
       service_name: srv.service_name,
       default_gst_rate: srv.default_gst_rate,
       billing_frequency: retainerFrequency,
-      agreed_fee: Number(retainerFee),
+      agreed_fee: parsedFee,
       start_date: retainerStartDate,
       end_date: retainerEndDate,
       payment_terms: retainerPaymentTerms,
@@ -182,7 +183,7 @@ export default function NewClientOnboardingPage() {
 
     setSelectedRetainers((prev) => [...prev, newItem]);
     setSelectedServiceId("");
-    setRetainerFee(0);
+    setRetainerFee("");
     toast.success(`Added "${srv.service_name}" to selected retainers.`);
   };
 
@@ -795,7 +796,7 @@ export default function NewClientOnboardingPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end bg-slate-50/70 p-3.5 rounded-xl border border-slate-200">
-                <div className="lg:col-span-3 space-y-1">
+                <div className="lg:col-span-2 space-y-1">
                   <Label className="text-[11px] font-semibold text-slate-600">Address Type</Label>
                   <select
                     value={addressType}
@@ -838,14 +839,14 @@ export default function NewClientOnboardingPage() {
                   />
                 </div>
 
-                <div className="lg:col-span-1 space-y-1">
+                <div className="lg:col-span-2 space-y-1">
                   <Label className="text-[11px] font-semibold text-slate-600">PIN Code</Label>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <Input
                       placeholder="110001"
                       value={pinCode}
                       onChange={(e) => setPinCode(e.target.value)}
-                      className="h-9 text-xs bg-white w-20"
+                      className="h-9 text-xs bg-white flex-1 min-w-0"
                     />
                     <Button
                       type="button"
@@ -1374,8 +1375,8 @@ export default function NewClientOnboardingPage() {
                     type="number"
                     min={0}
                     value={retainerFee}
-                    onChange={(e) => setRetainerFee(Number(e.target.value))}
-                    placeholder="15000"
+                    onChange={(e) => setRetainerFee(e.target.value)}
+                    placeholder="Agreed Fee"
                     className="h-10 text-sm font-semibold"
                   />
                 </div>

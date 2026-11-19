@@ -200,6 +200,13 @@ export default function VaultPage() {
   const [selectedClientKey, setSelectedClientKey] = useState<string | null>(searchParams.get("client") || null);
   const [viewMode, setViewMode] = useState<"drilldown" | "table">("drilldown");
   const [categoryViewMode, setCategoryViewMode] = useState<"list" | "grid">("list");
+  const [categoriesViewMode, setCategoriesViewMode] = useState<"grid" | "list">("grid");
+
+  // Manage Client Password Access Modal State (Admin only)
+  const [isClientAccessModalOpen, setIsClientAccessModalOpen] = useState(false);
+  const [accessTargetClient, setAccessTargetClient] = useState<{ id?: string; name: string; code?: string } | null>(null);
+  const [clientAssignedEmpIds, setClientAssignedEmpIds] = useState<string[]>([]);
+  const [isSavingAccess, setIsSavingAccess] = useState(false);
 
   // Keep URL in sync
   useEffect(() => {
@@ -284,7 +291,9 @@ export default function VaultPage() {
   // Check if current user has permission to access a specific credential
   const canAccessCredential = (cred: VaultCredential): boolean => {
     if (isAdmin) return true;
-    if (!cred.assigned_employee_ids || cred.assigned_employee_ids.length === 0) return true;
+    if (!currentUser?.id) return false;
+    // Ordinary employees can only see passwords if an admin has explicitly granted access to them
+    if (!cred.assigned_employee_ids || cred.assigned_employee_ids.length === 0) return false;
     return cred.assigned_employee_ids.includes(currentUser.id);
   };
 
@@ -488,20 +497,78 @@ export default function VaultPage() {
     }
   };
 
-  // Delete Category
+  // Delete Category (Admins can delete any category, including default ones)
   const handleDeleteCategory = async (cat: VaultCategoryItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (cat.is_system) {
-      toast.error("System default categories cannot be removed.");
+    if (!isAdmin) {
+      toast.error("Only administrators can delete categories.");
       return;
     }
     if (confirm(`Delete category "${cat.name}"? Credentials in this category will remain preserved.`)) {
       await pmsStore.deleteVaultCategory(cat.id);
-      if (selectedCategoryId === cat.id) {
+      if (selectedCategoryId === cat.id || selectedCategoryId === cat.name) {
         setSelectedCategoryId(null);
         setSelectedClientKey(null);
       }
       toast.success(`Removed category "${cat.name}".`);
+    }
+  };
+
+  // Open Manage Client Password Access Modal
+  const handleOpenClientAccessModal = (clientId?: string, clientName?: string, clientCode?: string) => {
+    if (!isAdmin) return;
+    const name = clientName || "General Client";
+    const matchedClient = clientId ? clients.find((c) => c.id === clientId) : undefined;
+    const targetCode = clientCode || matchedClient?.client_code;
+    setAccessTargetClient({ id: clientId, name, code: targetCode });
+
+    // Collect currently assigned employee IDs across credentials for this client
+    const targetCreds = credentials.filter((c) => {
+      if (clientId && c.client_id === clientId) return true;
+      return (c.client_name || "").toLowerCase().trim() === name.toLowerCase().trim();
+    });
+
+    const commonAssigned = new Set<string>();
+    targetCreds.forEach((c) => {
+      c.assigned_employee_ids?.forEach((id) => commonAssigned.add(id));
+    });
+
+    setClientAssignedEmpIds(Array.from(commonAssigned));
+    setIsClientAccessModalOpen(true);
+  };
+
+  // Submit Client Password Access (Applies to all credentials under this client)
+  const handleSaveClientAccess = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accessTargetClient) return;
+
+    setIsSavingAccess(true);
+    try {
+      const targetCreds = credentials.filter((c) => {
+        if (accessTargetClient.id && c.client_id === accessTargetClient.id) return true;
+        return (c.client_name || "").toLowerCase().trim() === accessTargetClient.name.toLowerCase().trim();
+      });
+
+      const assignedNames = employees
+        .filter((emp) => clientAssignedEmpIds.includes(emp.id))
+        .map((emp) => emp.full_name)
+        .join(", ");
+
+      for (const cred of targetCreds) {
+        await pmsStore.updateVaultCredential(cred.id, {
+          assigned_employee_ids: clientAssignedEmpIds,
+          assigned_employee_names: assignedNames || undefined,
+        });
+      }
+
+      toast.success(
+        `Updated password access for "${accessTargetClient.name}" (${clientAssignedEmpIds.length} employee(s) authorized).`
+      );
+      setIsClientAccessModalOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update password access.");
+    } finally {
+      setIsSavingAccess(false);
     }
   };
 
@@ -806,7 +873,7 @@ export default function VaultPage() {
     }
   };
 
-  // Export Vault (Admin only, Excel format with decrypted passwords)
+  // Export Vault (Admin only, Excel format with dedicated sheet per category)
   const handleExportVault = async () => {
     if (!isAdmin) {
       toast.error("Security policy: Only Super Admins / Practice Admins can export Vault data.");
@@ -815,52 +882,78 @@ export default function VaultPage() {
 
     try {
       const XLSX = await import("xlsx");
-      const exportRows = await Promise.all(
-        credentials.map(async (c) => {
-          let plainPw = "••••••••";
-          try {
-            plainPw = await decryptVaultPassword(c.password_encrypted);
-          } catch {
-            plainPw = "[Encrypted]";
-          }
-          return {
-            "Portal Name": c.portal_name,
-            "Category": c.category,
-            "Client Name": c.client_name || "—",
-            "Login URL": c.login_url || "—",
-            "Username / Login ID": c.username,
-            "Password": plainPw,
-            "Registered Email": c.registered_email || "—",
-            "Registered Mobile (OTP)": c.registered_mobile || "—",
-            "Account Holder": c.account_holder_name || "—",
-            "Assigned Employees": c.assigned_employee_names || "All Authorized",
-            "Notes": c.notes || "",
-            "Last Changed": c.last_password_changed_at ? new Date(c.last_password_changed_at).toLocaleDateString() : "—",
-          };
-        })
-      );
+      const wb = XLSX.utils.book_new();
 
-      const ws = XLSX.utils.json_to_sheet(exportRows);
-      const colWidths = [
+      const formatCredentialRow = async (c: VaultCredential) => {
+        let plainPw = "••••••••";
+        try {
+          plainPw = await decryptVaultPassword(c.password_encrypted);
+        } catch {
+          plainPw = "[Encrypted]";
+        }
+        const regClient = c.client_id ? clients.find((cl) => cl.id === c.client_id) : undefined;
+        return {
+          "Client Code": regClient?.client_code || "—",
+          "Client Name": c.client_name || regClient?.client_name || "—",
+          "Portal Name": c.portal_name,
+          "Category": c.category || "General",
+          "Login URL": c.login_url || "—",
+          "Username / Login ID": c.username,
+          "Password": plainPw,
+          "Registered Email": c.registered_email || "—",
+          "Registered Mobile (OTP)": c.registered_mobile || "—",
+          "Account Holder": c.account_holder_name || "—",
+          "Authorized Employees": c.assigned_employee_names || (c.assigned_employee_ids?.length ? `${c.assigned_employee_ids.length} employee(s)` : "Admin Only"),
+          "Notes": c.notes || "",
+          "Last Changed": c.last_password_changed_at ? new Date(c.last_password_changed_at).toLocaleDateString() : "—",
+        };
+      };
+
+      const defaultColWidths = [
+        { wch: 18 },
+        { wch: 30 },
         { wch: 25 },
         { wch: 20 },
-        { wch: 30 },
         { wch: 35 },
         { wch: 25 },
         { wch: 25 },
         { wch: 30 },
-        { wch: 20 },
-        { wch: 25 },
-        { wch: 25 },
+        { wch: 22 },
+        { wch: 24 },
+        { wch: 28 },
         { wch: 30 },
-        { wch: 15 },
+        { wch: 16 },
       ];
-      ws["!cols"] = colWidths;
 
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Vault Passwords");
-      XLSX.writeFile(wb, `Linear_Audit_Vault_Passwords_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      toast.success(`Exported ${exportRows.length} credentials to Excel successfully.`);
+      // 1. MASTER SUMMARY SHEET: All Credentials
+      const allRows = await Promise.all(credentials.map((c) => formatCredentialRow(c)));
+      const masterWs = XLSX.utils.json_to_sheet(allRows);
+      masterWs["!cols"] = defaultColWidths;
+      XLSX.utils.book_append_sheet(wb, masterWs, "All Credentials");
+
+      // 2. CATEGORY SHEETS: One page/tab per category with all client credentials
+      const usedSheetNames = new Set<string>(["All Credentials"]);
+
+      for (const cat of categories) {
+        const catCreds = credentials.filter((c) => isCredInCategory(c, cat));
+        if (catCreds.length === 0) continue;
+
+        const catRows = await Promise.all(catCreds.map((c) => formatCredentialRow(c)));
+        const catWs = XLSX.utils.json_to_sheet(catRows);
+        catWs["!cols"] = defaultColWidths;
+
+        // Clean & truncate sheet name (Excel maximum is 31 chars and disallows: \ / ? * [ ])
+        let sheetName = cat.name.replace(/[\\/?*[\]:]/g, " ").trim().slice(0, 30) || cat.code || "Category";
+        if (usedSheetNames.has(sheetName)) {
+          sheetName = `${cat.code || "CAT"}_${sheetName}`.slice(0, 30);
+        }
+        usedSheetNames.add(sheetName);
+
+        XLSX.utils.book_append_sheet(wb, catWs, sheetName);
+      }
+
+      XLSX.writeFile(wb, `Linear_Audit_Vault_Categorized_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success(`Exported ${credentials.length} credentials across category pages to Excel.`);
     } catch (err: any) {
       toast.error(err?.message || "Failed to generate Excel export.");
     }
@@ -1166,105 +1259,246 @@ export default function VaultPage() {
                     className="pl-9 h-9 text-xs rounded-2xl border-slate-300"
                   />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <span className="text-xs text-slate-500 font-medium">
-                    Select a category to view its clients and credentials
+                    {categories.length} {categories.length === 1 ? "Category" : "Categories"}
                   </span>
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesViewMode("list")}
+                      className={`p-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        categoriesViewMode === "list" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                      title="List View"
+                    >
+                      <List className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesViewMode("grid")}
+                      className={`p-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        categoriesViewMode === "grid" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                      title="Grid View"
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {isAdmin && (
+                    <Button
+                      onClick={handleOpenCreateCategoryModal}
+                      size="sm"
+                      className="bg-neutral-900 hover:bg-black text-white rounded-xl gap-1.5 text-xs font-bold"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Add Category</span>
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {categories
-                  .filter((cat) => {
-                    if (!search.trim()) return true;
-                    const q = search.trim().toLowerCase();
-                    return (
-                      cat.name.toLowerCase().includes(q) ||
-                      cat.code.toLowerCase().includes(q) ||
-                      (cat.description && cat.description.toLowerCase().includes(q))
-                    );
-                  })
-                  .map((cat) => {
-                    const theme = getCategoryColorTheme(cat.color);
-                    const IconComponent = getCategoryIcon(cat.icon || cat.name);
+              {categoriesViewMode === "list" ? (
+                /* Category List View (Structured Table) */
+                <Card className="rounded-2xl border-slate-200 shadow-xs overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-600">
+                      <thead className="bg-slate-50 text-[11px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                        <tr>
+                          <th className="py-3 px-4">Code</th>
+                          <th className="py-3 px-4">Category Name</th>
+                          <th className="py-3 px-4">Description</th>
+                          <th className="py-3 px-4 text-center">Clients</th>
+                          <th className="py-3 px-4 text-center">Logins</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {categories
+                          .filter((cat) => {
+                            if (!search.trim()) return true;
+                            const q = search.trim().toLowerCase();
+                            return (
+                              cat.name.toLowerCase().includes(q) ||
+                              cat.code.toLowerCase().includes(q) ||
+                              (cat.description && cat.description.toLowerCase().includes(q))
+                            );
+                          })
+                          .map((cat) => {
+                            const theme = getCategoryColorTheme(cat.color);
+                            const credsInCat = credentials.filter((c) => isCredInCategory(c, cat));
+                            const clientCount = new Set(credsInCat.map((c) => c.client_name || c.client_id).filter(Boolean)).size;
 
-                    // Count credentials & clients in this category
-                    const credsInCat = credentials.filter((c) => isCredInCategory(c, cat));
-                    const clientCount = new Set(credsInCat.map((c) => c.client_name || c.client_id).filter(Boolean)).size;
+                            return (
+                              <tr
+                                key={cat.id}
+                                onClick={() => {
+                                  setSelectedCategoryId(cat.id);
+                                  setSelectedClientKey(null);
+                                }}
+                                className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                              >
+                                <td className="py-3 px-4">
+                                  <Badge variant="outline" className={`text-[10px] font-mono font-bold ${theme.badge}`}>
+                                    {cat.code}
+                                  </Badge>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors block text-sm">
+                                    {cat.name}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="text-slate-500 text-xs line-clamp-1 max-w-md">
+                                    {cat.description || "—"}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className="font-semibold text-slate-700">
+                                    {clientCount}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <Badge variant="secondary" className="text-[10px] font-bold">
+                                    {credsInCat.length}
+                                  </Badge>
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setSelectedCategoryId(cat.id);
+                                        setSelectedClientKey(null);
+                                      }}
+                                      className="h-7 text-xs rounded-xl text-slate-700 hover:text-blue-600"
+                                    >
+                                      Open
+                                    </Button>
+                                    {isAdmin && (
+                                      <>
+                                        <button
+                                          onClick={(e) => handleOpenEditCategoryModal(cat, e)}
+                                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                                          title="Edit category"
+                                        >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => handleDeleteCategory(cat, e)}
+                                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                          title="Delete category"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              ) : (
+                /* Category Grid View */
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {categories
+                    .filter((cat) => {
+                      if (!search.trim()) return true;
+                      const q = search.trim().toLowerCase();
+                      return (
+                        cat.name.toLowerCase().includes(q) ||
+                        cat.code.toLowerCase().includes(q) ||
+                        (cat.description && cat.description.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((cat) => {
+                      const theme = getCategoryColorTheme(cat.color);
+                      const IconComponent = getCategoryIcon(cat.icon || cat.name);
 
-                    return (
-                      <div
-                        key={cat.id}
-                        onClick={() => {
-                          setSelectedCategoryId(cat.id);
-                          setSelectedClientKey(null);
-                        }}
-                        className={`rounded-2xl border-[1.5px] border-slate-200 bg-white p-5 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between group ${theme.border}`}
-                      >
-                        <div>
-                          {/* Top Row: Icon, Code Badge, Actions */}
-                          <div className="flex items-start justify-between gap-2 mb-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className={`h-10 w-10 rounded-2xl flex items-center justify-center font-bold ${theme.iconBg}`}>
-                                <IconComponent className="h-5 w-5" />
+                      // Count credentials & clients in this category
+                      const credsInCat = credentials.filter((c) => isCredInCategory(c, cat));
+                      const clientCount = new Set(credsInCat.map((c) => c.client_name || c.client_id).filter(Boolean)).size;
+
+                      return (
+                        <div
+                          key={cat.id}
+                          onClick={() => {
+                            setSelectedCategoryId(cat.id);
+                            setSelectedClientKey(null);
+                          }}
+                          className={`rounded-2xl border-[1.5px] border-slate-200 bg-white p-5 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between group ${theme.border}`}
+                        >
+                          <div>
+                            {/* Top Row: Icon, Code Badge, Actions */}
+                            <div className="flex items-start justify-between gap-2 mb-3">
+                              <div className="flex items-center gap-2.5">
+                                <div className={`h-10 w-10 rounded-2xl flex items-center justify-center font-bold ${theme.iconBg}`}>
+                                  <IconComponent className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <Badge variant="outline" className={`text-[10px] font-mono font-bold ${theme.badge}`}>
+                                    {cat.code}
+                                  </Badge>
+                                </div>
                               </div>
-                              <div>
-                                <Badge variant="outline" className={`text-[10px] font-mono font-bold ${theme.badge}`}>
-                                  {cat.code}
-                                </Badge>
-                              </div>
+
+                              {/* Category Edit / Delete Actions (Admins can edit/delete ANY category) */}
+                              {isAdmin && (
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={(e) => handleOpenEditCategoryModal(cat, e)}
+                                    className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                                    title="Edit category"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => handleDeleteCategory(cat, e)}
+                                    className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                    title="Delete category"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
 
-                            {/* Custom Category Edit / Delete Actions */}
-                            {isAdmin && !cat.is_system && (
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={(e) => handleOpenEditCategoryModal(cat, e)}
-                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-                                  title="Edit category"
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </button>
-                                <button
-                                  onClick={(e) => handleDeleteCategory(cat, e)}
-                                  className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                                  title="Delete category"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                            )}
+                            {/* Category Title & Description */}
+                            <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                              {cat.name}
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                              {cat.description || "Secure portals and client logins"}
+                            </p>
                           </div>
 
-                          {/* Category Title & Description */}
-                          <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                            {cat.name}
-                          </h3>
-                          <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
-                            {cat.description || "Secure portals and client logins"}
-                          </p>
-                        </div>
+                          {/* Bottom Stats Footer */}
+                          <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-3">
+                              <span className="font-semibold text-slate-700">
+                                {clientCount} {clientCount === 1 ? "Client" : "Clients"}
+                              </span>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-slate-500 font-medium">
+                                {credsInCat.length} {credsInCat.length === 1 ? "Login" : "Logins"}
+                              </span>
+                            </div>
 
-                        {/* Bottom Stats Footer */}
-                        <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-3">
-                            <span className="font-semibold text-slate-700">
-                              {clientCount} {clientCount === 1 ? "Client" : "Clients"}
-                            </span>
-                            <span className="text-slate-300">•</span>
-                            <span className="text-slate-500 font-medium">
-                              {credsInCat.length} {credsInCat.length === 1 ? "Login" : "Logins"}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all">
-                            <ChevronRight className="h-4 w-4" />
+                            <div className="flex items-center text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all">
+                              <ChevronRight className="h-4 w-4" />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-              </div>
+                      );
+                    })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1300,19 +1534,19 @@ export default function VaultPage() {
                     className="bg-neutral-900 hover:bg-black text-white rounded-xl gap-1.5 text-xs font-bold"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    <span>+ Add Client to Category</span>
+                    <span>Add Client to Category</span>
                   </Button>
                 </div>
               </div>
 
               {/* Category Header Banner */}
-              <div className="rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-white p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+              <div className="rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 !text-white text-white p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
                 <div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs bg-white/10 text-white border-white/20">
                       {currentCategory.code}
                     </Badge>
-                    <h2 className="text-xl font-bold">{currentCategory.name}</h2>
+                    <h2 className="text-xl font-bold !text-white text-white">{currentCategory.name}</h2>
                   </div>
                   <p className="text-xs text-slate-300 mt-1 max-w-xl">
                     {currentCategory.description || "Manage all client credentials stored under this category."}
@@ -1461,6 +1695,22 @@ export default function VaultPage() {
                             </td>
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
+                                {isAdmin && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenClientAccessModal(cl.client_id, cl.client_name, cl.client_code);
+                                    }}
+                                    className="h-7 text-xs rounded-xl gap-1 text-blue-700 border-blue-200 hover:bg-blue-50"
+                                    title="Manage Password Access"
+                                  >
+                                    <ShieldCheck className="h-3 w-3" />
+                                    <span>Access</span>
+                                  </Button>
+                                )}
                                 <Button
                                   type="button"
                                   size="sm"
@@ -1558,6 +1808,18 @@ export default function VaultPage() {
                         </span>
 
                         <div className="flex items-center gap-1">
+                          {isAdmin && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenClientAccessModal(cl.client_id, cl.client_name, cl.client_code);
+                              }}
+                              className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md"
+                              title="Manage Password Access"
+                            >
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1600,6 +1862,23 @@ export default function VaultPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {isAdmin && (
+                    <Button
+                      onClick={() =>
+                        handleOpenClientAccessModal(
+                          currentClient.client_id,
+                          currentClient.client_name,
+                          currentClient.client_code
+                        )
+                      }
+                      size="sm"
+                      variant="outline"
+                      className="border-blue-200 text-blue-700 hover:bg-blue-50 rounded-xl gap-1.5 text-xs font-semibold"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      <span>Manage Access</span>
+                    </Button>
+                  )}
                   <Button
                     onClick={() => handleOpenCreateModal(currentClient.client_id, currentClient.client_name)}
                     size="sm"
@@ -1992,7 +2271,7 @@ export default function VaultPage() {
                 Cancel
               </Button>
               <Button type="submit" className="bg-neutral-900 text-white">
-                Confirm & Add Client
+                Submit
               </Button>
             </DialogFooter>
           </form>
@@ -2158,6 +2437,28 @@ export default function VaultPage() {
               </div>
             </div>
 
+            {/* Access Permissions: Authorized Employees (Admin only) */}
+            {isAdmin && (
+              <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-800 text-xs flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-blue-600" />
+                    Authorized Employees (Password Access)
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    Only selected employees can view/copy
+                  </span>
+                </div>
+                <EmployeeMultiSelect
+                  employees={employees}
+                  selectedEmployeeIds={formAssignedEmpIds}
+                  onChange={(ids) => setFormAssignedEmpIds(ids)}
+                  label=""
+                  placeholder="Select employees who can view this password..."
+                />
+              </div>
+            )}
+
             {/* Notes */}
             <div className="space-y-1.5">
               <label className="font-semibold text-slate-700">Internal Security Notes & Instructions</label>
@@ -2175,6 +2476,53 @@ export default function VaultPage() {
               </Button>
               <Button type="submit" disabled={isSaving} className="bg-neutral-900 text-white">
                 {isSaving ? "Encrypting & Storing..." : editingCred ? "Update Credential" : "Save Credential"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===================================================================== */}
+      {/* MODAL: MANAGE CLIENT PASSWORD ACCESS (ADMIN ONLY) */}
+      {/* ===================================================================== */}
+      <Dialog open={isClientAccessModalOpen} onOpenChange={setIsClientAccessModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-blue-600" />
+              Manage Password Access — {accessTargetClient?.name}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Select employees who are authorized to view and copy passwords for this client. Other employees cannot see or copy credentials for this client.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveClientAccess} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700">Authorized Employees</label>
+                <span className="text-[10px] text-blue-600 font-bold">
+                  {clientAssignedEmpIds.length} employee(s) selected
+                </span>
+              </div>
+              <EmployeeMultiSelect
+                employees={employees}
+                selectedEmployeeIds={clientAssignedEmpIds}
+                onChange={(ids) => setClientAssignedEmpIds(ids)}
+                label=""
+                placeholder="Choose employees who can see passwords..."
+              />
+              <p className="text-[10px] text-slate-500 leading-relaxed pt-1">
+                Admins always retain full access. Ordinary employees can only view or copy client passwords after an administrator explicitly grants them access here.
+              </p>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsClientAccessModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSavingAccess} className="bg-neutral-900 text-white">
+                {isSavingAccess ? "Saving Permissions..." : "Save Password Access"}
               </Button>
             </DialogFooter>
           </form>
