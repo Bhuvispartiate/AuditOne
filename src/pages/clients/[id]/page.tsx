@@ -29,6 +29,8 @@ import {
   MessageSquare,
   Trash2,
   Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,6 +157,19 @@ export default function Client360ProfilePage() {
   const [newBranchName, setNewBranchName] = useState("");
   const [newUpiId, setNewUpiId] = useState("");
 
+  // Inline edit states for existing items in Edit Client Modal
+  const [editingContactIndex, setEditingContactIndex] = useState<number | null>(null);
+  const [editContactDraft, setEditContactDraft] = useState<Partial<ClientContact> | null>(null);
+
+  const [editingAddressIndex, setEditingAddressIndex] = useState<number | null>(null);
+  const [editAddressDraft, setEditAddressDraft] = useState<Partial<ClientAddress> | null>(null);
+
+  const [editingExtraRegIndex, setEditingExtraRegIndex] = useState<number | null>(null);
+  const [editExtraRegDraft, setEditExtraRegDraft] = useState<{ type: string; value: string; date_of_registration?: string; status?: "Active" | "Inactive"; remarks?: string } | null>(null);
+
+  const [editingBankIndex, setEditingBankIndex] = useState<number | null>(null);
+  const [editBankDraft, setEditBankDraft] = useState<Partial<ClientBankAccount> | null>(null);
+
   const handleOpenEditModal = (initialTab = "basic") => {
     if (!client) return;
     setEditTab(initialTab);
@@ -214,6 +229,15 @@ export default function Client360ProfilePage() {
     setNewIfscCode("");
     setNewBranchName("");
     setNewUpiId("");
+
+    setEditingContactIndex(null);
+    setEditContactDraft(null);
+    setEditingAddressIndex(null);
+    setEditAddressDraft(null);
+    setEditingExtraRegIndex(null);
+    setEditExtraRegDraft(null);
+    setEditingBankIndex(null);
+    setEditBankDraft(null);
 
     setIsEditModalOpen(true);
   };
@@ -365,6 +389,98 @@ export default function Client360ProfilePage() {
         is_primary: i === index,
       }))
     );
+  };
+
+  // Inline Contact edit
+  const handleStartEditContact = (index: number) => {
+    setEditingContactIndex(index);
+    setEditContactDraft({ ...editContacts[index] });
+  };
+  const handleSaveContactEdit = () => {
+    if (editingContactIndex === null || !editContactDraft) return;
+    if (!editContactDraft.contact_person?.trim()) {
+      toast.error("Contact person name is required.");
+      return;
+    }
+    setEditContacts((prev) =>
+      prev.map((c, i) => (i === editingContactIndex ? { ...c, ...editContactDraft } as ClientContact : c))
+    );
+    setEditingContactIndex(null);
+    setEditContactDraft(null);
+    toast.success("Contact updated.");
+  };
+  const handleCancelContactEdit = () => {
+    setEditingContactIndex(null);
+    setEditContactDraft(null);
+  };
+
+  // Inline Address edit
+  const handleStartEditAddress = (index: number) => {
+    setEditingAddressIndex(index);
+    setEditAddressDraft({ ...editAddresses[index] });
+  };
+  const handleSaveAddressEdit = () => {
+    if (editingAddressIndex === null || !editAddressDraft) return;
+    if (!editAddressDraft.street_address?.trim() && !editAddressDraft.city?.trim()) {
+      toast.error("Street address or city is required.");
+      return;
+    }
+    setEditAddresses((prev) =>
+      prev.map((a, i) => (i === editingAddressIndex ? { ...a, ...editAddressDraft } as ClientAddress : a))
+    );
+    setEditingAddressIndex(null);
+    setEditAddressDraft(null);
+    toast.success("Address updated.");
+  };
+  const handleCancelAddressEdit = () => {
+    setEditingAddressIndex(null);
+    setEditAddressDraft(null);
+  };
+
+  // Inline Statutory Registration edit
+  const handleStartEditExtraReg = (index: number) => {
+    setEditingExtraRegIndex(index);
+    setEditExtraRegDraft({ ...editExtraRegs[index] });
+  };
+  const handleSaveExtraRegEdit = () => {
+    if (editingExtraRegIndex === null || !editExtraRegDraft) return;
+    if (!editExtraRegDraft.value?.trim()) {
+      toast.error("Registration / Identifier number is required.");
+      return;
+    }
+    setEditExtraRegs((prev) =>
+      prev.map((r, i) => (i === editingExtraRegIndex ? { ...r, ...editExtraRegDraft } : r))
+    );
+    setEditingExtraRegIndex(null);
+    setEditExtraRegDraft(null);
+    toast.success("Identifier updated.");
+  };
+  const handleCancelExtraRegEdit = () => {
+    setEditingExtraRegIndex(null);
+    setEditExtraRegDraft(null);
+  };
+
+  // Inline Bank Account edit
+  const handleStartEditBank = (index: number) => {
+    setEditingBankIndex(index);
+    setEditBankDraft({ ...editBankAccounts[index] });
+  };
+  const handleSaveBankEdit = () => {
+    if (editingBankIndex === null || !editBankDraft) return;
+    if (!editBankDraft.bank_name?.trim() || !editBankDraft.account_number?.trim() || !editBankDraft.ifsc_code?.trim()) {
+      toast.error("Bank name, account number, and IFSC code are required.");
+      return;
+    }
+    setEditBankAccounts((prev) =>
+      prev.map((b, i) => (i === editingBankIndex ? { ...b, ...editBankDraft } as ClientBankAccount : b))
+    );
+    setEditingBankIndex(null);
+    setEditBankDraft(null);
+    toast.success("Bank account updated.");
+  };
+  const handleCancelBankEdit = () => {
+    setEditingBankIndex(null);
+    setEditBankDraft(null);
   };
 
   const handleSaveClientEdit = async (e: React.FormEvent) => {
@@ -533,6 +649,13 @@ export default function Client360ProfilePage() {
       )
     : clientEngagementsAll;
 
+  // Available catalog services not yet subscribed
+  const availableCatalogServices = React.useMemo(() => {
+    return allServices.filter(
+      (srv) => !engagements.some((eng) => eng.service_id === srv.id)
+    );
+  }, [allServices, engagements]);
+
   const clientInvoices = isEmployee
     ? []
     : pmsStore.getInvoices().filter((i) => i.client_id === clientId);
@@ -605,7 +728,15 @@ export default function Client360ProfilePage() {
   const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault();
     const service = allServices.find((s) => s.id === selectedServiceId);
-    if (!service) return;
+    if (!service) {
+      toast.error("Please select a valid service.");
+      return;
+    }
+
+    if (engagements.some((eng) => eng.service_id === service.id)) {
+      toast.error(`Service "${service.service_name}" is already subscribed to this client.`);
+      return;
+    }
 
     const { project, tasks: createdTasks } = await pmsStore.addServiceEngagementCascade({
       client_id: client.id,
@@ -660,7 +791,8 @@ export default function Client360ProfilePage() {
               {client.client_name}
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              Legal: <span className="font-medium text-slate-700">{client.legal_name}</span> &bull; RM:{" "}
+              Legal: <span className="font-medium text-slate-700">{client.legal_name}</span> &bull; Reference:{" "}
+              <span className="font-bold text-blue-700">{client.reference_name || "—"}</span> &bull; RM:{" "}
               <span className="font-medium text-slate-700">{client.relationship_manager_name || "Unassigned"}</span> &bull; Onboarded: {formatDate(client.created_at)}
             </p>
           </div>
@@ -808,6 +940,10 @@ export default function Client360ProfilePage() {
                 <div>
                   <span className="font-semibold text-slate-500 block">Category / Sector</span>
                   <p className="text-slate-800 text-sm mt-0.5">{client.category || "General Services"}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-500 block">Reference Name</span>
+                  <p className="text-slate-800 text-sm font-semibold mt-0.5 text-blue-700">{client.reference_name || "—"}</p>
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500 block">Nature of Income</span>
@@ -1206,16 +1342,21 @@ export default function Client360ProfilePage() {
                       value={selectedServiceId}
                       onChange={(e) => {
                         setSelectedServiceId(e.target.value);
-                        const s = allServices.find((srv) => srv.id === e.target.value);
+                        const s = availableCatalogServices.find((srv) => srv.id === e.target.value);
                         if (s) setAgreedFee(s.default_fee);
                       }}
-                      className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                      disabled={availableCatalogServices.length === 0}
+                      className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none font-sans"
                     >
-                      {allServices.map((srv) => (
-                        <option key={srv.id} value={srv.id}>
-                          {srv.service_name} ({srv.service_code}) — Default: ₹{srv.default_fee}
-                        </option>
-                      ))}
+                      {availableCatalogServices.length === 0 ? (
+                        <option value="">All catalog services are currently subscribed</option>
+                      ) : (
+                        availableCatalogServices.map((srv) => (
+                          <option key={srv.id} value={srv.id}>
+                            {srv.service_name} ({srv.service_code}) — Default: ₹{srv.default_fee}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
                   <div className="space-y-1">
@@ -1224,13 +1365,19 @@ export default function Client360ProfilePage() {
                       type="number"
                       value={agreedFee}
                       onChange={(e) => setAgreedFee(Number(e.target.value))}
+                      disabled={availableCatalogServices.length === 0}
                       className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs"
                       required
                     />
                   </div>
                   <div>
-                    <Button type="submit" size="sm" className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white">
-                      Assign Engagement
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={availableCatalogServices.length === 0}
+                      className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    >
+                      {availableCatalogServices.length === 0 ? "All Services Added" : "Assign Engagement"}
                     </Button>
                   </div>
                 </form>
@@ -2117,49 +2264,125 @@ export default function Client360ProfilePage() {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {editContacts.map((cnt, idx) => (
-                          <div
-                            key={cnt.id || idx}
-                            className={`p-3 rounded-lg border text-xs space-y-2 relative transition-colors ${
-                              cnt.is_primary ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border-slate-200"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="font-bold text-slate-900 block">{cnt.contact_person}</span>
-                                {cnt.designation && (
-                                  <span className="text-[11px] text-slate-500">{cnt.designation}</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                {cnt.is_primary ? (
-                                  <Badge className="bg-blue-600 text-white text-[10px]">Primary</Badge>
-                                ) : (
+                          editingContactIndex === idx ? (
+                            <div
+                              key={cnt.id || idx}
+                              className="p-3.5 rounded-xl border border-blue-300 bg-blue-50/40 text-xs space-y-3"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-blue-900 text-xs">Edit Contact Person</span>
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleSaveContactEdit}
+                                    className="h-7 px-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1"
+                                  >
+                                    <Check className="h-3 w-3" /> Save
+                                  </Button>
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleSetPrimaryContact(idx)}
-                                    className="h-6 px-1.5 text-[10px] text-slate-600 hover:text-blue-600"
+                                    onClick={handleCancelContactEdit}
+                                    className="h-7 px-2 text-slate-500 hover:text-slate-800 text-xs"
                                   >
-                                    Set Primary
+                                    <X className="h-3 w-3" />
                                   </Button>
-                                )}
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleRemoveContact(idx)}
-                                  className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Contact Person Name</Label>
+                                  <Input
+                                    value={editContactDraft?.contact_person || ""}
+                                    onChange={(e) => setEditContactDraft((prev: any) => ({ ...prev, contact_person: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Designation</Label>
+                                  <Input
+                                    value={editContactDraft?.designation || ""}
+                                    onChange={(e) => setEditContactDraft((prev: any) => ({ ...prev, designation: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Official Email</Label>
+                                  <Input
+                                    type="email"
+                                    value={editContactDraft?.email || ""}
+                                    onChange={(e) => setEditContactDraft((prev: any) => ({ ...prev, email: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Mobile Number</Label>
+                                  <Input
+                                    value={editContactDraft?.mobile_number || ""}
+                                    onChange={(e) => setEditContactDraft((prev: any) => ({ ...prev, mobile_number: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5"
+                                  />
+                                </div>
                               </div>
                             </div>
-                            <div className="space-y-0.5 text-slate-600 text-[11px]">
-                              {cnt.email && <div>✉ {cnt.email}</div>}
-                              {cnt.mobile_number && <div>📱 {cnt.mobile_number}</div>}
+                          ) : (
+                            <div
+                              key={cnt.id || idx}
+                              className={`p-3 rounded-lg border text-xs space-y-2 relative transition-colors ${
+                                cnt.is_primary ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border-slate-200"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="font-bold text-slate-900 block">{cnt.contact_person}</span>
+                                  {cnt.designation && (
+                                    <span className="text-[11px] text-slate-500">{cnt.designation}</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {cnt.is_primary ? (
+                                    <Badge className="bg-blue-600 text-white text-[10px]">Primary</Badge>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleSetPrimaryContact(idx)}
+                                      className="h-6 px-1.5 text-[10px] text-slate-600 hover:text-blue-600"
+                                    >
+                                      Set Primary
+                                    </Button>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleStartEditContact(idx)}
+                                    className="h-6 w-6 p-0 text-slate-500 hover:text-blue-600"
+                                    title="Edit Contact"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveContact(idx)}
+                                    className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                                    title="Delete Contact"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5 text-slate-600 text-[11px]">
+                                {cnt.email && <div>✉ {cnt.email}</div>}
+                                {cnt.mobile_number && <div>📱 {cnt.mobile_number}</div>}
+                              </div>
                             </div>
-                          </div>
+                          )
                         ))}
                       </div>
                     )}
@@ -2239,29 +2462,122 @@ export default function Client360ProfilePage() {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {editAddresses.map((addr, idx) => (
-                          <div
-                            key={addr.id || idx}
-                            className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-2 relative"
-                          >
-                            <div className="flex items-center justify-between">
-                              <Badge variant="outline" className="text-[10px] font-semibold">
-                                {addr.address_type} Address
-                              </Badge>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveAddress(idx)}
-                                className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                          editingAddressIndex === idx ? (
+                            <div
+                              key={addr.id || idx}
+                              className="p-3.5 rounded-xl border border-blue-300 bg-blue-50/40 text-xs space-y-3"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-blue-900 text-xs">Edit Address</span>
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleSaveAddressEdit}
+                                    className="h-7 px-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1"
+                                  >
+                                    <Check className="h-3 w-3" /> Save
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleCancelAddressEdit}
+                                    className="h-7 px-2 text-slate-500 hover:text-slate-800 text-xs"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Address Type</Label>
+                                  <Select
+                                    value={editAddressDraft?.address_type || "Registered"}
+                                    onValueChange={(val) => setEditAddressDraft((prev: any) => ({ ...prev, address_type: val }))}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs bg-white mt-0.5 font-sans">
+                                      <SelectValue placeholder="Select type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Registered">Registered</SelectItem>
+                                      <SelectItem value="Communication">Communication</SelectItem>
+                                      <SelectItem value="Other">Other</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Street / Office Address</Label>
+                                  <Input
+                                    value={editAddressDraft?.street_address || ""}
+                                    onChange={(e) => setEditAddressDraft((prev: any) => ({ ...prev, street_address: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">City</Label>
+                                  <Input
+                                    value={editAddressDraft?.city || ""}
+                                    onChange={(e) => setEditAddressDraft((prev: any) => ({ ...prev, city: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">State</Label>
+                                  <Input
+                                    value={editAddressDraft?.state || ""}
+                                    onChange={(e) => setEditAddressDraft((prev: any) => ({ ...prev, state: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">PIN Code</Label>
+                                  <Input
+                                    value={editAddressDraft?.pin_code || ""}
+                                    onChange={(e) => setEditAddressDraft((prev: any) => ({ ...prev, pin_code: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5 font-mono"
+                                  />
+                                </div>
+                              </div>
                             </div>
-                            <p className="text-slate-800 text-xs leading-relaxed">{addr.street_address}</p>
-                            <p className="text-[11px] font-medium text-slate-600">
-                              {addr.city}, {addr.state} - {addr.pin_code}, {addr.country || "India"}
-                            </p>
-                          </div>
+                          ) : (
+                            <div
+                              key={addr.id || idx}
+                              className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-2 relative"
+                            >
+                              <div className="flex items-center justify-between">
+                                <Badge variant="outline" className="text-[10px] font-semibold">
+                                  {addr.address_type} Address
+                                </Badge>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleStartEditAddress(idx)}
+                                    className="h-6 w-6 p-0 text-slate-500 hover:text-blue-600"
+                                    title="Edit Address"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveAddress(idx)}
+                                    className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                                    title="Delete Address"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <p className="text-slate-800 text-xs leading-relaxed">{addr.street_address}</p>
+                              <p className="text-[11px] font-medium text-slate-600">
+                                {addr.city}, {addr.state} - {addr.pin_code}, {addr.country || "India"}
+                              </p>
+                            </div>
+                          )
                         ))}
                       </div>
                     )}
@@ -2387,29 +2703,113 @@ export default function Client360ProfilePage() {
                     {editExtraRegs.length > 0 && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {editExtraRegs.map((reg, idx) => (
-                          <div
-                            key={idx}
-                            className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1.5 relative"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-slate-900">{reg.type}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveExtraReg(idx)}
-                                className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                          editingExtraRegIndex === idx ? (
+                            <div
+                              key={idx}
+                              className="p-3.5 rounded-xl border border-blue-300 bg-blue-50/40 text-xs space-y-3"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-blue-900 text-xs">Edit Statutory Identifier</span>
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleSaveExtraRegEdit}
+                                    className="h-7 px-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1"
+                                  >
+                                    <Check className="h-3 w-3" /> Save
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleCancelExtraRegEdit}
+                                    className="h-7 px-2 text-slate-500 hover:text-slate-800 text-xs"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Identifier Type</Label>
+                                  <Select
+                                    value={editExtraRegDraft?.type || "TAN"}
+                                    onValueChange={(val) => setEditExtraRegDraft((prev: any) => ({ ...prev, type: val }))}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs bg-white mt-0.5 font-sans">
+                                      <SelectValue placeholder="Select type" />
+                                    </SelectTrigger>
+                                    <SelectContent className="font-sans text-xs">
+                                      <SelectItem value="TAN">TAN (Tax Deduction Acct)</SelectItem>
+                                      <SelectItem value="MSME">MSME / Udyam</SelectItem>
+                                      <SelectItem value="EPFO">EPF / PF Registration</SelectItem>
+                                      <SelectItem value="ESIC">ESI Registration</SelectItem>
+                                      <SelectItem value="IEC">Import Export Code (IEC)</SelectItem>
+                                      <SelectItem value="FSSAI">FSSAI Food License</SelectItem>
+                                      <SelectItem value="PT">Professional Tax (PT)</SelectItem>
+                                      <SelectItem value="LEI">Legal Entity Identifier (LEI)</SelectItem>
+                                      <SelectItem value="OTHER">Other Statutory ID</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Registration / ID Number</Label>
+                                  <Input
+                                    value={editExtraRegDraft?.value || ""}
+                                    onChange={(e) => setEditExtraRegDraft((prev: any) => ({ ...prev, value: e.target.value.toUpperCase() }))}
+                                    className="h-7 text-xs bg-white mt-0.5 font-mono uppercase"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Remarks / Authority</Label>
+                                  <Input
+                                    value={editExtraRegDraft?.remarks || ""}
+                                    onChange={(e) => setEditExtraRegDraft((prev: any) => ({ ...prev, remarks: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5"
+                                    placeholder="Optional notes"
+                                  />
+                                </div>
+                              </div>
                             </div>
-                            <div className="font-mono font-semibold text-blue-800 bg-blue-50 px-2 py-0.5 rounded inline-block">
-                              {reg.value}
+                          ) : (
+                            <div
+                              key={idx}
+                              className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1.5 relative"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-900">{reg.type}</span>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleStartEditExtraReg(idx)}
+                                    className="h-6 w-6 p-0 text-slate-500 hover:text-blue-600"
+                                    title="Edit Identifier"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveExtraReg(idx)}
+                                    className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                                    title="Delete Identifier"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="font-mono font-semibold text-blue-800 bg-blue-50 px-2 py-0.5 rounded inline-block">
+                                {reg.value}
+                              </div>
+                              {reg.remarks && (
+                                <p className="text-[11px] text-slate-500">{reg.remarks}</p>
+                              )}
                             </div>
-                            {reg.remarks && (
-                              <p className="text-[11px] text-slate-500">{reg.remarks}</p>
-                            )}
-                          </div>
+                          )
                         ))}
                       </div>
                     )}
@@ -2497,67 +2897,166 @@ export default function Client360ProfilePage() {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {editBankAccounts.map((acc, idx) => (
-                          <div
-                            key={acc.id || idx}
-                            className={`p-3 rounded-lg border text-xs space-y-2 relative transition-colors ${
-                              acc.is_primary ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border-slate-200"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="font-bold text-slate-900 text-sm block">{acc.bank_name}</span>
-                                <Badge variant="outline" className="text-[10px] mt-0.5">
-                                  {acc.account_type}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                {acc.is_primary ? (
-                                  <Badge className="bg-blue-600 text-white text-[10px]">Primary</Badge>
-                                ) : (
+                          editingBankIndex === idx ? (
+                            <div
+                              key={acc.id || idx}
+                              className="p-3.5 rounded-xl border border-blue-300 bg-blue-50/40 text-xs space-y-3"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-blue-900 text-xs">Edit Bank Account</span>
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleSaveBankEdit}
+                                    className="h-7 px-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1"
+                                  >
+                                    <Check className="h-3 w-3" /> Save
+                                  </Button>
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleSetPrimaryBankAccount(idx)}
-                                    className="h-6 px-1.5 text-[10px] text-slate-600 hover:text-blue-600"
+                                    onClick={handleCancelBankEdit}
+                                    className="h-7 px-2 text-slate-500 hover:text-slate-800 text-xs"
                                   >
-                                    Set Primary
+                                    <X className="h-3 w-3" />
                                   </Button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Bank Name</Label>
+                                  <Input
+                                    value={editBankDraft?.bank_name || ""}
+                                    onChange={(e) => setEditBankDraft((prev: any) => ({ ...prev, bank_name: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Account Number</Label>
+                                  <Input
+                                    value={editBankDraft?.account_number || ""}
+                                    onChange={(e) => setEditBankDraft((prev: any) => ({ ...prev, account_number: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5 font-mono"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Account Type</Label>
+                                  <Select
+                                    value={editBankDraft?.account_type || "Current"}
+                                    onValueChange={(val) => setEditBankDraft((prev: any) => ({ ...prev, account_type: val }))}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs bg-white mt-0.5 font-sans font-medium text-slate-800">
+                                      <SelectValue placeholder="Select type" />
+                                    </SelectTrigger>
+                                    <SelectContent className="font-sans text-xs">
+                                      <SelectItem value="Current">Current Account</SelectItem>
+                                      <SelectItem value="Savings">Savings Account</SelectItem>
+                                      <SelectItem value="OD/CC">OD / CC Account</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">IFSC Code</Label>
+                                  <Input
+                                    value={editBankDraft?.ifsc_code || ""}
+                                    onChange={(e) => setEditBankDraft((prev: any) => ({ ...prev, ifsc_code: e.target.value.toUpperCase() }))}
+                                    className="h-7 text-xs bg-white mt-0.5 font-mono uppercase"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">Branch Name</Label>
+                                  <Input
+                                    value={editBankDraft?.branch_name || ""}
+                                    onChange={(e) => setEditBankDraft((prev: any) => ({ ...prev, branch_name: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-slate-600 font-semibold">UPI / VPA ID</Label>
+                                  <Input
+                                    value={editBankDraft?.upi_id || ""}
+                                    onChange={(e) => setEditBankDraft((prev: any) => ({ ...prev, upi_id: e.target.value }))}
+                                    className="h-7 text-xs bg-white mt-0.5 font-mono"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              key={acc.id || idx}
+                              className={`p-3 rounded-lg border text-xs space-y-2 relative transition-colors ${
+                                acc.is_primary ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border-slate-200"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="font-bold text-slate-900 text-sm block">{acc.bank_name}</span>
+                                  <Badge variant="outline" className="text-[10px] mt-0.5">
+                                    {acc.account_type}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {acc.is_primary ? (
+                                    <Badge className="bg-blue-600 text-white text-[10px]">Primary</Badge>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleSetPrimaryBankAccount(idx)}
+                                      className="h-6 px-1.5 text-[10px] text-slate-600 hover:text-blue-600"
+                                    >
+                                      Set Primary
+                                    </Button>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleStartEditBank(idx)}
+                                    className="h-6 w-6 p-0 text-slate-500 hover:text-blue-600"
+                                    title="Edit Bank Account"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveBankAccount(idx)}
+                                    className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
+                                    title="Delete Bank Account"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-slate-600 text-[11px]">
+                                <div>
+                                  <span className="text-[10px] text-slate-400 block">Account Number</span>
+                                  <span className="font-mono font-semibold text-slate-900">{acc.account_number}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-slate-400 block">IFSC Code</span>
+                                  <span className="font-mono font-semibold text-blue-700">{acc.ifsc_code}</span>
+                                </div>
+                                {acc.branch_name && (
+                                  <div>
+                                    <span className="text-[10px] text-slate-400 block">Branch</span>
+                                    <span>{acc.branch_name}</span>
+                                  </div>
                                 )}
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleRemoveBankAccount(idx)}
-                                  className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
+                                {acc.upi_id && (
+                                  <div>
+                                    <span className="text-[10px] text-slate-400 block">UPI / VPA</span>
+                                    <span className="font-mono text-emerald-700">{acc.upi_id}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-slate-600 text-[11px]">
-                              <div>
-                                <span className="text-[10px] text-slate-400 block">Account Number</span>
-                                <span className="font-mono font-semibold text-slate-900">{acc.account_number}</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-slate-400 block">IFSC Code</span>
-                                <span className="font-mono font-semibold text-blue-700">{acc.ifsc_code}</span>
-                              </div>
-                              {acc.branch_name && (
-                                <div>
-                                  <span className="text-[10px] text-slate-400 block">Branch</span>
-                                  <span>{acc.branch_name}</span>
-                                </div>
-                              )}
-                              {acc.upi_id && (
-                                <div>
-                                  <span className="text-[10px] text-slate-400 block">UPI / VPA</span>
-                                  <span className="font-mono text-emerald-700">{acc.upi_id}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                          )
                         ))}
                       </div>
                     )}
@@ -2591,10 +3090,10 @@ export default function Client360ProfilePage() {
                       <div>
                         <Label className="text-[11px] font-medium text-slate-600">Account Type</Label>
                         <Select value={newAccountType} onValueChange={setNewAccountType}>
-                          <SelectTrigger className="h-8 text-xs mt-1">
+                          <SelectTrigger className="h-8 text-xs mt-1 font-sans font-medium text-slate-800">
                             <SelectValue placeholder="Select type" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="font-sans text-xs">
                             <SelectItem value="Current">Current Account</SelectItem>
                             <SelectItem value="Savings">Savings Account</SelectItem>
                             <SelectItem value="OD/CC">OD / CC Account</SelectItem>

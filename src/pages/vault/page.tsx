@@ -43,6 +43,7 @@ import {
   Folder,
   Layers,
   FolderPlus,
+  List,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,9 +74,7 @@ import {
 import {
   encryptVaultPassword,
   decryptVaultPassword,
-  generateStrongPassword,
   calculatePasswordStrength,
-  PasswordGeneratorOptions,
 } from "@/lib/vault-crypto";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -200,6 +199,7 @@ export default function VaultPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(searchParams.get("category") || null);
   const [selectedClientKey, setSelectedClientKey] = useState<string | null>(searchParams.get("client") || null);
   const [viewMode, setViewMode] = useState<"drilldown" | "table">("drilldown");
+  const [categoryViewMode, setCategoryViewMode] = useState<"list" | "grid">("list");
 
   // Keep URL in sync
   useEffect(() => {
@@ -211,9 +211,8 @@ export default function VaultPage() {
     setSearchParams(nextParams, { replace: true });
   }, [selectedCategoryId, selectedClientKey]);
 
-  // Search & Filter states
+  // Search state
   const [search, setSearch] = useState("");
-  const [filterRotationOnly, setFilterRotationOnly] = useState<boolean>(false);
 
   // Temporary in-memory decrypted passwords map: { [credentialId]: { plaintext: string; expiryMs: number } }
   const [decryptedCache, setDecryptedCache] = useState<{ [id: string]: { plaintext: string; expiryMs: number } }>({});
@@ -249,11 +248,7 @@ export default function VaultPage() {
 
   // Add Client to Category Modal State
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
-  const [clientAddMode, setClientAddMode] = useState<"existing" | "new">("existing");
   const [selectedExistingClientId, setSelectedExistingClientId] = useState("");
-  const [newClientName, setNewClientName] = useState("");
-  const [newClientNickName, setNewClientNickName] = useState("");
-  const [newClientFolderName, setNewClientFolderName] = useState("");
   // Optional initial login fields inside Add Client modal
   const [addClientPortal, setAddClientPortal] = useState("");
   const [addClientUrl, setAddClientUrl] = useState("");
@@ -264,7 +259,6 @@ export default function VaultPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingCred, setEditingCred] = useState<VaultCredential | null>(null);
 
-  const [isGeneratorModalOpen, setIsGeneratorModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyTargetCred, setHistoryTargetCred] = useState<VaultCredential | null>(null);
 
@@ -284,52 +278,14 @@ export default function VaultPage() {
   const [formCustomClientName, setFormCustomClientName] = useState("");
   const [formAssignedEmpIds, setFormAssignedEmpIds] = useState<string[]>([]);
   const [formNotes, setFormNotes] = useState("");
-  const [formRotationDays, setFormRotationDays] = useState<number>(90);
   const [formShowPassword, setFormShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Standalone Generator State
-  const [genLength, setGenLength] = useState(16);
-  const [genUpper, setGenUpper] = useState(true);
-  const [genLower, setGenLower] = useState(true);
-  const [genNums, setGenNums] = useState(true);
-  const [genSyms, setGenSyms] = useState(true);
-  const [generatedPassword, setGeneratedPassword] = useState("");
-
-  useEffect(() => {
-    if (isGeneratorModalOpen) {
-      handleRegenerateStandalone();
-    }
-  }, [isGeneratorModalOpen]);
-
-  const handleRegenerateStandalone = () => {
-    const pw = generateStrongPassword({
-      length: genLength,
-      uppercase: genUpper,
-      lowercase: genLower,
-      numbers: genNums,
-      symbols: genSyms,
-    });
-    setGeneratedPassword(pw);
-  };
 
   // Check if current user has permission to access a specific credential
   const canAccessCredential = (cred: VaultCredential): boolean => {
     if (isAdmin) return true;
     if (!cred.assigned_employee_ids || cred.assigned_employee_ids.length === 0) return true;
     return cred.assigned_employee_ids.includes(currentUser.id);
-  };
-
-  // Helper: Is credential overdue for password rotation?
-  const isRotationDue = (cred: VaultCredential): boolean => {
-    const lastChanged = new Date(cred.last_password_changed_at || cred.created_at).getTime();
-    const daysSince = (Date.now() - lastChanged) / (1000 * 60 * 60 * 24);
-    return daysSince >= (cred.rotation_reminder_days || 90);
-  };
-
-  const getDaysSinceRotation = (cred: VaultCredential): number => {
-    const lastChanged = new Date(cred.last_password_changed_at || cred.created_at).getTime();
-    return Math.max(0, Math.floor((Date.now() - lastChanged) / (1000 * 60 * 60 * 24)));
   };
 
   // Category matching helper
@@ -364,7 +320,6 @@ export default function VaultPage() {
         folder_name?: string;
         credentials: VaultCredential[];
         portals: string[];
-        hasRotationDue: boolean;
       }
     >();
 
@@ -383,15 +338,11 @@ export default function VaultPage() {
           (registeredClient?.nick_name ? `${registeredClient.nick_name} ${registeredClient.client_code}` : undefined),
         credentials: [],
         portals: [],
-        hasRotationDue: false,
       };
 
       existing.credentials.push(cred);
       if (!existing.portals.includes(cred.portal_name)) {
         existing.portals.push(cred.portal_name);
-      }
-      if (isRotationDue(cred)) {
-        existing.hasRotationDue = true;
       }
 
       clientMap.set(key, existing);
@@ -408,7 +359,6 @@ export default function VaultPage() {
         folder_name: reg?.folder_name,
         credentials: [],
         portals: [],
-        hasRotationDue: false,
       });
     }
 
@@ -436,7 +386,6 @@ export default function VaultPage() {
       client_name: selectedClientKey,
       credentials: [],
       portals: [],
-      hasRotationDue: false,
     };
   }, [clientsInCategory, selectedClientKey]);
 
@@ -461,10 +410,9 @@ export default function VaultPage() {
         );
       }
 
-      if (filterRotationOnly && !isRotationDue(cred)) return false;
       return true;
     });
-  }, [currentCategory, selectedClientKey, credentials, clients, search, filterRotationOnly, isAdmin]);
+  }, [currentCategory, selectedClientKey, credentials, clients, search, isAdmin]);
 
   // Filtered credentials list for full Table View
   const allFilteredCredentials = useMemo(() => {
@@ -482,16 +430,9 @@ export default function VaultPage() {
         (cred.registered_mobile && cred.registered_mobile.toLowerCase().includes(q)) ||
         (cred.notes && cred.notes.toLowerCase().includes(q));
 
-      if (!matchesSearch) return false;
-      if (filterRotationOnly && !isRotationDue(cred)) return false;
-      return true;
+      return matchesSearch;
     });
-  }, [credentials, search, filterRotationOnly, isAdmin]);
-
-  // Rotation due counter
-  const rotationDueCount = useMemo(() => {
-    return credentials.filter((c) => isRotationDue(c)).length;
-  }, [credentials]);
+  }, [credentials, search, isAdmin]);
 
   // Open Create Category Modal
   const handleOpenCreateCategoryModal = () => {
@@ -566,15 +507,11 @@ export default function VaultPage() {
 
   // Open Add Client to Category Modal
   const handleOpenAddClientModal = () => {
-    setClientAddMode("existing");
     setSelectedExistingClientId(clients[0]?.id || "");
-    setNewClientName("");
-    setNewClientNickName("");
-    setNewClientFolderName("");
     setAddClientPortal("");
     setAddClientUrl("");
     setAddClientUsername("");
-    setAddClientPassword(generateStrongPassword({ length: 16 }));
+    setAddClientPassword("");
     setIsAddClientModalOpen(true);
   };
 
@@ -586,41 +523,13 @@ export default function VaultPage() {
       return;
     }
 
-    let targetClientId: string | undefined = undefined;
-    let targetClientName = "";
-
-    if (clientAddMode === "existing") {
-      const matched = clients.find((c) => c.id === selectedExistingClientId);
-      if (!matched) {
-        toast.error("Please select a registered client.");
-        return;
-      }
-      targetClientId = matched.id;
-      targetClientName = matched.client_name;
-    } else {
-      if (!newClientName.trim()) {
-        toast.error("Please enter a client name.");
-        return;
-      }
-      targetClientName = newClientName.trim();
-      try {
-        const nextCode = pmsStore.getNextClientCode();
-        const createdClient = await pmsStore.addClient({
-          client_name: targetClientName,
-          legal_name: targetClientName,
-          nick_name: newClientNickName.trim() || undefined,
-          folder_name:
-            newClientFolderName.trim() ||
-            (newClientNickName.trim() ? `${newClientNickName.trim()} ${nextCode}` : `${targetClientName} ${nextCode}`),
-          constitution: "Private Limited",
-          status: "Active",
-        });
-        targetClientId = createdClient.id;
-        targetClientName = createdClient.client_name;
-      } catch (err: any) {
-        toast.warning("Saved client reference inside Vault.");
-      }
+    const matched = clients.find((c) => c.id === selectedExistingClientId);
+    if (!matched) {
+      toast.error("Please select a registered client.");
+      return;
     }
+    const targetClientId = matched.id;
+    const targetClientName = matched.client_name;
 
     // If initial login fields were provided, create credential immediately
     if (addClientPortal.trim() && addClientUsername.trim() && addClientPassword.trim()) {
@@ -655,8 +564,7 @@ export default function VaultPage() {
     setFormPortalName("");
     setFormLoginUrl("");
     setFormUsername("");
-    const initialPw = generateStrongPassword({ length: 16 });
-    setFormPasswordPlaintext(initialPw);
+    setFormPasswordPlaintext("");
     setFormRegEmail("");
     setFormRegMobile("");
     setFormAccountHolder("");
@@ -681,7 +589,6 @@ export default function VaultPage() {
 
     setFormAssignedEmpIds([]);
     setFormNotes("");
-    setFormRotationDays(90);
     setFormShowPassword(false);
     setIsFormModalOpen(true);
   };
@@ -704,7 +611,6 @@ export default function VaultPage() {
     setFormCustomClientName(cred.client_name || "");
     setFormAssignedEmpIds(cred.assigned_employee_ids || []);
     setFormNotes(cred.notes || "");
-    setFormRotationDays(cred.rotation_reminder_days || 90);
     setFormShowPassword(false);
 
     try {
@@ -759,7 +665,7 @@ export default function VaultPage() {
           assigned_employee_ids: formAssignedEmpIds,
           assigned_employee_names: assignedNames || undefined,
           notes: formNotes.trim() || undefined,
-          rotation_reminder_days: Number(formRotationDays) || 90,
+          rotation_reminder_days: 90,
         });
         toast.success(`Updated "${formPortalName}" with AES-256-GCM encryption.`);
       } else {
@@ -778,7 +684,7 @@ export default function VaultPage() {
           assigned_employee_names: assignedNames || undefined,
           notes: formNotes.trim() || undefined,
           last_password_changed_at: new Date().toISOString(),
-          rotation_reminder_days: Number(formRotationDays) || 90,
+          rotation_reminder_days: 90,
         });
         toast.success(`Stored credential for "${formPortalName}" securely in Vault.`);
       }
@@ -900,36 +806,64 @@ export default function VaultPage() {
     }
   };
 
-  // Export Vault (Admin only)
-  const handleExportVault = () => {
+  // Export Vault (Admin only, Excel format with decrypted passwords)
+  const handleExportVault = async () => {
     if (!isAdmin) {
       toast.error("Security policy: Only Super Admins / Practice Admins can export Vault data.");
       return;
     }
 
-    const exportRows = credentials.map((c) => ({
-      portal_name: c.portal_name,
-      login_url: c.login_url,
-      username: c.username,
-      client_name: c.client_name || "—",
-      category: c.category,
-      account_holder: c.account_holder_name || "—",
-      registered_email: c.registered_email || "—",
-      registered_mobile: c.registered_mobile || "—",
-      last_changed: c.last_password_changed_at,
-      rotation_days: c.rotation_reminder_days,
-      assigned_to: c.assigned_employee_names || "All Authorized",
-      notes: c.notes || "",
-    }));
+    try {
+      const XLSX = await import("xlsx");
+      const exportRows = await Promise.all(
+        credentials.map(async (c) => {
+          let plainPw = "••••••••";
+          try {
+            plainPw = await decryptVaultPassword(c.password_encrypted);
+          } catch {
+            plainPw = "[Encrypted]";
+          }
+          return {
+            "Portal Name": c.portal_name,
+            "Category": c.category,
+            "Client Name": c.client_name || "—",
+            "Login URL": c.login_url || "—",
+            "Username / Login ID": c.username,
+            "Password": plainPw,
+            "Registered Email": c.registered_email || "—",
+            "Registered Mobile (OTP)": c.registered_mobile || "—",
+            "Account Holder": c.account_holder_name || "—",
+            "Assigned Employees": c.assigned_employee_names || "All Authorized",
+            "Notes": c.notes || "",
+            "Last Changed": c.last_password_changed_at ? new Date(c.last_password_changed_at).toLocaleDateString() : "—",
+          };
+        })
+      );
 
-    const blob = new Blob([JSON.stringify(exportRows, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `oxis_vault_metadata_backup_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Exported encrypted vault metadata structure.");
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const colWidths = [
+        { wch: 25 },
+        { wch: 20 },
+        { wch: 30 },
+        { wch: 35 },
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 30 },
+        { wch: 20 },
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 30 },
+        { wch: 15 },
+      ];
+      ws["!cols"] = colWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Vault Passwords");
+      XLSX.writeFile(wb, `Linear_Audit_Vault_Passwords_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success(`Exported ${exportRows.length} credentials to Excel successfully.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate Excel export.");
+    }
   };
 
   return (
@@ -952,7 +886,7 @@ export default function VaultPage() {
                 </Badge>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Organize client logins by category, manage portal credentials, and enforce password rotation.
+                Organize client logins by category and manage portal credentials securely.
               </p>
             </div>
           </div>
@@ -984,16 +918,6 @@ export default function VaultPage() {
               <span>All Credentials</span>
             </button>
           </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsGeneratorModalOpen(true)}
-            className="rounded-2xl gap-1 text-xs border-slate-300"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            <span>Generator</span>
-          </Button>
 
           {isAdmin && (
             <Button
@@ -1031,7 +955,7 @@ export default function VaultPage() {
       </div>
 
       {/* Summary KPI Strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card className="rounded-2xl border-slate-200 shadow-xs">
           <CardContent className="p-3.5 flex items-center justify-between">
             <div>
@@ -1069,23 +993,6 @@ export default function VaultPage() {
             </div>
           </CardContent>
         </Card>
-
-        <Card
-          onClick={() => setFilterRotationOnly(!filterRotationOnly)}
-          className={`rounded-2xl border-slate-200 shadow-xs cursor-pointer transition-all ${
-            filterRotationOnly ? "border-amber-500 bg-amber-50/30" : "hover:border-slate-400"
-          }`}
-        >
-          <CardContent className="p-3.5 flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-semibold text-slate-500 block">Rotation Due (&gt;90d)</span>
-              <span className="text-xl font-bold text-amber-600 mt-0.5 block">{rotationDueCount}</span>
-            </div>
-            <div className="h-9 w-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Clock className="h-4 w-4" />
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* ===================================================================== */}
@@ -1105,24 +1012,15 @@ export default function VaultPage() {
               />
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant={filterRotationOnly ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilterRotationOnly(!filterRotationOnly)}
-                className="h-8 text-xs rounded-xl gap-1"
-              >
-                <Clock className="h-3 w-3" />
-                <span>Rotation Due ({rotationDueCount})</span>
-              </Button>
               {isAdmin && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleExportVault}
-                  className="h-8 text-xs rounded-xl gap-1"
+                  className="h-8 text-xs rounded-xl gap-1 border-slate-300"
                 >
-                  <Download className="h-3 w-3" />
-                  <span>Export</span>
+                  <Download className="h-3 w-3 text-emerald-600" />
+                  <span>Export to Excel</span>
                 </Button>
               )}
             </div>
@@ -1137,22 +1035,19 @@ export default function VaultPage() {
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4">Username</th>
                     <th className="py-3 px-4">Password</th>
-                    <th className="py-3 px-4">Rotation</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {allFilteredCredentials.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                      <td colSpan={6} className="py-12 text-center text-slate-400">
                         No credentials matching your search filter.
                       </td>
                     </tr>
                   ) : (
                     allFilteredCredentials.map((cred) => {
                       const isRevealed = Boolean(decryptedCache[cred.id]);
-                      const rotationDays = getDaysSinceRotation(cred);
-                      const isDue = isRotationDue(cred);
 
                       return (
                         <tr key={cred.id} className="hover:bg-slate-50/60 transition-colors">
@@ -1210,17 +1105,6 @@ export default function VaultPage() {
                                 <Copy className="h-3.5 w-3.5" />
                               </button>
                             </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge
-                              className={`text-[10px] ${
-                                isDue
-                                  ? "bg-amber-100 text-amber-800 border-amber-300"
-                                  : "bg-slate-100 text-slate-600"
-                              }`}
-                            >
-                              {rotationDays}d ago
-                            </Badge>
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -1307,7 +1191,6 @@ export default function VaultPage() {
                     // Count credentials & clients in this category
                     const credsInCat = credentials.filter((c) => isCredInCategory(c, cat));
                     const clientCount = new Set(credsInCat.map((c) => c.client_name || c.client_id).filter(Boolean)).size;
-                    const rotationDueInCat = credsInCat.filter((c) => isRotationDue(c)).length;
 
                     return (
                       <div
@@ -1374,12 +1257,7 @@ export default function VaultPage() {
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-1 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all">
-                            {rotationDueInCat > 0 && (
-                              <Badge className="bg-amber-100 text-amber-800 text-[10px] mr-1">
-                                {rotationDueInCat} due
-                              </Badge>
-                            )}
+                          <div className="flex items-center text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all">
                             <ChevronRight className="h-4 w-4" />
                           </div>
                         </div>
@@ -1456,8 +1334,8 @@ export default function VaultPage() {
                 </div>
               </div>
 
-              {/* Search Clients Bar */}
-              <div className="flex items-center justify-between gap-3">
+              {/* Search Clients Bar & View Mode Switcher */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-md">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   <Input
@@ -1468,12 +1346,36 @@ export default function VaultPage() {
                     className="pl-9 h-9 text-xs rounded-2xl border-slate-300"
                   />
                 </div>
-                <span className="text-xs text-slate-500 font-medium">
-                  {clientsInCategory.length} {clientsInCategory.length === 1 ? "Client" : "Clients"} found
-                </span>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs text-slate-500 font-medium">
+                    {clientsInCategory.length} {clientsInCategory.length === 1 ? "Client" : "Clients"} found
+                  </span>
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setCategoryViewMode("list")}
+                      className={`p-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        categoryViewMode === "list" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                      title="List View"
+                    >
+                      <List className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCategoryViewMode("grid")}
+                      className={`p-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        categoryViewMode === "grid" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                      title="Grid View"
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* Clients Grid in Category */}
+              {/* Clients Inside Category (List View & Grid View) */}
               {clientsInCategory.length === 0 ? (
                 <Card className="rounded-2xl border-slate-200 shadow-xs">
                   <CardContent className="py-16 text-center space-y-3">
@@ -1482,7 +1384,7 @@ export default function VaultPage() {
                     </div>
                     <p className="text-sm font-bold text-slate-900">No clients added to {currentCategory.name} yet</p>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                      Click below to add a registered client or create a new client inside this category.
+                      Click below to link a registered client inside this category.
                     </p>
                     <div className="pt-2">
                       <Button
@@ -1496,7 +1398,105 @@ export default function VaultPage() {
                     </div>
                   </CardContent>
                 </Card>
+              ) : categoryViewMode === "list" ? (
+                /* Category List View */
+                <Card className="rounded-2xl border-slate-200 shadow-xs overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-600">
+                      <thead className="bg-slate-50 text-[11px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                        <tr>
+                          <th className="py-3 px-4">Client ID / Folder</th>
+                          <th className="py-3 px-4">Client Name</th>
+                          <th className="py-3 px-4">Configured Portals</th>
+                          <th className="py-3 px-4 text-center">Logins</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {clientsInCategory.map((cl) => (
+                          <tr
+                            key={cl.key}
+                            onClick={() => setSelectedClientKey(cl.key)}
+                            className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                          >
+                            <td className="py-3 px-4">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {cl.client_code && (
+                                  <span className="font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded text-[10px]">
+                                    {cl.client_code}
+                                  </span>
+                                )}
+                                {cl.folder_name && (
+                                  <span className="font-mono text-slate-600 text-[10px] bg-slate-100 px-2 py-0.5 rounded">
+                                    {cl.folder_name}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-bold text-slate-900 text-sm group-hover:text-blue-600 transition-colors block">
+                                {cl.client_name}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex flex-wrap gap-1">
+                                {cl.portals.length === 0 ? (
+                                  <span className="text-[11px] text-slate-400 italic">No logins yet</span>
+                                ) : (
+                                  cl.portals.map((p, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium"
+                                    >
+                                      {p}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <Badge variant="secondary" className="text-[10px] font-bold">
+                                {cl.credentials.length} {cl.credentials.length === 1 ? "login" : "logins"}
+                              </Badge>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenCreateModal(cl.client_id, cl.client_name);
+                                  }}
+                                  className="h-7 text-xs rounded-xl gap-1 text-slate-600 hover:text-slate-900"
+                                  title="Add Login"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  <span>Add Login</span>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedClientKey(cl.key);
+                                  }}
+                                  className="h-7 text-xs rounded-xl gap-1 bg-neutral-900 hover:bg-black text-white"
+                                >
+                                  <span>Open Logins</span>
+                                  <ChevronRight className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
               ) : (
+                /* Category Grid View */
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {clientsInCategory.map((cl) => (
                     <div
@@ -1553,15 +1553,9 @@ export default function VaultPage() {
 
                       {/* Bottom Footer */}
                       <div className="pt-3 mt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-                        {cl.hasRotationDue ? (
-                          <span className="text-[10px] font-semibold text-amber-600 flex items-center gap-1">
-                            <Clock className="h-3 w-3" /> Rotation Due
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3" /> Secure
-                          </span>
-                        )}
+                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Secure Logins
+                        </span>
 
                         <div className="flex items-center gap-1">
                           <button
@@ -1684,15 +1678,11 @@ export default function VaultPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {clientCredentials.map((cred) => {
                     const isRevealed = Boolean(decryptedCache[cred.id]);
-                    const rotationDays = getDaysSinceRotation(cred);
-                    const isDue = isRotationDue(cred);
 
                     return (
                       <Card
                         key={cred.id}
-                        className={`rounded-2xl border-[1.5px] bg-white shadow-xs transition-all ${
-                          isDue ? "border-amber-300" : "border-slate-200 hover:border-slate-400"
-                        }`}
+                        className="rounded-2xl border-[1.5px] border-slate-200 hover:border-slate-400 bg-white shadow-xs transition-all"
                       >
                         <CardHeader className="p-4 pb-2 border-b border-slate-100 flex flex-row items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
@@ -1813,20 +1803,11 @@ export default function VaultPage() {
                             )}
                           </div>
 
-                          {/* Footer: Rotation Status */}
+                          {/* Footer */}
                           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
                             <span className="text-slate-400">
                               Changed {formatDate(cred.last_password_changed_at)}
                             </span>
-                            {isDue ? (
-                              <Badge className="bg-amber-100 text-amber-800 text-[10px] font-semibold border-amber-300">
-                                Rotation Due ({rotationDays}d)
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-[10px]">
-                                {rotationDays}d old
-                              </Badge>
-                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -1926,84 +1907,27 @@ export default function VaultPage() {
               Add Client to {currentCategory?.name}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Select an existing client or enter a new client directly inside this category.
+              Select a registered client to link with this category.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSaveClientToCategory} className="space-y-4 py-2">
-            {/* Mode Toggle Tabs */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setClientAddMode("existing")}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                  clientAddMode === "existing" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900"
-                }`}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">Select Client *</label>
+              <select
+                value={selectedExistingClientId}
+                onChange={(e) => setSelectedExistingClientId(e.target.value)}
+                className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                required
               >
-                Choose Existing Client
-              </button>
-              <button
-                type="button"
-                onClick={() => setClientAddMode("new")}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                  clientAddMode === "new" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                Create New Client Directly
-              </button>
+                <option value="">Select a registered client...</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.client_name} ({c.client_code}) {c.folder_name ? `• ${c.folder_name}` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
-
-            {clientAddMode === "existing" ? (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700">Select Client *</label>
-                <select
-                  value={selectedExistingClientId}
-                  onChange={(e) => setSelectedExistingClientId(e.target.value)}
-                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
-                  required
-                >
-                  <option value="">Select a registered client...</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.client_name} ({c.client_code}) {c.folder_name ? `• ${c.folder_name}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700">Client Name *</label>
-                  <Input
-                    placeholder="e.g. Zenith Tech Solutions Pvt Ltd"
-                    value={newClientName}
-                    onChange={(e) => setNewClientName(e.target.value)}
-                    required={clientAddMode === "new"}
-                    className="text-xs"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700">Nick Name (Short)</label>
-                    <Input
-                      placeholder="e.g. Zenith"
-                      value={newClientNickName}
-                      onChange={(e) => setNewClientNickName(e.target.value)}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700">Folder Name (Optional)</label>
-                    <Input
-                      placeholder="Auto-generated if blank"
-                      value={newClientFolderName}
-                      onChange={(e) => setNewClientFolderName(e.target.value)}
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Optional Initial Credential Section */}
             <div className="pt-3 border-t border-slate-100 space-y-3">
@@ -2189,16 +2113,7 @@ export default function VaultPage() {
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-slate-700">Password *</label>
-                  <button
-                    type="button"
-                    onClick={() => setFormPasswordPlaintext(generateStrongPassword({ length: 16 }))}
-                    className="text-[10px] text-blue-600 font-bold hover:underline"
-                  >
-                    Generate Strong
-                  </button>
-                </div>
+                <label className="font-semibold text-slate-700">Password *</label>
                 <div className="relative">
                   <Input
                     type={formShowPassword ? "text" : "password"}
@@ -2243,22 +2158,6 @@ export default function VaultPage() {
               </div>
             </div>
 
-            {/* Rotation Reminder Days */}
-            <div className="space-y-1.5">
-              <label className="font-semibold text-slate-700">Password Rotation Reminder</label>
-              <select
-                value={formRotationDays}
-                onChange={(e) => setFormRotationDays(Number(e.target.value))}
-                className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
-              >
-                <option value={30}>Every 30 Days (High Security / Banking)</option>
-                <option value={60}>Every 60 Days</option>
-                <option value={90}>Every 90 Days (Standard MCA / Tax)</option>
-                <option value={180}>Every 180 Days</option>
-                <option value={365}>Annual (365 Days)</option>
-              </select>
-            </div>
-
             {/* Notes */}
             <div className="space-y-1.5">
               <label className="font-semibold text-slate-700">Internal Security Notes & Instructions</label>
@@ -2279,115 +2178,6 @@ export default function VaultPage() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ===================================================================== */}
-      {/* MODAL: STANDALONE PASSWORD GENERATOR */}
-      {/* ===================================================================== */}
-      <Dialog open={isGeneratorModalOpen} onOpenChange={setIsGeneratorModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-amber-500" />
-              Cryptographic Password Generator
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Generate enterprise-grade passwords resistant to rainbow tables and brute-force attacks.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2 text-xs">
-            <div className="bg-slate-900 p-4 rounded-xl text-center relative group">
-              <span className="font-mono text-base font-bold text-amber-400 select-all tracking-wider break-all">
-                {generatedPassword}
-              </span>
-              <div className="mt-2 flex justify-center gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedPassword);
-                    toast.success("Generated password copied to clipboard!");
-                  }}
-                  className="h-7 text-xs bg-white text-slate-900 hover:bg-slate-100 gap-1"
-                >
-                  <Copy className="h-3 w-3" /> Copy
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleRegenerateStandalone}
-                  className="h-7 text-xs border-slate-700 text-white hover:bg-slate-800 gap-1"
-                >
-                  <RefreshCw className="h-3 w-3" /> Regenerate
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-700">Length: {genLength} characters</span>
-              </div>
-              <input
-                type="range"
-                min={8}
-                max={32}
-                value={genLength}
-                onChange={(e) => {
-                  setGenLength(Number(e.target.value));
-                  setGeneratedPassword(
-                    generateStrongPassword({
-                      length: Number(e.target.value),
-                      uppercase: genUpper,
-                      lowercase: genLower,
-                      numbers: genNums,
-                      symbols: genSyms,
-                    })
-                  );
-                }}
-                className="w-full accent-neutral-900"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={genUpper}
-                  onChange={(e) => setGenUpper(e.target.checked)}
-                  className="rounded accent-neutral-900"
-                />
-                Uppercase (A-Z)
-              </label>
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={genLower}
-                  onChange={(e) => setGenLower(e.target.checked)}
-                  className="rounded accent-neutral-900"
-                />
-                Lowercase (a-z)
-              </label>
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={genNums}
-                  onChange={(e) => setGenNums(e.target.checked)}
-                  className="rounded accent-neutral-900"
-                />
-                Numbers (0-9)
-              </label>
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={genSyms}
-                  onChange={(e) => setGenSyms(e.target.checked)}
-                  className="rounded accent-neutral-900"
-                />
-                Symbols (!@#$%)
-              </label>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
 

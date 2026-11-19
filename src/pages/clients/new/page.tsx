@@ -158,6 +158,10 @@ export default function NewClientOnboardingPage() {
       toast.error("Please select a service from your Services catalog.");
       return;
     }
+    if (selectedRetainers.some((r) => r.service_id === srv.id)) {
+      toast.error(`Service "${srv.service_name}" has already been added.`);
+      return;
+    }
     if (retainerFee < 0 || Number.isNaN(Number(retainerFee))) {
       toast.error("Please enter a valid agreed fee.");
       return;
@@ -1129,7 +1133,7 @@ export default function NewClientOnboardingPage() {
                 <select
                   value={accountType}
                   onChange={(e) => setAccountType(e.target.value)}
-                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                  className="w-full h-10 rounded-2xl border border-slate-300 bg-white px-3.5 text-xs font-medium text-slate-800 font-sans focus:ring-1 focus:ring-neutral-500 focus:outline-none"
                 >
                   <option value="Current">Current Account</option>
                   <option value="Savings">Savings Account</option>
@@ -1338,11 +1342,13 @@ export default function NewClientOnboardingPage() {
                     ) : (
                       <>
                         <option value="">— Select a Service to Subscribe —</option>
-                        {availableServices.map((srv) => (
-                          <option key={srv.id} value={srv.id}>
-                            {srv.service_name}
-                          </option>
-                        ))}
+                        {availableServices
+                          .filter((srv) => !selectedRetainers.some((r) => r.service_id === srv.id))
+                          .map((srv) => (
+                            <option key={srv.id} value={srv.id}>
+                              {srv.service_name}
+                            </option>
+                          ))}
                       </>
                     )}
                   </select>

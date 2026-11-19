@@ -242,6 +242,9 @@ export default function ClientsListPage() {
                         </span>
                         <p className="text-[11px] font-mono text-[#6b7280] mt-1 leading-snug break-words">
                           {client.client_code} · <span className="font-sans">{client.constitution}</span> · <span className="font-mono text-slate-700 font-semibold">{folderName}</span>
+                          {client.reference_name && (
+                            <span className="font-sans text-blue-700 font-semibold"> · Ref: {client.reference_name}</span>
+                          )}
                         </p>
                       </div>
 

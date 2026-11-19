@@ -6,7 +6,7 @@
 
 const VAULT_MASTER_SECRET =
   (import.meta.env.VITE_VAULT_MASTER_KEY as string | undefined) ||
-  "pms-enterprise-firm-vault-master-encryption-key-aes-256-gcm-2026";
+  (typeof window !== "undefined" ? window.location.hostname : "localhost");
 
 const PBKDF2_ITERATIONS = 100000;
 

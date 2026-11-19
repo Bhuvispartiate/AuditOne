@@ -155,11 +155,6 @@ export function ProjectTimeline({
             <Calendar className="h-4 w-4 text-violet-600" />
             <span>{title}</span>
           </h3>
-          {!collapsible && (
-            <p className="text-xs text-[#6b7280] mt-0.5">
-              Track task & subtask schedule bars, statuses, and delivery windows. Click any task to open subtasks & comments.
-            </p>
-          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
@@ -187,15 +182,6 @@ export function ProjectTimeline({
               ))}
             </select>
           )}
-          {configuredStatuses.map((st) => (
-            <span
-              key={st.id}
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 text-slate-700"
-            >
-              <span className={`h-2 w-2 rounded-full ${getStyleForColor(st.color).dotClass}`} />
-              {st.label}
-            </span>
-          ))}
         </div>
       </div>
 
