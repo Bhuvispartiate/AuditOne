@@ -64,12 +64,8 @@ export default function LoginPage() {
               variant="outline"
               onClick={handleGoogleLogin}
               disabled={loading}
-<<<<<<< HEAD
-              className="w-full h-11 bg-white hover:bg-[#f9fafb] text-[#111827] hover:text-[#111827] border border-[#d1d5db] hover:border-[#9ca3af] rounded-2xl text-sm font-semibold shadow-xs flex items-center justify-center gap-3 transition-all"
-=======
               style={{ color: "#1E1E4F" }}
               className="w-full h-12 bg-white hover:bg-[#F6F5FB] !text-[#1E1E4F] border-2 border-[#E6E4F0] rounded-2xl font-bold shadow-sm flex items-center justify-center gap-3 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
->>>>>>> d57c431 (Updated project changes)
             >
               <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
                 <path
