@@ -46,6 +46,7 @@ async def get_employees(user: Optional[Dict] = Depends(get_current_user_optional
             "employment_status": row.get("employment_status", "Active"),
             "is_active": bool(row.get("is_active", True)),
             "role_code": row.get("role_code", "EMPLOYEE"),
+            "branch_name": row.get("branch_name"),
             "created_at": row.get("created_at"),
         })
     return results
@@ -66,6 +67,7 @@ async def create_employee(payload: Dict[str, Any], user: Optional[Dict] = Depend
         "designation_id": payload.get("designation_id"),
         "team_id": payload.get("team_id"),
         "team_name": payload.get("team_name"),
+        "branch_name": payload.get("branch_name"),
         "joining_date": payload.get("joining_date"),
         "employment_status": payload.get("employment_status", "Active"),
         "is_active": bool(payload.get("is_active", True)),
@@ -79,7 +81,7 @@ async def update_employee(employee_id: str, updates: Dict[str, Any], user: Optio
     supabase = get_supabase_admin()
     fields = [
         "first_name", "last_name", "email", "mobile_number", "designation_name",
-        "designation_id", "team_id", "team_name", "employment_status", "is_active", "role_code"
+        "designation_id", "team_id", "team_name", "branch_name", "employment_status", "is_active", "role_code"
     ]
     db_updates = {f: updates[f] for f in fields if f in updates}
     if "email" in db_updates and db_updates["email"]:
