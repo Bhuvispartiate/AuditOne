@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { pmsStore } from "@/lib/data/store";
+import { isSuperAdmin } from "@/lib/access";
 import { toast } from "sonner";
 
 export default function AuthCallbackPage() {
@@ -54,7 +55,9 @@ export default function AuthCallbackPage() {
 
         const result = pmsStore.signInWithEmail(user.email, fullName);
         if (!result.ok || !result.user) {
-          await supabase.auth.signOut();
+          try {
+            await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+          } catch {}
           if (active) {
             setErrorMsg(result.reason || "Unauthorized Google account.");
           }
@@ -63,7 +66,11 @@ export default function AuthCallbackPage() {
 
         toast.success(`Signed in with Google as ${result.user.full_name} (${result.user.role_code})`);
         if (active) {
-          navigate("/dashboard", { replace: true });
+          if (isSuperAdmin(result.user)) {
+            navigate("/admins", { replace: true });
+          } else {
+            navigate("/dashboard", { replace: true });
+          }
         }
       } catch (err) {
         if (active) {

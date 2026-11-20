@@ -663,19 +663,50 @@ class PMSDataStore {
       return { ok: true, user: admin };
     }
 
-    const found = this.employees.find(
+    let found = this.employees.find(
       (e) => (e.email || "").trim().toLowerCase() === normalized
     );
+
+    // Multi-Owner Model Free Trial: If new user signs in with Google, provision as Firm Owner
     if (!found) {
-      return {
-        ok: false,
-        reason: `Account (${email}) is not registered in the Employee Directory. Ask your Super Admin (${SUPERADMIN_EMAIL}) to add you first.`,
+      const id = `emp-owner-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const ownerCount = this.employees.filter((e) => e.role_code === "OWNER").length + 1;
+      const parts = (fullName || "Firm Owner").trim().split(" ");
+      const firstName = parts[0] || "Firm";
+      const lastName = parts.slice(1).join(" ") || "Owner";
+
+      found = {
+        id,
+        employee_code: `OWN-${String(ownerCount).padStart(3, "0")}`,
+        first_name: firstName,
+        last_name: lastName,
+        full_name: fullName || "Firm Owner",
+        email: normalized,
+        mobile_number: "+91 98000 00000",
+        designation_id: "desig-owner",
+        designation_name: "Firm Owner / Managing Director",
+        branch_name: `${fullName ? `${fullName}'s Practice` : "AuditOne Practice"}`,
+        joining_date: new Date().toISOString().slice(0, 10),
+        employment_status: "Active",
+        is_active: true,
+        role_code: "OWNER",
+        assigned_projects_count: 0,
+        assigned_tasks_count: 0,
+        completed_tasks_count: 0,
+        created_at: new Date().toISOString(),
       };
+      this.employees.push(found);
+      try {
+        void insertEmployeeToDb(found);
+      } catch {
+        // Local persistence fallback
+      }
     }
+
     if (!found.is_active) {
       return {
         ok: false,
-        reason: "Access Denied: Your employee account has been deactivated.",
+        reason: "Access Denied: Your account has been suspended by the platform administrator.",
       };
     }
 
