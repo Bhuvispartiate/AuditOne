@@ -4,12 +4,34 @@
 
 export type RoleCode = 
   | 'SUPER_ADMIN' 
+  | 'OWNER'
   | 'ADMIN'
   | 'DIRECTOR' 
   | 'HEAD' 
   | 'SUPERVISOR' 
   | 'EMPLOYEE' 
   | 'TRAINEE';
+
+export interface OwnerConfig {
+  id: string;
+  owner_name: string;
+  owner_email: string;
+  owner_mobile: string;
+  firm_name: string;
+  subscription_tier: "Free Trial Only";
+  trial_started_at: string;
+  updated_at: string;
+  updated_by: string;
+}
+
+export interface OwnerActivity {
+  id: string;
+  action: string;
+  details: string;
+  entity_type?: string;
+  entity_id?: string;
+  timestamp: string;
+}
 
 export interface Role {
   id: string;

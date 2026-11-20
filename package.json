@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
+    "api": "python server/run.py",
     "whatsapp": "cd whatsapp-backend && linear-whatsapp.exe"
   },
   "dependencies": {

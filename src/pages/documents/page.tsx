@@ -30,7 +30,10 @@ import {
   GitBranch,
   FolderGit2,
   KeyRound,
+  Sparkles,
 } from "lucide-react";
+import { UpgradeModal } from "@/components/subscription/upgrade-modal";
+import { FeatureLockdown } from "@/components/subscription/feature-lockdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -192,8 +195,9 @@ function DocumentsContent() {
   >("ALL");
 
   // Modals
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(autoUpload && !isEmployee);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(autoUpload);
 
   // Soft Delete confirmation modal (Move to Recycle Bin)
   const [softDeleteTarget, setSoftDeleteTarget] = useState<{
@@ -288,9 +292,9 @@ function DocumentsContent() {
   const handleTabSwitch = (tab: "active" | "recycle-bin") => {
     setCurrentTab(tab);
     if (tab === "recycle-bin") {
-      navigate("/recycle-bin", { replace: true });
+      setSearchParams({ tab: "recycle-bin" }, { replace: true });
     } else {
-      navigate("/documents", { replace: true });
+      setSearchParams({}, { replace: true });
     }
   };
 
@@ -344,66 +348,18 @@ function DocumentsContent() {
   // Actions
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fileName.trim()) {
-      toast.error("Please specify a document title or file name.");
-      return;
-    }
-
-    const client = clients.find((c) => c.id === associatedClientId);
-    const chosenFolder = folders.find((f) => f.id === associatedFolderId);
-    const objectKey = chosenFolder
-      ? `${chosenFolder.path.replace(/^\//, "")}/${fileName.replace(/\s+/g, "_")}`
-      : `clients/${client?.client_code || "general"}/${fileName.replace(/\s+/g, "_")}`;
-
-    try {
-      await pmsStore.addDocument({
-        bucket_name: "pms-documents",
-        r2_object_key: objectKey,
-        file_name: fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`,
-        file_size: fileSize,
-        mime_type: "application/pdf",
-        category: fileCategory,
-        entity_type: "client",
-        entity_id: associatedClientId,
-        folder_id: associatedFolderId || undefined,
-        folder_name: chosenFolder?.name,
-        uploaded_by: pmsStore.getCurrentUser().id,
-        uploaded_by_name: pmsStore.getCurrentUser().full_name,
-        version_number: 1,
-        expiry_date: expiryDate || undefined,
-      });
-
-      toast.success(`Document record saved to Supabase: ${objectKey}`);
-      setIsUploadModalOpen(false);
-      setFileName("");
-      setAssociatedFolderId("");
-    } catch (err: any) {
-      toast.error(`Database error: ${err.message || "Failed to save document."}`);
-    }
+    toast.error("Document Storing is closed on the Free Trial Version. Upgrade to Access.");
+    setIsUploadModalOpen(false);
+    setIsUpgradeModalOpen(true);
+    return;
   };
 
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!folderName.trim()) {
-      toast.error("Please provide a folder name.");
-      return;
-    }
-
-    try {
-      const created = await pmsStore.addDocumentFolder({
-        name: folderName.trim(),
-        client_id: folderClientId || undefined,
-        description: folderDesc.trim(),
-      });
-
-      toast.success(`Folder "${created.name}" created.`);
-      setIsFolderModalOpen(false);
-      setFolderName("");
-      setFolderClientId("");
-      setFolderDesc("");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to create folder in database.");
-    }
+    toast.error("Document Storing is closed on the Free Trial Version. Upgrade to Access.");
+    setIsFolderModalOpen(false);
+    setIsUpgradeModalOpen(true);
+    return;
   };
 
   const handleDownload = (doc: FileObject) => {
@@ -471,32 +427,37 @@ function DocumentsContent() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ========================================================================= */}
-      {/* HEADER & CENTRALIZED RECOVERY NAVIGATION                                  */}
-      {/* ========================================================================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
+      {/* HEADER & CENTRALIZED RECOVERY NAVIGATION */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#E6E4F0] pb-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
-              Cloud Document Storage &amp; Recovery
-            </h1>
-          </div>
+          <h1 className="text-2xl sm:text-[28px] font-extrabold tracking-tight text-[#1E1E4F]">
+            Documents &amp; Records
+          </h1>
+          <p className="text-xs sm:text-sm text-[#55557A] mt-1 font-medium">
+            Manage firm documents, folders, and recover deleted items from the Recycle Bin within the 25-day retention window.
+          </p>
         </div>
 
         {/* View Switcher Tabs */}
-        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl border border-slate-300">
+        <div className="flex items-center gap-1.5 p-1 bg-[#F6F5FB] rounded-2xl border border-[#E6E4F0]">
           <button
             type="button"
             onClick={() => handleTabSwitch("active")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               currentTab === "active"
-                ? "bg-white text-[#111827] shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-[#272769] text-white shadow-xs"
+                : "text-[#55557A] hover:text-[#1E1E4F] hover:bg-white"
             }`}
           >
-            <FileText className="h-4 w-4 text-blue-600" />
-            <span>Active Repository</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">
+            <FileText className="h-4 w-4" />
+            <span>Documents</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                currentTab === "active"
+                  ? "bg-white/20 text-white"
+                  : "bg-[#E3E2F5] text-[#272769]"
+              }`}
+            >
               {documents.length}
             </span>
           </button>
@@ -504,19 +465,19 @@ function DocumentsContent() {
           <button
             type="button"
             onClick={() => handleTabSwitch("recycle-bin")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               currentTab === "recycle-bin"
-                ? "bg-rose-600 text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-[#272769] text-white shadow-xs"
+                : "text-[#55557A] hover:text-[#1E1E4F] hover:bg-white"
             }`}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-4 w-4 text-rose-500" />
             <span>Recycle Bin</span>
             {universalRecycleBin.length > 0 && (
               <span
                 className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
                   currentTab === "recycle-bin"
-                    ? "bg-white text-rose-700"
+                    ? "bg-rose-500 text-white"
                     : "bg-rose-100 text-rose-700"
                 }`}
               >
@@ -531,53 +492,16 @@ function DocumentsContent() {
       {/* VIEW 1: ACTIVE REPOSITORY                                                 */}
       {/* ========================================================================= */}
       {currentTab === "active" && (
-        <div className="space-y-6">
-          {/* Top Actions & Cloud Status */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className="bg-emerald-50 text-emerald-800 border-emerald-300 text-xs font-bold gap-1 py-1 px-2.5 rounded-xl"
-              >
-                <Cloud className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Cloudflare R2 Encrypted</span>
-              </Badge>
-              <Badge
-                variant="outline"
-                className="bg-slate-50 text-slate-700 border-slate-300 text-xs font-bold gap-1 py-1 px-2.5 rounded-xl"
-              >
-                <Clock className="h-3.5 w-3.5 text-slate-500" />
-                <span>25-Day Recycle Recovery Active</span>
-              </Badge>
-            </div>
+        <FeatureLockdown
+          feature="documents"
+          onAlternativeAction={() => handleTabSwitch("recycle-bin")}
+          alternativeActionLabel={`View Recycle Bin (${universalRecycleBin.length})`}
+        />
+      )}
 
-            <div className="flex items-center gap-2">
-              {!isEmployee && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsFolderModalOpen(true)}
-                    size="sm"
-                    className="h-9 rounded-xl border-slate-300 bg-white text-xs font-bold gap-1.5 shadow-xs"
-                  >
-                    <FolderPlus className="h-3.5 w-3.5" />
-                    <span>New Folder</span>
-                  </Button>
-
-                  <Button
-                    type="button"
-                    onClick={() => setIsUploadModalOpen(true)}
-                    size="sm"
-                    className="h-9 bg-neutral-900 hover:bg-black text-white gap-1.5 rounded-xl shadow-xs text-xs font-bold"
-                  >
-                    <UploadCloud className="h-3.5 w-3.5" />
-                    <span>Upload Document</span>
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
+      {/* END VIEW 1 */}
+      {false && (
+        <div className="hidden">
 
           {/* Document Folders Grid */}
           <div className="space-y-2">
@@ -1518,6 +1442,13 @@ function DocumentsContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Free Trial Upgrade Modal for Document Storing */}
+      <UpgradeModal
+        open={isUpgradeModalOpen}
+        onOpenChange={setIsUpgradeModalOpen}
+        feature="documents"
+      />
     </div>
   );
 }

@@ -165,45 +165,32 @@ div[class*="bg-[#1E1E4F]"] > p {
 }
 
 /* ========================================================================== */
-/* SIDEBAR: Complete protection against inherited dark text                   */
-/* All elements inside sidebar default to crisp pure white                    */
+/* SIDEBAR: Specific overrides for Navy (#272769) background                  */
 /* ========================================================================== */
-aside,
-aside nav,
-aside a,
-aside a *,
-aside a span,
-aside a svg,
-aside button,
-aside button *,
-aside button span,
-aside button svg,
-aside p,
-aside span,
-aside svg {
+aside.bg-navy,
+aside[class*="bg-[#272769]"],
+aside[class*="bg-[#1E1E4F]"] {
   color: #FFFFFF !important;
-  stroke: #FFFFFF !important;
 }
 
-/* Active menu item in sidebar retains Gold background and Navy text */
-aside a.active,
-aside a.active *,
-aside .bg-gold,
-aside .bg-gold *,
-aside [class*="bg-[#E0A95C]"],
-aside [class*="bg-[#E0A95C]"] *,
-aside [class*="bg-[#E0A95C]"] span,
-aside [class*="bg-[#E0A95C]"] svg {
-  background-color: #E0A95C !important;
-  color: #1E1E4F !important;
-  stroke: #1E1E4F !important;
+aside [class*="bg-white"],
+aside [class*="bg-white"] *,
+aside .bg-white,
+aside .bg-white * {
+  color: #272769 !important;
+  stroke: #272769 !important;
 }
 
-/* User avatar initials pill in sidebar: Gold background with dark text */
-aside .bg-gold span,
-aside [class*="bg-[#E0A95C]"] span,
-aside .relative.flex.h-9.w-9.rounded-full span {
-  color: #1E1E4F !important;
+aside [class*="text-[#ABA8D8]"] {
+  color: #ABA8D8 !important;
+}
+
+aside [class*="text-[#C5C3E8]"] {
+  color: #C5C3E8 !important;
+}
+
+aside [class*="text-[#E3E2F5]"] {
+  color: #E3E2F5 !important;
 }
 
 /* Hover states for Navy buttons */
@@ -363,7 +350,6 @@ aside .relative.flex.h-9.w-9.rounded-full span {
 [class*="bg-[#444498]"],
 [class*="bg-navy"],
 .bg-navy,
-aside,
 header button[class*="bg-[#272769]"] {
   color: #FFFFFF !important;
 }
@@ -375,12 +361,6 @@ header button[class*="bg-[#272769]"] {
 [class*="bg-[#444498]"] *,
 [class*="bg-navy"] *,
 .bg-navy *,
-aside *,
-aside nav *,
-aside a:not([class*="bg-[#E0A95C]"]),
-aside a:not([class*="bg-[#E0A95C]"]) *,
-aside button:not([class*="bg-[#E0A95C]"]),
-aside button:not([class*="bg-[#E0A95C]"]) *,
 header button[class*="bg-[#272769]"] * {
   color: #FFFFFF !important;
   stroke: #FFFFFF !important;
@@ -388,17 +368,8 @@ header button[class*="bg-[#272769]"] * {
 
 /* Specific exclusion: Elements with Gold backgrounds keep dark text */
 [class*="bg-[#E0A95C]"],
-[class*="bg-[#E0A95C]"] *,
-aside [class*="bg-[#E0A95C]"],
-aside [class*="bg-[#E0A95C]"] *,
-aside .bg-gold,
-aside .bg-gold * {
+[class*="bg-[#E0A95C]"] * {
   background-color: #E0A95C !important;
   color: #1E1E4F !important;
   stroke: #1E1E4F !important;
-}
-
-/* Avatar circle in user card */
-aside .relative.flex.h-9.w-9 span {
-  color: #1E1E4F !important;
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/app-shell";
 import { pmsStore } from "@/lib/data/store";
-import { isEmployeeRestricted, isSuperAdmin } from "@/lib/access";
+import { isEmployeeRestricted, isSuperAdmin, isOwner } from "@/lib/access";
 import { createClient } from "@/lib/supabase/client";
 
 import LoginPage from "@/pages/login/page";
@@ -16,8 +16,6 @@ import ProjectsPage from "@/pages/projects/page";
 import NewProjectPage from "@/pages/projects/new/page";
 import ProjectDetailPage from "@/pages/projects/[id]/page";
 import TasksPage from "@/pages/tasks/page";
-import WorkflowsPage from "@/pages/workflows/page";
-import WorkflowKanbanPage from "@/pages/workflows/[id]/page";
 import FinancePage from "@/pages/finance/page";
 import InvoicesPage from "@/pages/invoices/page";
 import NewInvoicePage from "@/pages/invoices/new/page";
@@ -28,6 +26,7 @@ import EmployeeProfilePage from "@/pages/employees/[id]/page";
 import AttendancePage from "@/pages/attendance/page";
 import TeamsPage from "@/pages/teams/page";
 import DocumentsPage from "@/pages/documents/page";
+import WhatsAppPage from "@/pages/whatsapp/page";
 import VaultPage from "@/pages/vault/page";
 import NotificationsPage from "@/pages/notifications/page";
 import ReportsPage from "@/pages/reports/page";
@@ -44,6 +43,7 @@ function isAllowedForEmployee(pathname: string): boolean {
     pathname === "/attendance" ||
     pathname === "/documents" ||
     pathname === "/recycle-bin" ||
+    pathname === "/whatsapp" ||
     pathname === "/vault"
   ) {
     return true;
@@ -52,9 +52,6 @@ function isAllowedForEmployee(pathname: string): boolean {
     return true;
   }
   if (pathname === "/projects" || (pathname.startsWith("/projects/") && pathname !== "/projects/new")) {
-    return true;
-  }
-  if (pathname === "/workflows" || pathname.startsWith("/workflows/")) {
     return true;
   }
   return false;
@@ -96,7 +93,12 @@ function EmployeeRouteGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (isAuthenticated && pathname.startsWith("/admins") && !isSuperAdmin(currentUser)) {
+  if (
+    isAuthenticated &&
+    pathname.startsWith("/admins") &&
+    !isSuperAdmin(currentUser) &&
+    !isOwner(currentUser)
+  ) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -172,8 +174,8 @@ export default function App() {
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
 
           <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/workflows" element={<WorkflowsPage />} />
-          <Route path="/workflows/:id" element={<WorkflowKanbanPage />} />
+          <Route path="/workflows" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/workflows/*" element={<Navigate to="/dashboard" replace />} />
           <Route path="/finance" element={<FinancePage />} />
 
           <Route path="/invoices" element={<InvoicesPage />} />
@@ -189,7 +191,8 @@ export default function App() {
           <Route path="/teams" element={<TeamsPage />} />
           <Route path="/vault" element={<VaultPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
-          <Route path="/recycle-bin" element={<DocumentsPage />} />
+          <Route path="/recycle-bin" element={<Navigate to="/documents?tab=recycle-bin" replace />} />
+          <Route path="/whatsapp" element={<WhatsAppPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />

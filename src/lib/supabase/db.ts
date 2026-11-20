@@ -1,9 +1,10 @@
 // ============================================================================
-// DIRECT SUPABASE DATABASE CLIENT & REPOSITORY SERVICE
-// Pure, single-source-of-truth direct database persistence
+// CLIENT DATA API ADAPTER
+// Routes all database persistence calls to the server-side Python Data API (/api)
+// Eliminates direct Supabase PostgREST queries in the browser for maximum security
 // ============================================================================
 
-import { createClient, SUPERADMIN_EMAIL, isSuperAdminEmail } from "./client";
+import { createClient } from "./client";
 import {
   Client,
   ClientContact,
@@ -20,10 +21,7 @@ import {
   TaskStatusConfig,
   WorkflowTemplate,
   WorkflowMilestoneTemplate,
-  WorkflowStageTemplate,
-  WorkflowProjectTaskTemplate,
   Invoice,
-  InvoiceItem,
   Payment,
   FileObject,
   Employee,
@@ -32,12 +30,10 @@ import {
   VaultCredential,
   VaultAuditLog,
   InvoiceRequest,
-  InvoiceRequestItem,
   RecurringInvoice,
   BulkInvoiceBatch,
   InvoiceApprovalLog,
   Team,
-  TeamMember,
   DocumentFolder,
 } from "@/types";
 
@@ -58,447 +54,100 @@ export function ensureUuid(id?: string | null): string {
   });
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  let token: string | undefined;
+  try {
+    const supabase = createClient();
+    const sessionRes = await supabase.auth.getSession();
+    token = sessionRes.data?.session?.access_token;
+  } catch (err) {
+    // Session retrieval error or logged out
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const url = `${API_BASE}${path}`;
+
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      ...headers,
+      ...(options.headers as Record<string, string>),
+    },
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(errorData.detail || `Server API Error (${res.status})`);
+  }
+
+  return res.json();
+}
+
 // ----------------------------------------------------------------------------
 // CLIENTS, CONTACTS, ADDRESSES & REGISTRATIONS
 // ----------------------------------------------------------------------------
 
 export async function fetchClientsFromDb(): Promise<Client[]> {
-  const supabase = createClient();
-  const [clientsRes, contactsRes, addressesRes, regsRes, bankAccountsRes] = await Promise.all([
-    supabase.from("clients").select("*").order("created_at", { ascending: false }),
-    supabase.from("client_contacts").select("*"),
-    supabase.from("client_addresses").select("*"),
-    supabase.from("client_registrations").select("*"),
-    supabase.from("client_bank_accounts").select("*"),
-  ]);
-
-  if (clientsRes.error) {
-    console.error("Error fetching clients from Supabase:", clientsRes.error);
-    throw new Error(clientsRes.error.message);
-  }
-
-  const contactsByClient = new Map<string, ClientContact[]>();
-  (contactsRes.data || []).forEach((c: any) => {
-    const list = contactsByClient.get(c.client_id) || [];
-    list.push({
-      id: c.id,
-      client_id: c.client_id,
-      contact_person: c.contact_person,
-      designation: c.designation || undefined,
-      mobile_number: c.mobile_number,
-      email: c.email,
-      is_primary: Boolean(c.is_primary),
-    });
-    contactsByClient.set(c.client_id, list);
-  });
-
-  const addressesByClient = new Map<string, ClientAddress[]>();
-  (addressesRes.data || []).forEach((a: any) => {
-    const list = addressesByClient.get(a.client_id) || [];
-    list.push({
-      id: a.id,
-      client_id: a.client_id,
-      address_type: a.address_type,
-      street_address: a.street_address,
-      city: a.city,
-      state: a.state,
-      pin_code: a.pin_code,
-      country: a.country || "India",
-      is_primary: Boolean(a.is_primary),
-    });
-    addressesByClient.set(a.client_id, list);
-  });
-
-  const regsByClient = new Map<string, ClientRegistration>();
-  (regsRes.data || []).forEach((r: any) => {
-    regsByClient.set(r.client_id, {
-      id: r.id,
-      client_id: r.client_id,
-      pan: r.pan,
-      gstin: r.gstin || undefined,
-      cin: r.cin || undefined,
-      dob_or_doi: r.dob_or_doi || undefined,
-      additional_registrations: r.additional_registrations || [],
-    });
-  });
-
-  const bankAccountsByClient = new Map<string, ClientBankAccount[]>();
-  (bankAccountsRes.data || []).forEach((b: any) => {
-    const list = bankAccountsByClient.get(b.client_id) || [];
-    list.push({
-      id: b.id,
-      client_id: b.client_id,
-      bank_name: b.bank_name,
-      account_number: b.account_number_encrypted || b.account_number || "",
-      account_holder_name: b.account_holder_name || undefined,
-      ifsc_code: b.ifsc_code,
-      branch_name: b.branch_name || undefined,
-      account_type: b.account_type || "Current",
-      upi_id: b.upi_id || undefined,
-      is_primary: Boolean(b.is_primary),
-    });
-    bankAccountsByClient.set(b.client_id, list);
-  });
-
-  return (clientsRes.data || []).map((row: any): Client => {
-    const contacts = contactsByClient.get(row.id) || [];
-    const primaryContact = contacts.find((c) => c.is_primary) || contacts[0];
-    const addresses = addressesByClient.get(row.id) || [];
-    const registration = regsByClient.get(row.id);
-    const bankAccounts = bankAccountsByClient.get(row.id) || [];
-
-    return {
-      id: row.id,
-      client_code: row.client_code,
-      client_name: row.client_name,
-      legal_name: row.legal_name,
-      nick_name: row.nick_name || undefined,
-      folder_name: row.folder_name || undefined,
-      reference_name: row.reference_name || undefined,
-      constitution: row.constitution,
-      category: row.category || undefined,
-      nature_of_income: row.nature_of_income || undefined,
-      remarks: row.remarks || undefined,
-      relationship_manager_id: row.relationship_manager_id || undefined,
-      status: row.status,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      contact: primaryContact,
-      contacts: contacts.length > 0 ? contacts : undefined,
-      addresses: addresses.length > 0 ? addresses : undefined,
-      registration,
-      bank_accounts: bankAccounts.length > 0 ? bankAccounts : undefined,
-      active_services_count: 0,
-      total_projects_count: 0,
-      completed_projects_count: 0,
-      pending_tasks_count: 0,
-      total_invoiced_amount: 0,
-      total_payments_received: 0,
-      outstanding_amount: 0,
-    };
-  });
+  return request<Client[]>("/clients");
 }
 
 export async function insertClientToDb(client: Client): Promise<Client> {
-  const supabase = createClient();
-  const clientId = ensureUuid(client.id);
-  const clientRecord = { ...client, id: clientId };
-
-  const { error } = await supabase.from("clients").insert({
-    id: clientId,
-    client_code: clientRecord.client_code,
-    client_name: clientRecord.client_name,
-    legal_name: clientRecord.legal_name,
-    nick_name: clientRecord.nick_name || null,
-    folder_name: clientRecord.folder_name || null,
-    reference_name: clientRecord.reference_name || null,
-    constitution: clientRecord.constitution,
-    category: clientRecord.category || null,
-    nature_of_income: clientRecord.nature_of_income || null,
-    remarks: clientRecord.remarks || null,
-    relationship_manager_id: isUuid(clientRecord.relationship_manager_id)
-      ? clientRecord.relationship_manager_id
-      : null,
-    status: clientRecord.status || "Active",
-    created_at: clientRecord.created_at || new Date().toISOString(),
-    updated_at: clientRecord.updated_at || new Date().toISOString(),
+  return request<Client>("/clients", {
+    method: "POST",
+    body: JSON.stringify(client),
   });
-
-  if (error) {
-    console.error("Supabase insert client error:", error);
-    throw new Error(error.message);
-  }
-
-  // Insert contacts
-  const contactsToInsert = (clientRecord.contacts && clientRecord.contacts.length > 0)
-    ? clientRecord.contacts
-    : clientRecord.contact ? [clientRecord.contact] : [];
-
-  if (contactsToInsert.length > 0) {
-    const contactRows = contactsToInsert.map((c, idx) => ({
-      id: ensureUuid(c.id),
-      client_id: clientId,
-      contact_person: c.contact_person,
-      designation: c.designation || null,
-      mobile_number: c.mobile_number,
-      email: c.email,
-      is_primary: c.is_primary !== undefined ? c.is_primary : idx === 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
-    const { error: cErr } = await supabase.from("client_contacts").insert(contactRows);
-    if (cErr) console.warn("Supabase insert client_contacts error:", cErr);
-  }
-
-  // Insert addresses
-  if (clientRecord.addresses && clientRecord.addresses.length > 0) {
-    const addrRows = clientRecord.addresses.map((a, idx) => ({
-      id: ensureUuid(a.id),
-      client_id: clientId,
-      address_type: a.address_type || (idx === 0 ? "Registered" : "Communication"),
-      street_address: a.street_address,
-      city: a.city,
-      state: a.state,
-      pin_code: a.pin_code,
-      country: a.country || "India",
-      is_primary: a.is_primary !== undefined ? a.is_primary : idx === 0,
-    }));
-    const { error: aErr } = await supabase.from("client_addresses").insert(addrRows);
-    if (aErr) console.warn("Supabase insert client_addresses error:", aErr);
-  }
-
-  // Insert registration
-  if (clientRecord.registration && clientRecord.registration.pan) {
-    const { error: rErr } = await supabase.from("client_registrations").insert({
-      id: ensureUuid(clientRecord.registration.id),
-      client_id: clientId,
-      pan: clientRecord.registration.pan,
-      gstin: clientRecord.registration.gstin || null,
-      cin: clientRecord.registration.cin || null,
-      dob_or_doi: clientRecord.registration.dob_or_doi || null,
-      additional_registrations: clientRecord.registration.additional_registrations || [],
-    });
-    if (rErr) console.warn("Supabase insert client_registrations error:", rErr);
-  }
-
-  // Insert bank accounts
-  if (clientRecord.bank_accounts && clientRecord.bank_accounts.length > 0) {
-    const bankRows = clientRecord.bank_accounts.map((b, idx) => ({
-      id: ensureUuid(b.id),
-      client_id: clientId,
-      bank_name: b.bank_name,
-      account_number_encrypted: b.account_number,
-      ifsc_code: b.ifsc_code,
-      account_type: b.account_type || "Current",
-      is_primary: b.is_primary !== undefined ? b.is_primary : idx === 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
-    const { error: bErr } = await supabase.from("client_bank_accounts").insert(bankRows);
-    if (bErr) console.warn("Supabase insert client_bank_accounts error:", bErr);
-  }
-
-  return clientRecord;
-}
-
-export async function upsertClientBankAccountInDb(account: ClientBankAccount): Promise<ClientBankAccount> {
-  const supabase = createClient();
-  const id = ensureUuid(account.id);
-  const row = {
-    id,
-    client_id: ensureUuid(account.client_id),
-    bank_name: account.bank_name,
-    account_number_encrypted: account.account_number,
-    ifsc_code: account.ifsc_code,
-    account_type: account.account_type || "Current",
-    is_primary: account.is_primary ?? true,
-    updated_at: new Date().toISOString(),
-  };
-  const { error } = await supabase.from("client_bank_accounts").upsert(row);
-  if (error) {
-    console.error("Supabase upsert client_bank_accounts error:", error);
-    throw new Error(error.message);
-  }
-  return { ...account, id };
-}
-
-export async function deleteClientBankAccountFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("client_bank_accounts").delete().eq("id", id);
-  if (error) {
-    console.error("Supabase delete client_bank_accounts error:", error);
-    throw new Error(error.message);
-  }
 }
 
 export async function updateClientInDb(id: string, updates: Partial<Client>): Promise<void> {
-  const supabase = createClient();
-  const dbUpdates: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (updates.client_name !== undefined) dbUpdates.client_name = updates.client_name;
-  if (updates.legal_name !== undefined) dbUpdates.legal_name = updates.legal_name;
-  if (updates.nick_name !== undefined) dbUpdates.nick_name = updates.nick_name || null;
-  if (updates.folder_name !== undefined) dbUpdates.folder_name = updates.folder_name || null;
-  if (updates.reference_name !== undefined) dbUpdates.reference_name = updates.reference_name || null;
-  if (updates.constitution !== undefined) dbUpdates.constitution = updates.constitution;
-  if (updates.category !== undefined) dbUpdates.category = updates.category || null;
-  if (updates.nature_of_income !== undefined) dbUpdates.nature_of_income = updates.nature_of_income || null;
-  if (updates.remarks !== undefined) dbUpdates.remarks = updates.remarks || null;
-  if (updates.status !== undefined) dbUpdates.status = updates.status;
-  if (updates.relationship_manager_id !== undefined) {
-    dbUpdates.relationship_manager_id = isUuid(updates.relationship_manager_id)
-      ? updates.relationship_manager_id
-      : null;
-  }
-
-  const { error } = await supabase.from("clients").update(dbUpdates).eq("id", id);
-  if (error) {
-    console.error("Supabase update client error:", error);
-    throw new Error(error.message);
-  }
-
-  // Upsert primary contact if provided
-  if (updates.contact) {
-    await upsertClientContactInDb({
-      ...updates.contact,
-      client_id: id,
-    });
-  }
-
-  // Upsert all contacts if provided
-  if (updates.contacts && updates.contacts.length > 0) {
-    for (const c of updates.contacts) {
-      await upsertClientContactInDb({
-        ...c,
-        client_id: id,
-      });
-    }
-  }
-
-  // Upsert registration if provided (PAN, GSTIN, CIN, DOB)
-  if (updates.registration && (updates.registration.pan || updates.registration.dob_or_doi)) {
-    const regPayload = {
-      id: ensureUuid(updates.registration.id),
-      client_id: id,
-      pan: updates.registration.pan || "",
-      gstin: updates.registration.gstin || null,
-      cin: updates.registration.cin || null,
-      dob_or_doi: updates.registration.dob_or_doi || null,
-      additional_registrations: updates.registration.additional_registrations || [],
-      updated_at: new Date().toISOString(),
-    };
-    const { error: rErr } = await supabase.from("client_registrations").upsert(regPayload);
-    if (rErr) console.warn("Supabase upsert client_registrations error:", rErr);
-  }
-
-  // Upsert bank accounts if provided
-  if (updates.bank_accounts && updates.bank_accounts.length > 0) {
-    for (const b of updates.bank_accounts) {
-      await upsertClientBankAccountInDb({
-        ...b,
-        client_id: id,
-      });
-    }
-  }
-
-  // Upsert addresses if provided
-  if (updates.addresses && updates.addresses.length > 0) {
-    for (const addr of updates.addresses) {
-      await upsertClientAddressInDb({
-        ...addr,
-        client_id: id,
-      });
-    }
-  }
-}
-
-export async function upsertClientAddressInDb(address: ClientAddress): Promise<ClientAddress> {
-  const supabase = createClient();
-  const addressId = ensureUuid(address.id);
-  const clientId = ensureUuid(address.client_id);
-
-  const payload = {
-    id: addressId,
-    client_id: clientId,
-    address_type: address.address_type || "Registered",
-    street_address: address.street_address,
-    city: address.city,
-    state: address.state,
-    pin_code: address.pin_code,
-    country: address.country || "India",
-    is_primary: address.is_primary ?? true,
-    updated_at: new Date().toISOString(),
-  };
-
-  const { data, error } = await supabase
-    .from("client_addresses")
-    .upsert(payload)
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Supabase upsert client_addresses error:", error);
-    throw new Error(error.message);
-  }
-
-  return {
-    id: data.id,
-    client_id: data.client_id,
-    address_type: data.address_type,
-    street_address: data.street_address,
-    city: data.city,
-    state: data.state,
-    pin_code: data.pin_code,
-    country: data.country,
-    is_primary: Boolean(data.is_primary),
-  };
-}
-
-export async function deleteClientAddressFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("client_addresses").delete().eq("id", id);
-  if (error) {
-    console.error("Supabase delete client_addresses error:", error);
-    throw new Error(error.message);
-  }
+  await request(`/clients/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteClientFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("clients").delete().eq("id", id);
-  if (error) {
-    console.error("Supabase delete client error:", error);
-    throw new Error(error.message);
-  }
+  await request(`/clients/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function upsertClientContactInDb(contact: ClientContact): Promise<ClientContact> {
-  const supabase = createClient();
-  const contactId = ensureUuid(contact.id);
-  const clientId = ensureUuid(contact.client_id);
-
-  const payload = {
-    id: contactId,
-    client_id: clientId,
-    contact_person: contact.contact_person,
-    designation: contact.designation || null,
-    mobile_number: contact.mobile_number,
-    email: contact.email,
-    is_primary: contact.is_primary ?? true,
-    updated_at: new Date().toISOString(),
-  };
-
-  const { data, error } = await supabase
-    .from("client_contacts")
-    .upsert(payload)
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Supabase upsert client_contacts error:", error);
-    throw new Error(error.message);
-  }
-
-  return {
-    id: data.id,
-    client_id: data.client_id,
-    contact_person: data.contact_person,
-    designation: data.designation || undefined,
-    mobile_number: data.mobile_number,
-    email: data.email,
-    is_primary: Boolean(data.is_primary),
-  };
+  return request<ClientContact>(`/clients/${contact.client_id}/contacts`, {
+    method: "POST",
+    body: JSON.stringify(contact),
+  });
 }
 
-export async function deleteClientContactFromDb(contactId: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("client_contacts").delete().eq("id", contactId);
-  if (error) {
-    console.error("Supabase delete client_contacts error:", error);
-    throw new Error(error.message);
-  }
+export async function deleteClientContactFromDb(id: string): Promise<void> {
+  await request(`/clients/contacts/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function upsertClientBankAccountInDb(bank: ClientBankAccount): Promise<ClientBankAccount> {
+  return request<ClientBankAccount>(`/clients/${bank.client_id}/bank-accounts`, {
+    method: "POST",
+    body: JSON.stringify(bank),
+  });
+}
+
+export async function deleteClientBankAccountFromDb(id: string): Promise<void> {
+  await request(`/clients/bank-accounts/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function deleteClientAddressFromDb(id: string): Promise<void> {
+  await request(`/clients/addresses/${id}`, {
+    method: "DELETE",
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -506,115 +155,44 @@ export async function deleteClientContactFromDb(contactId: string): Promise<void
 // ----------------------------------------------------------------------------
 
 export async function fetchServicesFromDb(): Promise<Service[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from("services").select("*").order("service_code");
-  if (error) {
-    console.error("Supabase fetch services error:", error);
-    throw new Error(error.message);
-  }
-  return (data || []).map((row: any): Service => ({
-    id: row.id,
-    service_code: row.service_code,
-    service_name: row.service_name,
-    description: row.description || "",
-    default_fee: Number(row.default_fee) || 0,
-    default_gst_rate: Number(row.default_gst_rate) || 18,
-    billing_type: row.billing_type,
-    status: row.status,
-    created_at: row.created_at,
-  }));
+  return request<Service[]>("/services");
 }
 
 export async function insertServiceToDb(service: Service): Promise<Service> {
-  const supabase = createClient();
-  const id = ensureUuid(service.id);
-  const { error } = await supabase.from("services").insert({
-    id,
-    service_code: service.service_code,
-    service_name: service.service_name,
-    description: service.description || null,
-    default_fee: service.default_fee || 0,
-    default_gst_rate: service.default_gst_rate || 18,
-    billing_type: service.billing_type || "Recurring",
-    status: service.status || "Active",
-    created_at: service.created_at || new Date().toISOString(),
+  return request<Service>("/services", {
+    method: "POST",
+    body: JSON.stringify(service),
   });
-  if (error) throw new Error(error.message);
-  return { ...service, id };
 }
 
 export async function updateServiceInDb(id: string, updates: Partial<Service>): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("services").update({
-    ...(updates.service_name !== undefined ? { service_name: updates.service_name } : {}),
-    ...(updates.service_code !== undefined ? { service_code: updates.service_code } : {}),
-    ...(updates.description !== undefined ? { description: updates.description || null } : {}),
-    ...(updates.default_fee !== undefined ? { default_fee: updates.default_fee } : {}),
-    ...(updates.default_gst_rate !== undefined ? { default_gst_rate: updates.default_gst_rate } : {}),
-    ...(updates.billing_type !== undefined ? { billing_type: updates.billing_type } : {}),
-    ...(updates.status !== undefined ? { status: updates.status } : {}),
-  }).eq("id", id);
-  if (error) throw new Error(error.message);
+  await request(`/services/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteServiceFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("services").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  await request(`/services/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchEngagementsFromDb(): Promise<ServiceEngagement[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from("service_engagements").select("*, clients(client_name), services(service_name, service_code)");
-  if (error) {
-    console.error("Supabase fetch service_engagements error:", error);
-    throw new Error(error.message);
-  }
-  return (data || []).map((row: any): ServiceEngagement => ({
-    id: row.id,
-    client_id: row.client_id,
-    client_name: row.clients?.client_name || "Client",
-    service_id: row.service_id,
-    service_name: row.services?.service_name || "Service",
-    service_code: row.services?.service_code || "",
-    agreed_fee: Number(row.agreed_fee) || 0,
-    gst_rate: Number(row.gst_rate) || 18,
-    billing_frequency: row.billing_frequency,
-    payment_terms: row.payment_terms || "Immediate",
-    relationship_manager_id: row.relationship_manager_id || undefined,
-    start_date: row.start_date,
-    end_date: row.end_date || undefined,
-    status: row.status,
-    remarks: row.remarks || undefined,
-    created_at: row.created_at,
-  }));
+  return request<ServiceEngagement[]>("/service-engagements");
 }
 
 export async function insertEngagementToDb(eng: ServiceEngagement): Promise<ServiceEngagement> {
-  const supabase = createClient();
-  const id = ensureUuid(eng.id);
-  const { error } = await supabase.from("service_engagements").insert({
-    id,
-    client_id: ensureUuid(eng.client_id),
-    service_id: ensureUuid(eng.service_id),
-    agreed_fee: eng.agreed_fee,
-    gst_rate: eng.gst_rate || 18,
-    billing_frequency: eng.billing_frequency,
-    payment_terms: eng.payment_terms || "Immediate",
-    relationship_manager_id: isUuid(eng.relationship_manager_id) ? eng.relationship_manager_id : null,
-    start_date: eng.start_date || new Date().toISOString().slice(0, 10),
-    end_date: eng.end_date || null,
-    status: eng.status || "Active",
-    remarks: eng.remarks || null,
+  return request<ServiceEngagement>("/service-engagements", {
+    method: "POST",
+    body: JSON.stringify(eng),
   });
-  if (error) throw new Error(error.message);
-  return { ...eng, id };
 }
 
 export async function deleteEngagementFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("service_engagements").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  await request(`/service-engagements/${id}`, {
+    method: "DELETE",
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -622,99 +200,27 @@ export async function deleteEngagementFromDb(id: string): Promise<void> {
 // ----------------------------------------------------------------------------
 
 export async function fetchProjectsFromDb(): Promise<Project[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*, clients(client_name), employees!projects_project_manager_id_fkey(full_name), service_engagements(services(service_name))")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Supabase fetch projects error:", error);
-    throw new Error(error.message);
-  }
-
-  return (data || []).map((row: any): Project => ({
-    id: row.id,
-    project_code: row.project_code,
-    project_name: row.project_name,
-    project_type: row.project_type,
-    client_id: row.client_id || undefined,
-    client_name: row.clients?.client_name || undefined,
-    service_engagement_id: row.service_engagement_id || undefined,
-    service_name: row.service_engagements?.services?.service_name || undefined,
-    description: row.description || "",
-    project_manager_id: row.project_manager_id || undefined,
-    project_manager_name: row.employees?.full_name || undefined,
-    priority: row.priority,
-    start_date: row.start_date,
-    due_date: row.due_date,
-    status: row.status,
-    progress_percentage: Number(row.progress_percentage) || 0,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    assigned_employees: [],
-  }));
+  return request<Project[]>("/projects");
 }
 
 export async function insertProjectToDb(project: Project): Promise<Project> {
-  const supabase = createClient();
-  const id = ensureUuid(project.id);
-  const { error } = await supabase.from("projects").insert({
-    id,
-    project_code: project.project_code,
-    project_name: project.project_name,
-    project_type: project.project_type || "Client Project",
-    client_id: isUuid(project.client_id) ? project.client_id : null,
-    service_engagement_id: isUuid(project.service_engagement_id) ? project.service_engagement_id : null,
-    description: project.description || null,
-    project_manager_id: isUuid(project.project_manager_id) ? project.project_manager_id : null,
-    priority: project.priority || "Medium",
-    start_date: project.start_date || new Date().toISOString().slice(0, 10),
-    due_date: project.due_date,
-    status: project.status || "In Progress",
-    progress_percentage: project.progress_percentage || 0,
-    created_at: project.created_at || new Date().toISOString(),
-    updated_at: project.updated_at || new Date().toISOString(),
+  return request<Project>("/projects", {
+    method: "POST",
+    body: JSON.stringify(project),
   });
-
-  if (error) {
-    console.error("Supabase insert project error:", error);
-    throw new Error(error.message);
-  }
-
-  return { ...project, id };
 }
 
 export async function updateProjectInDb(id: string, updates: Partial<Project>): Promise<void> {
-  const supabase = createClient();
-  const dbUpdates: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (updates.project_name !== undefined) dbUpdates.project_name = updates.project_name;
-  if (updates.description !== undefined) dbUpdates.description = updates.description || null;
-  if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
-  if (updates.status !== undefined) dbUpdates.status = updates.status;
-  if (updates.due_date !== undefined) dbUpdates.due_date = updates.due_date;
-  if (updates.progress_percentage !== undefined) dbUpdates.progress_percentage = updates.progress_percentage;
-  if (updates.project_manager_id !== undefined) {
-    dbUpdates.project_manager_id = isUuid(updates.project_manager_id) ? updates.project_manager_id : null;
-  }
-  if (updates.client_id !== undefined) {
-    dbUpdates.client_id = isUuid(updates.client_id) ? updates.client_id : null;
-  }
-
-  const { error } = await supabase.from("projects").update(dbUpdates).eq("id", id);
-  if (error) {
-    console.error("Supabase update project error:", error);
-    throw new Error(error.message);
-  }
+  await request(`/projects/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteProjectFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("projects").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  await request(`/projects/${id}`, {
+    method: "DELETE",
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -722,395 +228,156 @@ export async function deleteProjectFromDb(id: string): Promise<void> {
 // ----------------------------------------------------------------------------
 
 export async function fetchTasksFromDb(): Promise<Task[]> {
-  const supabase = createClient();
-  let data: any[] | null = null;
-
-  try {
-    const res = await supabase
-      .from("tasks")
-      .select("*, projects(project_name, client_id, clients(client_name)), employees(full_name)")
-      .order("created_at", { ascending: false });
-    if (!res.error && res.data) {
-      data = res.data;
-    }
-  } catch (err) {
-    console.warn("Joined fetchTasksFromDb failed, falling back to direct select('*'):", err);
-  }
-
-  // Resilient fallback: fetch direct from tasks if relationship join encounters any schema mismatch
-  if (!data) {
-    const plainRes = await supabase
-      .from("tasks")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (plainRes.error) {
-      console.error("Supabase fetch tasks error:", plainRes.error);
-      throw new Error(plainRes.error.message);
-    }
-    data = plainRes.data || [];
-  }
-
-  const rawTasks = (data || []).map((row: any) => ({
-    id: row.id,
-    task_code: row.task_code,
-    project_id: row.project_id,
-    project_name: row.projects?.project_name || row.project_name || "Project",
-    client_id: row.client_id || (row.projects as any)?.client_id || undefined,
-    client_name: row.client_name || (row.projects as any)?.clients?.client_name || undefined,
-    parent_task_id: row.parent_task_id || undefined,
-    title: row.title,
-    description: row.description || "",
-    assigned_employee_id: row.assigned_employee_id || undefined,
-    assigned_employee_name: row.employees?.full_name || row.assigned_employee_name || undefined,
-    priority: row.priority || "Medium",
-    start_date: row.start_date,
-    due_date: row.due_date,
-    status: row.status || "To Do",
-    completed_at: row.completed_at || undefined,
-    category_id: row.category_id || undefined,
-    category_name: row.category_name || undefined,
-    sub_category_id: row.sub_category_id || undefined,
-    sub_category_name: row.sub_category_name || undefined,
-    whatsapp_enabled: Boolean(row.whatsapp_enabled ?? true),
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    comments_count: 0,
-    subtasks: [] as Task[],
-    is_billable: Boolean(row.is_billable ?? false),
-    billing_amount: Number(row.billing_amount) || 0,
-    billed_amount: Number(row.billed_amount) || 0,
-    remaining_amount: row.remaining_amount !== undefined && row.remaining_amount !== null
-      ? Number(row.remaining_amount)
-      : Math.max(0, (Number(row.billing_amount) || 0) - (Number(row.billed_amount) || 0)),
-    pending_approval_amount: Number(row.pending_approval_amount) || 0,
-    billing_status: row.billing_status || (
-      (Number(row.billed_amount) || 0) >= (Number(row.billing_amount) || 0) && (Number(row.billing_amount) || 0) > 0
-        ? 'Billed'
-        : (Number(row.billed_amount) || 0) > 0
-        ? 'Partially Billed'
-        : 'To Be Billed'
-    ),
-    billing_description: row.billing_description || undefined,
-    currency: row.currency || 'INR',
-  }));
-
-  // Build parent-subtask tree
-  const subtasksByParent = new Map<string, Task[]>();
-  rawTasks.forEach((t) => {
-    if (t.parent_task_id) {
-      const list = subtasksByParent.get(t.parent_task_id) || [];
-      list.push(t as Task);
-      subtasksByParent.set(t.parent_task_id, list);
-    }
-  });
-
-  return rawTasks.map((t) => ({
-    ...t,
-    subtasks: subtasksByParent.get(t.id) || [],
-  })) as Task[];
+  return request<Task[]>("/tasks");
 }
 
 export async function insertTaskToDb(task: Task): Promise<Task> {
-  const supabase = createClient();
-  const id = ensureUuid(task.id);
-  const payload: Record<string, any> = {
-    id,
-    task_code: task.task_code,
-    project_id: ensureUuid(task.project_id),
-    parent_task_id: task.parent_task_id && isUuid(task.parent_task_id) ? task.parent_task_id : null,
-    title: task.title,
-    description: task.description || null,
-    assigned_employee_id: isUuid(task.assigned_employee_id) ? task.assigned_employee_id : null,
-    priority: task.priority || "Medium",
-    start_date: task.start_date || new Date().toISOString().slice(0, 10),
-    due_date: task.due_date,
-    status: task.status || "To Do",
-    category_id: task.category_id || null,
-    sub_category_id: task.sub_category_id || null,
-    client_id: isUuid(task.client_id) ? task.client_id : null,
-    client_name: task.client_name || null,
-    whatsapp_enabled: task.whatsapp_enabled ?? true,
-    is_billable: Boolean(task.is_billable ?? false),
-    billing_amount: task.billing_amount || 0,
-    billed_amount: task.billed_amount || 0,
-    remaining_amount: task.remaining_amount !== undefined ? task.remaining_amount : (task.billing_amount || 0),
-    pending_approval_amount: task.pending_approval_amount || 0,
-    billing_status: task.billing_status || "To Be Billed",
-    billing_description: task.billing_description || null,
-    currency: task.currency || "INR",
-    created_at: task.created_at || new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  let { error } = await supabase.from("tasks").insert(payload);
-
-  // If database still has legacy tasks_status_check constraint, retry gracefully with "To Do"
-  if (error && error.message && error.message.includes("tasks_status_check")) {
-    console.warn("Legacy tasks_status_check constraint caught. Retrying insert with status 'To Do'...");
-    payload.status = "To Do";
-    const retry = await supabase.from("tasks").insert(payload);
-    error = retry.error;
-  }
-
-  if (error) {
-    console.error("Supabase insert task error:", error);
-    throw new Error(error.message);
-  }
-
-  return { ...task, id };
+  return request<Task>("/tasks", {
+    method: "POST",
+    body: JSON.stringify(task),
+  });
 }
 
 export async function updateTaskInDb(id: string, updates: Partial<Task>): Promise<void> {
-  const supabase = createClient();
-  let targetId = id;
-
-  if (!isUuid(targetId)) {
-    // If id is not a valid UUID, attempt to resolve via task_code (e.g. "TSK-003")
-    const { data: found } = await supabase.from("tasks").select("id").eq("task_code", id.toUpperCase()).maybeSingle();
-    if (found?.id) {
-      targetId = found.id;
-    } else {
-      console.warn("Task id is not a valid UUID and no task_code match found, skipping Supabase direct update:", id);
-      return;
-    }
-  }
-
-  const dbUpdates: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (updates.title !== undefined) dbUpdates.title = updates.title;
-  if (updates.description !== undefined) dbUpdates.description = updates.description || null;
-  if (updates.status !== undefined) {
-    dbUpdates.status = updates.status;
-    if (updates.status === "Completed") dbUpdates.completed_at = new Date().toISOString();
-    else dbUpdates.completed_at = null;
-  }
-  if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
-  if (updates.due_date !== undefined) dbUpdates.due_date = updates.due_date;
-  if (updates.start_date !== undefined) dbUpdates.start_date = updates.start_date;
-  if (updates.category_id !== undefined) dbUpdates.category_id = updates.category_id || null;
-  if (updates.sub_category_id !== undefined) dbUpdates.sub_category_id = updates.sub_category_id || null;
-  if (updates.whatsapp_enabled !== undefined) dbUpdates.whatsapp_enabled = updates.whatsapp_enabled;
-  if (updates.assigned_employee_id !== undefined) {
-    dbUpdates.assigned_employee_id = isUuid(updates.assigned_employee_id) ? updates.assigned_employee_id : null;
-  }
-  if (updates.project_id !== undefined && isUuid(updates.project_id)) {
-    dbUpdates.project_id = updates.project_id;
-  }
-  if (updates.client_id !== undefined) {
-    dbUpdates.client_id = isUuid(updates.client_id) ? updates.client_id : null;
-  }
-  if (updates.client_name !== undefined) {
-    dbUpdates.client_name = updates.client_name || null;
-  }
-  if (updates.is_billable !== undefined) dbUpdates.is_billable = updates.is_billable;
-  if (updates.billing_amount !== undefined) dbUpdates.billing_amount = updates.billing_amount;
-  if (updates.billed_amount !== undefined) dbUpdates.billed_amount = updates.billed_amount;
-  if (updates.remaining_amount !== undefined) dbUpdates.remaining_amount = updates.remaining_amount;
-  if (updates.pending_approval_amount !== undefined) dbUpdates.pending_approval_amount = updates.pending_approval_amount;
-  if (updates.billing_status !== undefined) dbUpdates.billing_status = updates.billing_status;
-  if (updates.billing_description !== undefined) dbUpdates.billing_description = updates.billing_description || null;
-  if (updates.currency !== undefined) dbUpdates.currency = updates.currency;
-
-  let { error } = await supabase.from("tasks").update(dbUpdates).eq("id", targetId);
-
-  // If status update trips legacy tasks_status_check, fallback gracefully
-  if (error && error.message && error.message.includes("tasks_status_check")) {
-    console.warn("Legacy tasks_status_check constraint caught on update. Retrying with 'To Do'...");
-    dbUpdates.status = "To Do";
-    const retry = await supabase.from("tasks").update(dbUpdates).eq("id", targetId);
-    error = retry.error;
-  }
-
-  if (error) {
-    console.error("Supabase update task error:", error);
-    throw new Error(error.message);
-  }
+  await request(`/tasks/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteTaskFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  let targetId = id;
-
-  if (!isUuid(targetId)) {
-    const { data: found } = await supabase.from("tasks").select("id").eq("task_code", id.toUpperCase()).maybeSingle();
-    if (found?.id) {
-      targetId = found.id;
-    } else {
-      const { data: foundIlike } = await supabase.from("tasks").select("id").ilike("task_code", id).maybeSingle();
-      if (foundIlike?.id) {
-        targetId = foundIlike.id;
-      } else {
-        console.warn("Task id is not a valid UUID and no task_code match found, skipping Supabase direct delete:", id);
-        return;
-      }
-    }
-  }
-
-  const { error } = await supabase.from("tasks").delete().eq("id", targetId);
-  if (error) {
-    console.error("Supabase delete task error:", error);
-    throw new Error(error.message);
-  }
+  await request(`/tasks/${id}`, {
+    method: "DELETE",
+  });
 }
 
 // ----------------------------------------------------------------------------
-// WORKFLOWS
+// TASK COMMENTS
+// ----------------------------------------------------------------------------
+
+export async function fetchTaskCommentsFromDb(taskId?: string): Promise<TaskComment[]> {
+  const query = taskId ? `?task_id=${encodeURIComponent(taskId)}` : "";
+  return request<TaskComment[]>(`/task-comments${query}`);
+}
+
+export async function insertTaskCommentToDb(comment: TaskComment): Promise<TaskComment> {
+  return request<TaskComment>("/task-comments", {
+    method: "POST",
+    body: JSON.stringify(comment),
+  });
+}
+
+export async function deleteTaskCommentFromDb(id: string): Promise<void> {
+  await request(`/task-comments/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ----------------------------------------------------------------------------
+// TASK STATUSES & CATEGORIES
+// ----------------------------------------------------------------------------
+
+export async function fetchTaskStatusesFromDb(): Promise<TaskStatusConfig[]> {
+  return request<TaskStatusConfig[]>("/task-statuses");
+}
+
+export async function insertTaskStatusToDb(status: TaskStatusConfig): Promise<TaskStatusConfig> {
+  return request<TaskStatusConfig>("/task-statuses", {
+    method: "POST",
+    body: JSON.stringify(status),
+  });
+}
+
+export async function updateTaskStatusInDb(id: string, updates: Partial<TaskStatusConfig>): Promise<void> {
+  await request(`/task-statuses/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteTaskStatusFromDb(id: string): Promise<void> {
+  await request(`/task-statuses/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchTaskCategoriesFromDb(): Promise<TaskCategory[]> {
+  return request<TaskCategory[]>("/task-categories");
+}
+
+export async function insertTaskCategoryToDb(category: TaskCategory): Promise<TaskCategory> {
+  return request<TaskCategory>("/task-categories", {
+    method: "POST",
+    body: JSON.stringify(category),
+  });
+}
+
+export async function updateTaskCategoryInDb(id: string, updates: Partial<TaskCategory>): Promise<void> {
+  await request(`/task-categories/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteTaskCategoryFromDb(id: string): Promise<void> {
+  await request(`/task-categories/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function insertTaskSubCategoryToDb(sub: TaskSubCategory): Promise<TaskSubCategory> {
+  return request<TaskSubCategory>("/task-sub-categories", {
+    method: "POST",
+    body: JSON.stringify(sub),
+  });
+}
+
+export async function updateTaskSubCategoryInDb(id: string, updates: Partial<TaskSubCategory>): Promise<void> {
+  await request(`/task-sub-categories/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteTaskSubCategoryFromDb(id: string): Promise<void> {
+  await request(`/task-sub-categories/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ----------------------------------------------------------------------------
+// WORKFLOW TEMPLATES
 // ----------------------------------------------------------------------------
 
 export async function fetchWorkflowsFromDb(): Promise<WorkflowTemplate[]> {
-  const supabase = createClient();
-  const [wfsRes, msRes, stgRes, tasksRes] = await Promise.all([
-    supabase.from("workflow_templates").select("*, services(service_name)"),
-    supabase.from("workflow_milestones").select("*").order("sequence_number"),
-    supabase.from("workflow_stages").select("*").order("sequence_number"),
-    supabase.from("workflow_tasks").select("*").order("sequence_number"),
-  ]);
-
-  if (wfsRes.error) {
-    console.error("Supabase fetch workflows error:", wfsRes.error);
-    throw new Error(wfsRes.error.message);
-  }
-
-  const tasksByStage = new Map<string, WorkflowProjectTaskTemplate[]>();
-  (tasksRes.data || []).forEach((t: any) => {
-    const list = tasksByStage.get(t.stage_id) || [];
-    list.push({
-      id: t.id,
-      task_name: t.task_name,
-      description: t.description || "",
-      sequence_number: t.sequence_number,
-      start_day_offset: 0,
-      duration_days: t.default_days || 2,
-      priority: t.priority,
-      status: "To Do",
-      subtasks: [],
-      default_comments: [],
-    });
-    tasksByStage.set(t.stage_id, list);
-  });
-
-  const stagesByMilestone = new Map<string, WorkflowStageTemplate[]>();
-  (stgRes.data || []).forEach((s: any) => {
-    const list = stagesByMilestone.get(s.milestone_id) || [];
-    const stageTasks = tasksByStage.get(s.id) || [];
-    list.push({
-      id: s.id,
-      stage_name: s.stage_name,
-      sequence_number: s.sequence_number,
-      sub_stages: [
-        {
-          id: `substg-${s.id}`,
-          sub_stage_name: "Deliverables",
-          sequence_number: 1,
-          tasks: stageTasks,
-        },
-      ],
-    });
-    stagesByMilestone.set(s.milestone_id, list);
-  });
-
-  const milestonesByWf = new Map<string, WorkflowMilestoneTemplate[]>();
-  (msRes.data || []).forEach((m: any) => {
-    const list = milestonesByWf.get(m.workflow_template_id) || [];
-    list.push({
-      id: m.id,
-      title: m.title,
-      sequence_number: m.sequence_number,
-      start_date: m.start_date || undefined,
-      end_date: m.end_date || undefined,
-      stages: stagesByMilestone.get(m.id) || [],
-    });
-    milestonesByWf.set(m.workflow_template_id, list);
-  });
-
-  return (wfsRes.data || []).map((row: any): WorkflowTemplate => {
-    const milestones = milestonesByWf.get(row.id) || [];
-    const templateTasks = milestones.flatMap((m) =>
-      (m.stages || []).flatMap((s) => (s.sub_stages || []).flatMap((sub) => sub.tasks || []))
-    );
-
-    return {
-      id: row.id,
-      workflow_code: row.workflow_code,
-      workflow_name: row.workflow_name,
-      service_id: row.service_id || undefined,
-      service_name: row.services?.service_name || undefined,
-      description: row.description || "",
-      is_active: Boolean(row.is_active),
-      version: 1,
-      stages_count: templateTasks.length,
-      template_tasks: templateTasks,
-      milestones: milestones.length > 0 ? milestones : undefined,
-      whatsapp_enabled: Boolean(row.whatsapp_enabled ?? true),
-      created_at: row.created_at,
-    };
-  });
+  return request<WorkflowTemplate[]>("/workflows");
 }
 
 export async function insertWorkflowToDb(wf: WorkflowTemplate): Promise<WorkflowTemplate> {
-  const supabase = createClient();
-  const id = ensureUuid(wf.id);
-
-  const { error } = await supabase.from("workflow_templates").insert({
-    id,
-    workflow_code: wf.workflow_code,
-    workflow_name: wf.workflow_name,
-    service_id: isUuid(wf.service_id) ? wf.service_id : null,
-    description: wf.description || null,
-    is_active: wf.is_active ?? true,
-    whatsapp_enabled: wf.whatsapp_enabled ?? true,
-    created_at: wf.created_at || new Date().toISOString(),
+  return request<WorkflowTemplate>("/workflows", {
+    method: "POST",
+    body: JSON.stringify(wf),
   });
-
-  if (error) throw new Error(error.message);
-  return { ...wf, id };
 }
 
 export async function updateWorkflowInDb(id: string, updates: Partial<WorkflowTemplate>): Promise<void> {
-  const supabase = createClient();
-  let targetId = id;
-  if (!isUuid(targetId)) {
-    const { data: found } = await supabase.from("workflow_templates").select("id").eq("workflow_code", id.toUpperCase()).maybeSingle();
-    if (found?.id) {
-      targetId = found.id;
-    } else {
-      return;
-    }
-  }
-
-  const dbUpdates: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (updates.workflow_name !== undefined) dbUpdates.workflow_name = updates.workflow_name;
-  if (updates.workflow_code !== undefined) dbUpdates.workflow_code = updates.workflow_code;
-  if (updates.description !== undefined) dbUpdates.description = updates.description || null;
-  if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
-  if (updates.whatsapp_enabled !== undefined) dbUpdates.whatsapp_enabled = updates.whatsapp_enabled;
-
-  const { error } = await supabase.from("workflow_templates").update(dbUpdates).eq("id", targetId);
-  if (error) throw new Error(error.message);
-
-  if (updates.milestones && Array.isArray(updates.milestones)) {
-    await saveWorkflowMilestonesToDb(targetId, updates.milestones);
-  }
+  await request(`/workflows/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteWorkflowFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  let targetId = id;
-  if (!isUuid(targetId)) {
-    const { data: found } = await supabase.from("workflow_templates").select("id").eq("workflow_code", id.toUpperCase()).maybeSingle();
-    if (found?.id) {
-      targetId = found.id;
-    } else {
-      return;
-    }
-  }
-  const { error } = await supabase.from("workflow_templates").delete().eq("id", targetId);
-  if (error) throw new Error(error.message);
+  await request(`/workflows/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function saveWorkflowMilestonesToDb(workflowId: string, milestones: WorkflowMilestoneTemplate[]): Promise<void> {
+  await request(`/workflows/${workflowId}`, {
+    method: "PUT",
+    body: JSON.stringify({ milestones }),
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -1118,958 +385,204 @@ export async function deleteWorkflowFromDb(id: string): Promise<void> {
 // ----------------------------------------------------------------------------
 
 export async function fetchInvoicesFromDb(): Promise<Invoice[]> {
-  const supabase = createClient();
-  const [invRes, itemsRes] = await Promise.all([
-    supabase.from("invoices").select("*, clients(client_name)").order("created_at", { ascending: false }),
-    supabase.from("invoice_items").select("*"),
-  ]);
-
-  if (invRes.error) {
-    console.error("Supabase fetch invoices error:", invRes.error);
-    throw new Error(invRes.error.message);
-  }
-
-  const itemsByInvoice = new Map<string, InvoiceItem[]>();
-  (itemsRes.data || []).forEach((item: any) => {
-    const list = itemsByInvoice.get(item.invoice_id) || [];
-    list.push({
-      id: item.id,
-      invoice_id: item.invoice_id,
-      description: item.description,
-      sac_code: item.sac_code || "",
-      quantity: Number(item.quantity) || 1,
-      rate: Number(item.rate) || 0,
-      discount_amount: Number(item.discount_amount) || 0,
-      taxable_amount: Number(item.taxable_amount) || 0,
-      gst_rate: Number(item.gst_rate) || 18,
-      cgst_amount: Number(item.cgst_amount) || 0,
-      sgst_amount: Number(item.sgst_amount) || 0,
-      igst_amount: Number(item.igst_amount) || 0,
-      total_amount: Number(item.total_amount) || 0,
-    });
-    itemsByInvoice.set(item.invoice_id, list);
-  });
-
-  return (invRes.data || []).map((row: any): Invoice => ({
-    id: row.id,
-    invoice_number: row.invoice_number,
-    financial_year: row.financial_year,
-    client_id: row.client_id,
-    client_name: row.clients?.client_name || row.client_legal_name,
-    service_engagement_id: row.service_engagement_id || undefined,
-    invoice_date: row.invoice_date,
-    due_date: row.due_date,
-    place_of_supply: row.place_of_supply,
-    is_interstate: Boolean(row.is_interstate),
-    reverse_charge: Boolean(row.reverse_charge),
-    client_legal_name: row.client_legal_name,
-    client_address: row.client_address,
-    client_pan: row.client_pan || "",
-    client_gstin: row.client_gstin || undefined,
-    client_state: row.client_state || "",
-    client_contact: row.client_contact || "",
-    items: itemsByInvoice.get(row.id) || [],
-    subtotal: Number(row.subtotal) || 0,
-    discount_amount: Number(row.discount_amount) || 0,
-    taxable_amount: Number(row.taxable_amount) || 0,
-    cgst_amount: Number(row.cgst_amount) || 0,
-    sgst_amount: Number(row.sgst_amount) || 0,
-    igst_amount: Number(row.igst_amount) || 0,
-    total_gst: Number(row.total_gst) || 0,
-    grand_total: Number(row.grand_total) || 0,
-    paid_amount: Number(row.paid_amount) || 0,
-    outstanding_balance: Number(row.outstanding_balance) || 0,
-    status: row.status,
-    notes: row.notes || undefined,
-    terms_conditions: row.terms_conditions || undefined,
-    created_at: row.created_at,
-  }));
+  return request<Invoice[]>("/invoices");
 }
 
 export async function insertInvoiceToDb(invoice: Invoice): Promise<Invoice> {
-  const supabase = createClient();
-  const id = ensureUuid(invoice.id);
-
-  const { error } = await supabase.from("invoices").insert({
-    id,
-    invoice_number: invoice.invoice_number,
-    financial_year: invoice.financial_year || "2026-27",
-    client_id: ensureUuid(invoice.client_id),
-    service_engagement_id: isUuid(invoice.service_engagement_id) ? invoice.service_engagement_id : null,
-    invoice_date: invoice.invoice_date || new Date().toISOString().slice(0, 10),
-    due_date: invoice.due_date,
-    place_of_supply: invoice.place_of_supply || "Tamil Nadu",
-    is_interstate: Boolean(invoice.is_interstate),
-    reverse_charge: Boolean(invoice.reverse_charge),
-    client_legal_name: invoice.client_legal_name || invoice.client_name,
-    client_address: invoice.client_address || "",
-    client_pan: invoice.client_pan || null,
-    client_gstin: invoice.client_gstin || null,
-    client_state: invoice.client_state || null,
-    client_contact: invoice.client_contact || null,
-    subtotal: invoice.subtotal || 0,
-    discount_amount: invoice.discount_amount || 0,
-    taxable_amount: invoice.taxable_amount || 0,
-    cgst_amount: invoice.cgst_amount || 0,
-    sgst_amount: invoice.sgst_amount || 0,
-    igst_amount: invoice.igst_amount || 0,
-    total_gst: invoice.total_gst || 0,
-    grand_total: invoice.grand_total || 0,
-    paid_amount: invoice.paid_amount || 0,
-    outstanding_balance: invoice.outstanding_balance || invoice.grand_total || 0,
-    status: invoice.status || "Draft",
-    notes: invoice.notes || null,
-    terms_conditions: invoice.terms_conditions || null,
-    created_at: invoice.created_at || new Date().toISOString(),
+  return request<Invoice>("/invoices", {
+    method: "POST",
+    body: JSON.stringify(invoice),
   });
-
-  if (error) {
-    console.error("Supabase insert invoice error:", error);
-    throw new Error(error.message);
-  }
-
-  // Insert items
-  if (invoice.items && invoice.items.length > 0) {
-    const itemRows = invoice.items.map((item) => ({
-      id: ensureUuid(item.id),
-      invoice_id: id,
-      description: item.description,
-      sac_code: item.sac_code || null,
-      quantity: item.quantity || 1,
-      rate: item.rate || 0,
-      discount_amount: item.discount_amount || 0,
-      taxable_amount: item.taxable_amount || 0,
-      gst_rate: item.gst_rate || 18,
-      cgst_amount: item.cgst_amount || 0,
-      sgst_amount: item.sgst_amount || 0,
-      igst_amount: item.igst_amount || 0,
-      total_amount: item.total_amount || 0,
-    }));
-    const { error: itErr } = await supabase.from("invoice_items").insert(itemRows);
-    if (itErr) console.warn("Supabase insert invoice_items error:", itErr);
-  }
-
-  return { ...invoice, id };
-}
-
-export async function deleteInvoiceFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("invoices").delete().eq("id", id);
-  if (error) throw new Error(error.message);
 }
 
 export async function updateInvoiceInDb(id: string, updates: Partial<Invoice>): Promise<void> {
-  const supabase = createClient();
-  const dbUpdates: Record<string, any> = {};
-
-  if (updates.paid_amount !== undefined) dbUpdates.paid_amount = updates.paid_amount;
-  if (updates.outstanding_balance !== undefined) dbUpdates.outstanding_balance = updates.outstanding_balance;
-  if (updates.status !== undefined) dbUpdates.status = updates.status;
-  if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
-
-  const { error } = await supabase.from("invoices").update(dbUpdates).eq("id", id);
-  if (error) {
-    console.error("Supabase update invoice error:", error);
-    throw new Error(error.message);
-  }
+  await request(`/invoices/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
-export async function updatePaymentInDb(id: string, updates: Partial<Payment>): Promise<void> {
-  const supabase = createClient();
-  const dbUpdates: Record<string, any> = {};
-
-  if (updates.invoice_id !== undefined) dbUpdates.invoice_id = isUuid(updates.invoice_id) ? updates.invoice_id : null;
-  if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
-  if (updates.status !== undefined) dbUpdates.status = updates.status;
-
-  const { error } = await supabase.from("payments").update(dbUpdates).eq("id", id);
-  if (error) {
-    console.error("Supabase update payment error:", error);
-    throw new Error(error.message);
-  }
+export async function deleteInvoiceFromDb(id: string): Promise<void> {
+  await request(`/invoices/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchPaymentsFromDb(): Promise<Payment[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("payments")
-    .select("*, clients(client_name), invoices(invoice_number)")
-    .order("payment_date", { ascending: false });
-
-  if (error) {
-    console.error("Supabase fetch payments error:", error);
-    throw new Error(error.message);
-  }
-
-  return (data || []).map((row: any): Payment => ({
-    id: row.id,
-    payment_number: row.payment_number,
-    client_id: row.client_id,
-    client_name: row.clients?.client_name || "Client",
-    invoice_id: row.invoice_id || undefined,
-    invoice_number: row.invoices?.invoice_number || undefined,
-    payment_date: row.payment_date,
-    amount: Number(row.amount) || 0,
-    payment_mode: row.payment_mode,
-    transaction_reference: row.transaction_reference || undefined,
-    remarks: row.remarks || undefined,
-    status: row.status,
-    created_at: row.created_at,
-  }));
+  return request<Payment[]>("/payments");
 }
 
 export async function insertPaymentToDb(payment: Payment): Promise<Payment> {
-  const supabase = createClient();
-  const id = ensureUuid(payment.id);
-
-  const { error } = await supabase.from("payments").insert({
-    id,
-    payment_number: payment.payment_number,
-    client_id: ensureUuid(payment.client_id),
-    invoice_id: isUuid(payment.invoice_id) ? payment.invoice_id : null,
-    payment_date: payment.payment_date || new Date().toISOString().slice(0, 10),
-    amount: payment.amount,
-    payment_mode: payment.payment_mode || "Bank Transfer",
-    transaction_reference: payment.transaction_reference || null,
-    remarks: payment.remarks || null,
-    status: payment.status || "Completed",
-    created_at: payment.created_at || new Date().toISOString(),
+  return request<Payment>("/payments", {
+    method: "POST",
+    body: JSON.stringify(payment),
   });
+}
 
-  if (error) {
-    console.error("Supabase insert payment error:", error);
-    throw new Error(error.message);
-  }
-
-  return { ...payment, id };
+export async function updatePaymentInDb(id: string, updates: Partial<Payment>): Promise<void> {
+  await request(`/payments/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deletePaymentFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("payments").delete().eq("id", id);
-  if (error) {
-    console.warn("Supabase delete payment error:", error);
-  }
+  await request(`/payments/${id}`, {
+    method: "DELETE",
+  });
 }
 
 // ----------------------------------------------------------------------------
-// CENTRALIZED FINANCE: INVOICE REQUESTS, RECURRING INVOICES, BULK BATCHES & LOGS
+// INVOICE APPROVAL REQUESTS, RECURRING & BULK BATCHES
 // ----------------------------------------------------------------------------
 
 export async function fetchInvoiceRequestsFromDb(): Promise<InvoiceRequest[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("invoice_requests")
-    .select("*, invoice_request_items(*), clients(client_name, legal_name, gstin)")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Supabase fetch invoice_requests error:", error);
-    return [];
-  }
-
-  return (data || []).map((row: any): InvoiceRequest => ({
-    id: row.id,
-    request_number: row.request_number,
-    request_type: row.request_type || "single",
-    bulk_batch_id: row.bulk_batch_id || undefined,
-    recurring_invoice_id: row.recurring_invoice_id || undefined,
-    client_id: row.client_id,
-    client_name: row.client_name || row.clients?.client_name || "Client",
-    client_legal_name: row.client_legal_name || row.clients?.legal_name || undefined,
-    client_gstin: row.client_gstin || row.clients?.gstin || undefined,
-    client_address: row.client_address || undefined,
-    requested_by: row.requested_by || undefined,
-    requested_by_name: row.requested_by_name || undefined,
-    subtotal: Number(row.subtotal) || 0,
-    gst_rate: Number(row.gst_rate) || 18,
-    cgst_amount: Number(row.cgst_amount) || 0,
-    sgst_amount: Number(row.sgst_amount) || 0,
-    igst_amount: Number(row.igst_amount) || 0,
-    total_gst: Number(row.total_gst) || 0,
-    grand_total: Number(row.grand_total) || 0,
-    place_of_supply: row.place_of_supply || "Tamil Nadu",
-    is_interstate: Boolean(row.is_interstate),
-    notes: row.notes || undefined,
-    terms_conditions: row.terms_conditions || undefined,
-    status: row.status || "Pending Approval",
-    approved_by: row.approved_by || undefined,
-    approved_by_name: row.approved_by_name || undefined,
-    approved_at: row.approved_at || undefined,
-    rejection_reason: row.rejection_reason || undefined,
-    generated_invoice_id: row.generated_invoice_id || undefined,
-    generated_invoice_number: row.generated_invoice_number || undefined,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    items: (row.invoice_request_items || []).map((it: any): InvoiceRequestItem => ({
-      id: it.id,
-      invoice_request_id: it.invoice_request_id,
-      task_id: it.task_id || undefined,
-      task_code: it.task_code || undefined,
-      task_title: it.task_title || undefined,
-      description: it.description,
-      sac_code: it.sac_code || undefined,
-      billable_task_total: Number(it.billable_task_total) || 0,
-      billable_task_remaining: Number(it.billable_task_remaining) || 0,
-      amount: Number(it.amount) || 0,
-      gst_rate: Number(it.gst_rate) || 18,
-      cgst_amount: Number(it.cgst_amount) || 0,
-      sgst_amount: Number(it.sgst_amount) || 0,
-      igst_amount: Number(it.igst_amount) || 0,
-      total_amount: Number(it.total_amount) || 0,
-    })),
-  }));
+  return request<InvoiceRequest[]>("/invoice-requests");
 }
 
 export async function insertInvoiceRequestToDb(req: InvoiceRequest): Promise<InvoiceRequest> {
-  const supabase = createClient();
-  const id = ensureUuid(req.id);
-  const payload: Record<string, any> = {
-    id,
-    request_number: req.request_number,
-    request_type: req.request_type,
-    bulk_batch_id: req.bulk_batch_id && isUuid(req.bulk_batch_id) ? req.bulk_batch_id : null,
-    recurring_invoice_id: req.recurring_invoice_id && isUuid(req.recurring_invoice_id) ? req.recurring_invoice_id : null,
-    client_id: ensureUuid(req.client_id),
-    client_name: req.client_name,
-    client_legal_name: req.client_legal_name || null,
-    client_gstin: req.client_gstin || null,
-    client_address: req.client_address || null,
-    requested_by: isUuid(req.requested_by) ? req.requested_by : null,
-    requested_by_name: req.requested_by_name || null,
-    subtotal: req.subtotal || 0,
-    gst_rate: req.gst_rate || 18,
-    cgst_amount: req.cgst_amount || 0,
-    sgst_amount: req.sgst_amount || 0,
-    igst_amount: req.igst_amount || 0,
-    total_gst: req.total_gst || 0,
-    grand_total: req.grand_total || 0,
-    place_of_supply: req.place_of_supply || "Tamil Nadu",
-    is_interstate: Boolean(req.is_interstate),
-    notes: req.notes || null,
-    terms_conditions: req.terms_conditions || null,
-    status: req.status || "Pending Approval",
-    created_at: req.created_at || new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  let { error } = await supabase.from("invoice_requests").insert(payload);
-
-  // If a request_number unique collision occurs with existing DB records, retry with a unique timestamp suffix
-  if (error && error.message && error.message.includes("invoice_requests_request_number_key")) {
-    console.warn("Collision on invoice_requests_request_number_key, retrying with unique suffix...");
-    const suffix = Date.now().toString().slice(-4);
-    payload.request_number = `${req.request_number}-${suffix}`;
-    const retry = await supabase.from("invoice_requests").insert(payload);
-    error = retry.error;
-    if (!error) {
-      req.request_number = payload.request_number;
-    }
-  }
-
-  if (error) {
-    console.error("Supabase insert invoice_request error:", error);
-    throw new Error(error.message);
-  }
-
-  if (req.items && req.items.length > 0) {
-    const itemRows = req.items.map((it: InvoiceRequestItem) => ({
-      id: ensureUuid(it.id),
-      invoice_request_id: id,
-      task_id: isUuid(it.task_id) ? it.task_id : null,
-      task_code: it.task_code || null,
-      task_title: it.task_title || null,
-      description: it.description,
-      sac_code: it.sac_code || null,
-      billable_task_total: it.billable_task_total || 0,
-      billable_task_remaining: it.billable_task_remaining || 0,
-      amount: it.amount || 0,
-      gst_rate: it.gst_rate || 18,
-      cgst_amount: it.cgst_amount || 0,
-      sgst_amount: it.sgst_amount || 0,
-      igst_amount: it.igst_amount || 0,
-      total_amount: it.total_amount || 0,
-      created_at: new Date().toISOString(),
-    }));
-
-    const { error: itErr } = await supabase.from("invoice_request_items").insert(itemRows);
-    if (itErr) console.warn("Supabase insert invoice_request_items error:", itErr);
-  }
-
-  return { ...req, id };
+  return request<InvoiceRequest>("/invoice-requests", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
 }
 
 export async function updateInvoiceRequestInDb(id: string, updates: Partial<InvoiceRequest>): Promise<void> {
-  const supabase = createClient();
-  const dbUpdates: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (updates.status !== undefined) dbUpdates.status = updates.status;
-  if (updates.approved_by !== undefined) dbUpdates.approved_by = isUuid(updates.approved_by) ? updates.approved_by : null;
-  if (updates.approved_by_name !== undefined) dbUpdates.approved_by_name = updates.approved_by_name;
-  if (updates.approved_at !== undefined) dbUpdates.approved_at = updates.approved_at;
-  if (updates.rejection_reason !== undefined) dbUpdates.rejection_reason = updates.rejection_reason;
-  if (updates.generated_invoice_id !== undefined) dbUpdates.generated_invoice_id = isUuid(updates.generated_invoice_id) ? updates.generated_invoice_id : null;
-  if (updates.generated_invoice_number !== undefined) dbUpdates.generated_invoice_number = updates.generated_invoice_number;
-
-  const { error } = await supabase.from("invoice_requests").update(dbUpdates).eq("id", id);
-  if (error) {
-    console.error("Supabase update invoice_request error:", error);
-    throw new Error(error.message);
-  }
+  await request(`/invoice-requests/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function fetchRecurringInvoicesFromDb(): Promise<RecurringInvoice[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("recurring_invoices")
-    .select("*, clients(client_name), services(service_name)")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Supabase fetch recurring_invoices error:", error);
-    return [];
-  }
-
-  return (data || []).map((row: any): RecurringInvoice => ({
-    id: row.id,
-    schedule_code: row.schedule_code,
-    client_id: row.client_id,
-    client_name: row.client_name || row.clients?.client_name || "Client",
-    service_id: row.service_id || undefined,
-    service_name: row.service_name || row.services?.service_name || undefined,
-    title: row.title,
-    description: row.description || undefined,
-    frequency: row.frequency || "Monthly",
-    base_amount: Number(row.base_amount) || 0,
-    gst_rate: Number(row.gst_rate) || 18,
-    tax_amount: Number(row.tax_amount) || 0,
-    total_amount: Number(row.total_amount) || 0,
-    start_date: row.start_date,
-    end_date: row.end_date || undefined,
-    next_billing_date: row.next_billing_date,
-    last_generated_date: row.last_generated_date || undefined,
-    invoices_generated_count: Number(row.invoices_generated_count) || 0,
-    status: row.status || "Active",
-    auto_submit_for_approval: Boolean(row.auto_submit_for_approval ?? true),
-    notes: row.notes || undefined,
-    created_by: row.created_by || undefined,
-    created_by_name: row.created_by_name || undefined,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  }));
+  return request<RecurringInvoice[]>("/recurring-invoices");
 }
 
 export async function insertRecurringInvoiceToDb(item: RecurringInvoice): Promise<RecurringInvoice> {
-  const supabase = createClient();
-  const id = ensureUuid(item.id);
-
-  const { error } = await supabase.from("recurring_invoices").insert({
-    id,
-    schedule_code: item.schedule_code,
-    client_id: ensureUuid(item.client_id),
-    client_name: item.client_name,
-    service_id: isUuid(item.service_id) ? item.service_id : null,
-    service_name: item.service_name || null,
-    title: item.title,
-    description: item.description || null,
-    frequency: item.frequency || "Monthly",
-    base_amount: item.base_amount || 0,
-    gst_rate: item.gst_rate || 18,
-    tax_amount: item.tax_amount || 0,
-    total_amount: item.total_amount || 0,
-    start_date: item.start_date || new Date().toISOString().slice(0, 10),
-    end_date: item.end_date || null,
-    next_billing_date: item.next_billing_date,
-    last_generated_date: item.last_generated_date || null,
-    invoices_generated_count: item.invoices_generated_count || 0,
-    status: item.status || "Active",
-    auto_submit_for_approval: item.auto_submit_for_approval ?? true,
-    notes: item.notes || null,
-    created_by: isUuid(item.created_by) ? item.created_by : null,
-    created_by_name: item.created_by_name || null,
-    created_at: item.created_at || new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+  return request<RecurringInvoice>("/recurring-invoices", {
+    method: "POST",
+    body: JSON.stringify(item),
   });
-
-  if (error) {
-    console.error("Supabase insert recurring_invoices error:", error);
-    throw new Error(error.message);
-  }
-
-  return { ...item, id };
 }
 
 export async function updateRecurringInvoiceInDb(id: string, updates: Partial<RecurringInvoice>): Promise<void> {
-  const supabase = createClient();
-  const dbUpdates: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (updates.status !== undefined) dbUpdates.status = updates.status;
-  if (updates.next_billing_date !== undefined) dbUpdates.next_billing_date = updates.next_billing_date;
-  if (updates.last_generated_date !== undefined) dbUpdates.last_generated_date = updates.last_generated_date;
-  if (updates.invoices_generated_count !== undefined) dbUpdates.invoices_generated_count = updates.invoices_generated_count;
-  if (updates.base_amount !== undefined) dbUpdates.base_amount = updates.base_amount;
-  if (updates.tax_amount !== undefined) dbUpdates.tax_amount = updates.tax_amount;
-  if (updates.total_amount !== undefined) dbUpdates.total_amount = updates.total_amount;
-  if (updates.title !== undefined) dbUpdates.title = updates.title;
-
-  const { error } = await supabase.from("recurring_invoices").update(dbUpdates).eq("id", id);
-  if (error) {
-    console.error("Supabase update recurring_invoices error:", error);
-    throw new Error(error.message);
-  }
+  await request(`/recurring-invoices/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteRecurringInvoiceFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("recurring_invoices").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  await request(`/recurring-invoices/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchBulkBatchesFromDb(): Promise<BulkInvoiceBatch[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from("bulk_invoice_batches").select("*").order("created_at", { ascending: false });
-  if (error) {
-    console.error("Supabase fetch bulk_invoice_batches error:", error);
-    return [];
-  }
-  return (data || []).map((row: any): BulkInvoiceBatch => ({
-    id: row.id,
-    batch_code: row.batch_code,
-    created_by: row.created_by || undefined,
-    created_by_name: row.created_by_name || undefined,
-    total_clients: Number(row.total_clients) || 0,
-    total_tasks: Number(row.total_tasks) || 0,
-    total_amount: Number(row.total_amount) || 0,
-    status: row.status || "Pending Approval",
-    created_at: row.created_at,
-  }));
+  return request<BulkInvoiceBatch[]>("/bulk-batches");
 }
 
 export async function insertBulkBatchToDb(batch: BulkInvoiceBatch): Promise<BulkInvoiceBatch> {
-  const supabase = createClient();
-  const id = ensureUuid(batch.id);
-
-  const { error } = await supabase.from("bulk_invoice_batches").insert({
-    id,
-    batch_code: batch.batch_code,
-    created_by: isUuid(batch.created_by) ? batch.created_by : null,
-    created_by_name: batch.created_by_name || null,
-    total_clients: batch.total_clients || 0,
-    total_tasks: batch.total_tasks || 0,
-    total_amount: batch.total_amount || 0,
-    status: batch.status || "Pending Approval",
-    created_at: batch.created_at || new Date().toISOString(),
+  return request<BulkInvoiceBatch>("/bulk-batches", {
+    method: "POST",
+    body: JSON.stringify(batch),
   });
-
-  if (error) {
-    console.error("Supabase insert bulk_invoice_batches error:", error);
-    throw new Error(error.message);
-  }
-
-  return { ...batch, id };
 }
 
-export async function fetchApprovalLogsFromDb(): Promise<InvoiceApprovalLog[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from("invoice_approval_logs").select("*").order("created_at", { ascending: false });
-  if (error) {
-    console.error("Supabase fetch invoice_approval_logs error:", error);
-    return [];
-  }
-  return (data || []).map((row: any): InvoiceApprovalLog => ({
-    id: row.id,
-    invoice_request_id: row.invoice_request_id,
-    action: row.action,
-    actor_id: row.actor_id || undefined,
-    actor_name: row.actor_name,
-    notes: row.notes || undefined,
-    created_at: row.created_at,
-  }));
+export async function fetchApprovalLogsFromDb(requestId?: string): Promise<InvoiceApprovalLog[]> {
+  const query = requestId ? `?request_id=${encodeURIComponent(requestId)}` : "";
+  return request<InvoiceApprovalLog[]>(`/invoice-approval-logs${query}`);
 }
 
 export async function insertApprovalLogToDb(log: InvoiceApprovalLog): Promise<InvoiceApprovalLog> {
-  const supabase = createClient();
-  const id = ensureUuid(log.id);
-
-  const { error } = await supabase.from("invoice_approval_logs").insert({
-    id,
-    invoice_request_id: ensureUuid(log.invoice_request_id),
-    action: log.action,
-    actor_id: isUuid(log.actor_id) ? log.actor_id : null,
-    actor_name: log.actor_name,
-    notes: log.notes || null,
-    created_at: log.created_at || new Date().toISOString(),
+  return request<InvoiceApprovalLog>("/invoice-approval-logs", {
+    method: "POST",
+    body: JSON.stringify(log),
   });
-
-  if (error) {
-    console.error("Supabase insert invoice_approval_logs error:", error);
-  }
-
-  return { ...log, id };
 }
 
 // ----------------------------------------------------------------------------
-// TASK CATEGORIES & SUB-GROUPS
-// ----------------------------------------------------------------------------
-
-export async function fetchTaskCategoriesFromDb(): Promise<TaskCategory[]> {
-  const supabase = createClient();
-  const [catRes, subRes] = await Promise.all([
-    supabase.from("task_categories").select("*").order("name"),
-    supabase.from("task_sub_categories").select("*").order("name"),
-  ]);
-
-  if (catRes.error) {
-    console.error("Supabase fetch task_categories error:", catRes.error);
-    throw new Error(catRes.error.message);
-  }
-
-  const subsByCategory = new Map<string, TaskSubCategory[]>();
-  (subRes.data || []).forEach((s: any) => {
-    const list = subsByCategory.get(s.category_id) || [];
-    list.push({
-      id: s.id,
-      category_id: s.category_id,
-      name: s.name,
-      code: s.code || undefined,
-      description: s.description || undefined,
-      whatsapp_enabled: Boolean(s.whatsapp_enabled ?? true),
-      created_at: s.created_at,
-    });
-    subsByCategory.set(s.category_id, list);
-  });
-
-  return (catRes.data || []).map((c: any): TaskCategory => ({
-    id: c.id,
-    name: c.name,
-    code: c.code || undefined,
-    description: c.description || undefined,
-    color: c.color || "violet",
-    icon: c.icon || undefined,
-    whatsapp_enabled: Boolean(c.whatsapp_enabled ?? true),
-    created_at: c.created_at,
-    sub_categories: subsByCategory.get(c.id) || [],
-  }));
-}
-
-export async function insertTaskCategoryToDb(cat: TaskCategory): Promise<TaskCategory> {
-  const supabase = createClient();
-  const id = cat.id || `cat-${Date.now()}`;
-  const { error } = await supabase.from("task_categories").insert({
-    id,
-    name: cat.name,
-    code: cat.code || null,
-    description: cat.description || null,
-    color: cat.color || "violet",
-    icon: cat.icon || null,
-    whatsapp_enabled: cat.whatsapp_enabled ?? true,
-    created_at: cat.created_at || new Date().toISOString(),
-  });
-
-  if (error) {
-    console.error("Supabase insert task_categories error:", error);
-    throw new Error(error.message);
-  }
-
-  // Also persist initial subcategories into database if provided
-  if (cat.sub_categories && cat.sub_categories.length > 0) {
-    for (const sub of cat.sub_categories) {
-      await insertTaskSubCategoryToDb(sub).catch((err) => {
-        console.warn("Could not insert subcategory into db:", err);
-      });
-    }
-  }
-
-  return { ...cat, id, sub_categories: cat.sub_categories || [] };
-}
-
-export async function updateTaskCategoryInDb(id: string, updates: Partial<TaskCategory>): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("task_categories").update({
-    ...(updates.name !== undefined ? { name: updates.name } : {}),
-    ...(updates.code !== undefined ? { code: updates.code || null } : {}),
-    ...(updates.description !== undefined ? { description: updates.description || null } : {}),
-    ...(updates.color !== undefined ? { color: updates.color } : {}),
-    ...(updates.whatsapp_enabled !== undefined ? { whatsapp_enabled: updates.whatsapp_enabled } : {}),
-  }).eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
-export async function deleteTaskCategoryFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("task_categories").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
-export async function insertTaskSubCategoryToDb(sub: TaskSubCategory): Promise<TaskSubCategory> {
-  const supabase = createClient();
-  const id = sub.id || `subcat-${Date.now()}`;
-  const { error } = await supabase.from("task_sub_categories").insert({
-    id,
-    category_id: sub.category_id,
-    name: sub.name,
-    code: sub.code || null,
-    description: sub.description || null,
-    whatsapp_enabled: sub.whatsapp_enabled ?? true,
-    created_at: sub.created_at || new Date().toISOString(),
-  });
-
-  if (error) {
-    console.error("Supabase insert task_sub_categories error:", error);
-    throw new Error(error.message);
-  }
-
-  return { ...sub, id };
-}
-
-export async function updateTaskSubCategoryInDb(id: string, updates: Partial<TaskSubCategory>): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("task_sub_categories").update({
-    ...(updates.name !== undefined ? { name: updates.name } : {}),
-    ...(updates.code !== undefined ? { code: updates.code || null } : {}),
-    ...(updates.description !== undefined ? { description: updates.description || null } : {}),
-    ...(updates.whatsapp_enabled !== undefined ? { whatsapp_enabled: updates.whatsapp_enabled } : {}),
-  }).eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
-export async function deleteTaskSubCategoryFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("task_sub_categories").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
-// ----------------------------------------------------------------------------
-// WHATSAPP TEMPLATES & UNIVERSAL RECYCLE BIN
-// ----------------------------------------------------------------------------
-
-export async function fetchWhatsAppTemplatesFromDb(): Promise<WhatsAppTemplate[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from("whatsapp_templates").select("*").order("title");
-  if (error) {
-    console.error("Supabase fetch whatsapp_templates error:", error);
-    throw new Error(error.message);
-  }
-  return (data || []).map((t: any): WhatsAppTemplate => ({
-    id: t.id,
-    title: t.title,
-    category: t.category,
-    content: t.content,
-    created_at: t.created_at,
-  }));
-}
-
-export async function upsertWhatsAppTemplateInDb(template: WhatsAppTemplate): Promise<WhatsAppTemplate> {
-  const supabase = createClient();
-  const id = template.id || `wtpl-${Date.now()}`;
-  const { error } = await supabase.from("whatsapp_templates").upsert({
-    id,
-    title: template.title,
-    category: template.category || "General",
-    content: template.content,
-    updated_at: new Date().toISOString(),
-  });
-  if (error) throw new Error(error.message);
-  return { ...template, id };
-}
-
-export async function deleteWhatsAppTemplateFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("whatsapp_templates").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
-export async function fetchRecycleBinFromDb(): Promise<UniversalRecycleBinItem[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from("universal_recycle_bin").select("*").order("deleted_at", { ascending: false });
-  if (error) {
-    console.error("Supabase fetch universal_recycle_bin error:", error);
-    return [];
-  }
-  return (data || []).map((row: any): UniversalRecycleBinItem => ({
-    id: row.id,
-    item_id: row.item_id,
-    item_type: row.item_type,
-    title: row.title,
-    code: row.code || undefined,
-    subtitle: row.subtitle || undefined,
-    category_name: row.category_name || undefined,
-    raw_data: row.raw_data || {},
-    deleted_at: row.deleted_at,
-    deleted_by: row.deleted_by || undefined,
-    deleted_by_name: row.deleted_by_name || undefined,
-    recovery_deadline: row.recovery_deadline,
-  }));
-}
-
-export async function insertRecycleBinItemToDb(item: UniversalRecycleBinItem): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("universal_recycle_bin").insert({
-    id: item.id,
-    item_id: item.item_id,
-    item_type: item.item_type,
-    title: item.title,
-    code: item.code || null,
-    subtitle: item.subtitle || null,
-    category_name: item.category_name || null,
-    raw_data: item.raw_data || {},
-    deleted_at: item.deleted_at || new Date().toISOString(),
-    deleted_by: item.deleted_by || null,
-    deleted_by_name: item.deleted_by_name || null,
-    recovery_deadline: item.recovery_deadline,
-  });
-  if (error) console.warn("Supabase insert universal_recycle_bin error:", error);
-}
-
-export async function deleteRecycleBinItemFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("universal_recycle_bin").delete().eq("id", id);
-  if (error) console.warn("Supabase delete universal_recycle_bin error:", error);
-}
-
-// ----------------------------------------------------------------------------
-// EMPLOYEES & DOCUMENTS
+// EMPLOYEES & TEAMS
 // ----------------------------------------------------------------------------
 
 export async function fetchEmployeesFromDb(): Promise<Employee[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from("employees").select("*, designations(title)").order("created_at", { ascending: true });
-  if (error) {
-    console.error("Supabase fetch employees error:", error);
-    throw new Error(error.message);
-  }
-  return (data || []).map((row: any): Employee => ({
-    id: row.id,
-    employee_code: row.employee_code,
-    first_name: row.first_name,
-    last_name: row.last_name,
-    full_name: row.full_name,
-    email: row.email,
-    mobile_number: row.mobile_number,
-    designation_id: row.designation_id || undefined,
-    designation_name: row.designations?.title || row.designation_name || undefined,
-    team_id: row.team_id || undefined,
-    team_name: row.team_name || undefined,
-    joining_date: row.joining_date,
-    employment_status: row.employment_status,
-    is_active: Boolean(row.is_active),
-    role_code: (row.role_code as any) || "EMPLOYEE",
-    created_at: row.created_at,
-  }));
+  return request<Employee[]>("/employees");
 }
 
 export async function insertEmployeeToDb(emp: Employee): Promise<Employee> {
-  const supabase = createClient();
-  const id = ensureUuid(emp.id);
-  const { error } = await supabase.from("employees").insert({
-    id,
-    employee_code: emp.employee_code,
-    first_name: emp.first_name,
-    last_name: emp.last_name || "",
-    full_name: emp.full_name,
-    email: emp.email.trim().toLowerCase(),
-    mobile_number: emp.mobile_number || null,
-    designation_name: emp.designation_name || null,
-    designation_id: isUuid(emp.designation_id) ? emp.designation_id : null,
-    team_id: isUuid(emp.team_id) ? emp.team_id : null,
-    team_name: emp.team_name || null,
-    joining_date: emp.joining_date || new Date().toISOString().slice(0, 10),
-    employment_status: emp.employment_status || "Active",
-    is_active: emp.is_active ?? true,
-    role_code: emp.role_code || "EMPLOYEE",
-    created_at: emp.created_at || new Date().toISOString(),
+  return request<Employee>("/employees", {
+    method: "POST",
+    body: JSON.stringify(emp),
   });
-  if (error) {
-    console.error("Supabase insert employees error:", error);
-    throw new Error(error.message);
-  }
-  return { ...emp, id };
 }
 
 export async function updateEmployeeInDb(id: string, updates: Partial<Employee>): Promise<void> {
-  const supabase = createClient();
-  const dbUpdates: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-  if (updates.first_name !== undefined) dbUpdates.first_name = updates.first_name;
-  if (updates.last_name !== undefined) dbUpdates.last_name = updates.last_name;
-  if (updates.full_name !== undefined) dbUpdates.full_name = updates.full_name;
-  if (updates.email !== undefined) dbUpdates.email = updates.email.trim().toLowerCase();
-  if (updates.mobile_number !== undefined) dbUpdates.mobile_number = updates.mobile_number;
-  if (updates.designation_name !== undefined) dbUpdates.designation_name = updates.designation_name;
-  if (updates.designation_id !== undefined) dbUpdates.designation_id = isUuid(updates.designation_id) ? updates.designation_id : null;
-  if (updates.team_id !== undefined) dbUpdates.team_id = isUuid(updates.team_id) ? updates.team_id : null;
-  if (updates.team_name !== undefined) dbUpdates.team_name = updates.team_name;
-  if (updates.employment_status !== undefined) dbUpdates.employment_status = updates.employment_status;
-  if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
-  if (updates.role_code !== undefined) dbUpdates.role_code = updates.role_code;
-
-  const { error } = await supabase.from("employees").update(dbUpdates).eq("id", id);
-  if (error) {
-    console.error("Supabase update employees error:", error);
-    throw new Error(error.message);
-  }
+  await request(`/employees/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteEmployeeFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("employees").delete().eq("id", id);
-  if (error) {
-    console.error("Supabase delete employees error:", error);
-    throw new Error(error.message);
-  }
+  await request(`/employees/${id}`, {
+    method: "DELETE",
+  });
 }
 
+export async function fetchTeamsFromDb(): Promise<Team[]> {
+  return request<Team[]>("/teams");
+}
+
+export async function insertTeamToDb(team: Team): Promise<Team> {
+  return request<Team>("/teams", {
+    method: "POST",
+    body: JSON.stringify(team),
+  });
+}
+
+export async function updateTeamInDb(id: string, updates: Partial<Team>): Promise<void> {
+  await request(`/teams/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteTeamFromDb(id: string): Promise<void> {
+  await request(`/teams/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ----------------------------------------------------------------------------
+// DOCUMENTS & FILE OBJECTS
+// ----------------------------------------------------------------------------
+
 export async function fetchDocumentsFromDb(): Promise<FileObject[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from("file_objects").select("*").order("created_at", { ascending: false });
-  if (error) {
-    console.error("Supabase fetch file_objects error:", error);
-    throw new Error(error.message);
-  }
-  return (data || []).map((row: any): FileObject => ({
-    id: row.id,
-    bucket_name: row.bucket_name,
-    r2_object_key: row.r2_object_key,
-    file_name: row.file_name,
-    file_size: Number(row.file_size) || 0,
-    mime_type: row.mime_type,
-    category: row.category,
-    entity_type: row.entity_type || undefined,
-    entity_id: row.entity_id || undefined,
-    uploaded_by: row.uploaded_by || undefined,
-    version_number: row.version_number || 1,
-    created_at: row.created_at,
-  }));
+  return request<FileObject[]>("/documents");
 }
 
 export async function insertDocumentToDb(doc: FileObject): Promise<FileObject> {
-  const supabase = createClient();
-  const id = ensureUuid(doc.id);
-  const { error } = await supabase.from("file_objects").insert({
-    id,
-    bucket_name: doc.bucket_name || "pms-vault",
-    r2_object_key: doc.r2_object_key,
-    file_name: doc.file_name,
-    file_size: doc.file_size,
-    mime_type: doc.mime_type,
-    category: doc.category || "Other",
-    entity_type: doc.entity_type || null,
-    entity_id: isUuid(doc.entity_id) ? doc.entity_id : null,
-    created_at: doc.created_at || new Date().toISOString(),
+  return request<FileObject>("/documents", {
+    method: "POST",
+    body: JSON.stringify(doc),
   });
-  if (error) throw new Error(error.message);
-  return { ...doc, id };
 }
 
 export async function deleteDocumentFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("file_objects").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  await request(`/documents/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchDocumentFoldersFromDb(): Promise<DocumentFolder[]> {
+  return request<DocumentFolder[]>("/document-folders");
+}
+
+export async function saveDocumentFoldersToDb(folders: DocumentFolder[]): Promise<void> {
+  await request("/document-folders", {
+    method: "POST",
+    body: JSON.stringify(folders),
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -2077,472 +590,80 @@ export async function deleteDocumentFromDb(id: string): Promise<void> {
 // ----------------------------------------------------------------------------
 
 export async function fetchVaultCredentialsFromDb(): Promise<VaultCredential[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("vault_credentials")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) {
-    console.warn("Supabase fetch vault_credentials error (fallback to local snapshot):", error);
-    return [];
-  }
-  return (data || []).map((row: any): VaultCredential => ({
-    id: row.id,
-    portal_name: row.portal_name,
-    login_url: row.login_url || "",
-    username: row.username,
-    password_encrypted: row.password_encrypted,
-    registered_email: row.registered_email || undefined,
-    registered_mobile: row.registered_mobile || undefined,
-    account_holder_name: row.account_holder_name || undefined,
-    category: row.category || "Taxation",
-    client_id: row.client_id || undefined,
-    client_name: row.client_name || undefined,
-    assigned_employee_ids: row.assigned_employee_ids || [],
-    assigned_employee_names: row.assigned_employee_names || undefined,
-    notes: row.notes || undefined,
-    password_history: row.password_history || [],
-    last_password_changed_at: row.last_password_changed_at || row.created_at,
-    rotation_reminder_days: row.rotation_reminder_days || 90,
-    created_at: row.created_at,
-    updated_at: row.updated_at || row.created_at,
-    created_by_id: row.created_by_id || undefined,
-    created_by_name: row.created_by_name || undefined,
-  }));
+  return request<VaultCredential[]>("/vault/credentials");
 }
 
 export async function insertVaultCredentialToDb(cred: VaultCredential): Promise<VaultCredential> {
-  const supabase = createClient();
-  const id = ensureUuid(cred.id);
-  const now = new Date().toISOString();
-  const { error } = await supabase.from("vault_credentials").insert({
-    id,
-    portal_name: cred.portal_name,
-    login_url: cred.login_url || null,
-    username: cred.username,
-    password_encrypted: cred.password_encrypted,
-    registered_email: cred.registered_email || null,
-    registered_mobile: cred.registered_mobile || null,
-    account_holder_name: cred.account_holder_name || null,
-    category: cred.category || "Taxation",
-    client_id: isUuid(cred.client_id) ? cred.client_id : null,
-    client_name: cred.client_name || null,
-    assigned_employee_ids: cred.assigned_employee_ids || [],
-    assigned_employee_names: cred.assigned_employee_names || null,
-    notes: cred.notes || null,
-    password_history: cred.password_history || [],
-    last_password_changed_at: cred.last_password_changed_at || now,
-    rotation_reminder_days: cred.rotation_reminder_days || 90,
-    created_at: cred.created_at || now,
-    updated_at: cred.updated_at || now,
-    created_by_id: isUuid(cred.created_by_id) ? cred.created_by_id : null,
-    created_by_name: cred.created_by_name || null,
+  return request<VaultCredential>("/vault/credentials", {
+    method: "POST",
+    body: JSON.stringify(cred),
   });
-  if (error) {
-    console.warn("Supabase insert vault_credentials warning:", error.message || error);
-  }
-  return { ...cred, id };
 }
 
 export async function updateVaultCredentialInDb(id: string, updates: Partial<VaultCredential>): Promise<void> {
-  if (!isUuid(id)) return;
-  const supabase = createClient();
-  const dbUpdates: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-  if (updates.portal_name !== undefined) dbUpdates.portal_name = updates.portal_name;
-  if (updates.login_url !== undefined) dbUpdates.login_url = updates.login_url || null;
-  if (updates.username !== undefined) dbUpdates.username = updates.username;
-  if (updates.password_encrypted !== undefined) dbUpdates.password_encrypted = updates.password_encrypted;
-  if (updates.registered_email !== undefined) dbUpdates.registered_email = updates.registered_email || null;
-  if (updates.registered_mobile !== undefined) dbUpdates.registered_mobile = updates.registered_mobile || null;
-  if (updates.account_holder_name !== undefined) dbUpdates.account_holder_name = updates.account_holder_name || null;
-  if (updates.category !== undefined) dbUpdates.category = updates.category;
-  if (updates.client_id !== undefined) dbUpdates.client_id = isUuid(updates.client_id) ? updates.client_id : null;
-  if (updates.client_name !== undefined) dbUpdates.client_name = updates.client_name || null;
-  if (updates.assigned_employee_ids !== undefined) dbUpdates.assigned_employee_ids = updates.assigned_employee_ids;
-  if (updates.assigned_employee_names !== undefined) dbUpdates.assigned_employee_names = updates.assigned_employee_names || null;
-  if (updates.notes !== undefined) dbUpdates.notes = updates.notes || null;
-  if (updates.password_history !== undefined) dbUpdates.password_history = updates.password_history;
-  if (updates.last_password_changed_at !== undefined) dbUpdates.last_password_changed_at = updates.last_password_changed_at;
-  if (updates.rotation_reminder_days !== undefined) dbUpdates.rotation_reminder_days = updates.rotation_reminder_days;
-
-  const { error } = await supabase.from("vault_credentials").update(dbUpdates).eq("id", id);
-  if (error) {
-    console.warn("Supabase update vault_credentials warning:", error.message || error);
-  }
+  await request(`/vault/credentials/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteVaultCredentialFromDb(id: string): Promise<void> {
-  if (!isUuid(id)) return;
-  const supabase = createClient();
-  const { error } = await supabase.from("vault_credentials").delete().eq("id", id);
-  if (error) {
-    console.warn("Supabase delete vault_credentials warning:", error.message || error);
-  }
+  await request(`/vault/credentials/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchVaultAuditLogsFromDb(): Promise<VaultAuditLog[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("vault_audit_logs")
-    .select("*")
-    .order("timestamp", { ascending: false })
-    .limit(500);
-  if (error) {
-    console.warn("Supabase fetch vault_audit_logs error (fallback to local snapshot):", error);
-    return [];
-  }
-  return (data || []).map((row: any): VaultAuditLog => ({
-    id: row.id,
-    credential_id: row.credential_id,
-    portal_name: row.portal_name,
-    action: row.action,
-    performed_by_id: row.performed_by_id,
-    performed_by_name: row.performed_by_name,
-    timestamp: row.timestamp,
-    details: row.details || undefined,
-    client_name: row.client_name || undefined,
-  }));
+  return request<VaultAuditLog[]>("/vault/audit-logs");
 }
 
-export async function insertVaultAuditLogToDb(log: VaultAuditLog): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("vault_audit_logs").insert({
-    id: ensureUuid(log.id),
-    credential_id: isUuid(log.credential_id) ? log.credential_id : ensureUuid(),
-    portal_name: log.portal_name,
-    action: log.action,
-    performed_by_id: isUuid(log.performed_by_id) ? log.performed_by_id : ensureUuid(),
-    performed_by_name: log.performed_by_name,
-    timestamp: log.timestamp || new Date().toISOString(),
-    details: log.details || null,
-    client_name: log.client_name || null,
-  });
-  if (error) {
-    console.warn("Supabase insert vault_audit_logs warning:", error.message || error);
-  }
-}
-
-// ----------------------------------------------------------------------------
-// WORKFLOW BUILDER MILESTONES & TEMPLATE TASKS PERSISTENCE
-// ----------------------------------------------------------------------------
-
-export async function saveWorkflowMilestonesToDb(
-  workflowId: string,
-  milestones: WorkflowMilestoneTemplate[]
-): Promise<void> {
-  const supabase = createClient();
-  let targetWfId = workflowId;
-  if (!isUuid(targetWfId)) {
-    const { data: found } = await supabase.from("workflow_templates").select("id").eq("workflow_code", workflowId.toUpperCase()).maybeSingle();
-    if (found?.id) targetWfId = found.id;
-    else return;
-  }
-
-  // Ensure template version exists
-  const { data: existingVer } = await supabase
-    .from("workflow_template_versions")
-    .select("id")
-    .eq("workflow_template_id", targetWfId)
-    .order("version_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  let versionId = existingVer?.id;
-  if (!versionId) {
-    const newVer = await supabase.from("workflow_template_versions").insert({
-      workflow_template_id: targetWfId,
-      version_number: 1,
-      is_published: true,
-    }).select("id").single();
-    if (newVer.data) versionId = newVer.data.id;
-  }
-
-  // Clean out existing milestones for this workflow template
-  await supabase.from("workflow_milestones").delete().eq("workflow_template_id", targetWfId);
-
-  // Re-insert milestones, stages, and tasks
-  for (let mIdx = 0; mIdx < milestones.length; mIdx++) {
-    const m = milestones[mIdx];
-    const milestoneId = ensureUuid(m.id);
-    const { error: mErr } = await supabase.from("workflow_milestones").insert({
-      id: milestoneId,
-      workflow_template_id: targetWfId,
-      title: m.title,
-      sequence_number: m.sequence_number || mIdx + 1,
-      start_date: m.start_date || null,
-      end_date: m.end_date || null,
-      description: m.description || null,
-    });
-    if (mErr) {
-      console.warn("Supabase insert workflow_milestone error:", mErr);
-      continue;
-    }
-
-    const stages = m.stages || [];
-    for (let sIdx = 0; sIdx < stages.length; sIdx++) {
-      const s = stages[sIdx];
-      const stageId = ensureUuid(s.id);
-      const { error: sErr } = await supabase.from("workflow_stages").insert({
-        id: stageId,
-        template_version_id: versionId,
-        milestone_id: milestoneId,
-        stage_name: s.stage_name,
-        sequence_number: s.sequence_number || sIdx + 1,
-      });
-      if (sErr) {
-        console.warn("Supabase insert workflow_stage error:", sErr);
-        continue;
-      }
-
-      const stageTasks = (s.sub_stages || []).flatMap((sub) => sub.tasks || []);
-      for (let tIdx = 0; tIdx < stageTasks.length; tIdx++) {
-        const t = stageTasks[tIdx];
-        const taskId = ensureUuid(t.id);
-        const { error: tErr } = await supabase.from("workflow_tasks").insert({
-          id: taskId,
-          stage_id: stageId,
-          task_name: t.task_name,
-          sequence_number: t.sequence_number || tIdx + 1,
-          description: t.description || null,
-          priority: t.priority || "Medium",
-          default_days: t.duration_days || 2,
-        });
-        if (tErr) console.warn("Supabase insert workflow_task error:", tErr);
-      }
-    }
-  }
-}
-
-// ----------------------------------------------------------------------------
-// TASK STATUSES
-// ----------------------------------------------------------------------------
-
-export async function fetchTaskStatusesFromDb(): Promise<TaskStatusConfig[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("task_statuses")
-    .select("*")
-    .order("sort_order", { ascending: true });
-  if (error) {
-    console.warn("Supabase fetch task_statuses error:", error);
-    return [];
-  }
-  return (data || []).map((row: any): TaskStatusConfig => ({
-    id: row.id,
-    label: row.label,
-    color: row.color,
-    isCompleted: Boolean(row.is_completed),
-  }));
-}
-
-export async function insertTaskStatusToDb(status: TaskStatusConfig): Promise<TaskStatusConfig> {
-  const supabase = createClient();
-  const id = ensureUuid(status.id);
-  const { error } = await supabase.from("task_statuses").insert({
-    id,
-    label: status.label,
-    color: status.color,
-    is_completed: Boolean(status.isCompleted),
-  });
-  if (error) throw new Error(error.message);
-  return { ...status, id };
-}
-
-export async function updateTaskStatusInDb(id: string, updates: Partial<TaskStatusConfig>): Promise<void> {
-  const supabase = createClient();
-  const dbUpdates: Record<string, any> = {};
-  if (updates.label !== undefined) dbUpdates.label = updates.label;
-  if (updates.color !== undefined) dbUpdates.color = updates.color;
-  if (updates.isCompleted !== undefined) dbUpdates.is_completed = updates.isCompleted;
-
-  let targetId = id;
-  if (!isUuid(targetId)) {
-    const { data: found } = await supabase.from("task_statuses").select("id").eq("label", id).maybeSingle();
-    if (found?.id) targetId = found.id;
-    else return;
-  }
-  const { error } = await supabase.from("task_statuses").update(dbUpdates).eq("id", targetId);
-  if (error) throw new Error(error.message);
-}
-
-export async function deleteTaskStatusFromDb(id: string): Promise<void> {
-  const supabase = createClient();
-  let targetId = id;
-  if (!isUuid(targetId)) {
-    const { data: found } = await supabase.from("task_statuses").select("id").eq("label", id).maybeSingle();
-    if (found?.id) targetId = found.id;
-    else return;
-  }
-  const { error } = await supabase.from("task_statuses").delete().eq("id", targetId);
-  if (error) throw new Error(error.message);
-}
-
-// ----------------------------------------------------------------------------
-// TASK COMMENTS
-// ----------------------------------------------------------------------------
-
-export async function fetchTaskCommentsFromDb(): Promise<TaskComment[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("task_comments")
-    .select("*, employees(full_name)")
-    .order("created_at", { ascending: true });
-  if (error) {
-    console.warn("Supabase fetch task_comments error:", error);
-    return [];
-  }
-  return (data || []).map((row: any): TaskComment => ({
-    id: row.id,
-    task_id: row.task_id,
-    employee_id: row.employee_id || "",
-    employee_name: row.employees?.full_name || "Employee",
-    comment: row.comment,
-    read_by: [],
-    mentioned_employee_ids: [],
-    created_at: row.created_at,
-  }));
-}
-
-export async function insertTaskCommentToDb(comment: TaskComment): Promise<TaskComment> {
-  const supabase = createClient();
-  const id = ensureUuid(comment.id);
-  const { error } = await supabase.from("task_comments").insert({
-    id,
-    task_id: ensureUuid(comment.task_id),
-    employee_id: isUuid(comment.employee_id) ? comment.employee_id : null,
-    comment: comment.comment,
-    created_at: comment.created_at || new Date().toISOString(),
-  });
-  if (error) throw new Error(error.message);
-  return { ...comment, id };
-}
-
-export async function deleteTaskCommentFromDb(id: string): Promise<void> {
-  if (!isUuid(id)) return;
-  const supabase = createClient();
-  const { error } = await supabase.from("task_comments").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
-// ----------------------------------------------------------------------------
-// TEAMS & TEAM MEMBERS
-// ----------------------------------------------------------------------------
-
-export async function fetchTeamsFromDb(): Promise<Team[]> {
-  const supabase = createClient();
-  const [teamsRes, membersRes] = await Promise.all([
-    supabase.from("teams").select("*, employees!teams_supervisor_id_fkey(full_name)"),
-    supabase.from("team_members").select("*, employees(full_name, designation_name)"),
-  ]);
-  if (teamsRes.error) {
-    console.warn("Supabase fetch teams error:", teamsRes.error);
-    return [];
-  }
-  const membersByTeam = new Map<string, TeamMember[]>();
-  (membersRes.data || []).forEach((m: any) => {
-    const list = membersByTeam.get(m.team_id) || [];
-    list.push({
-      id: m.id,
-      team_id: m.team_id,
-      employee_id: m.employee_id,
-      employee_name: m.employees?.full_name || "Member",
-      designation: m.employees?.designation_name || "",
-      role_in_team: m.role_in_team || "Member",
-      is_active: Boolean(m.is_active),
-      joined_at: m.joined_at,
-    });
-    membersByTeam.set(m.team_id, list);
-  });
-
-  return (teamsRes.data || []).map((row: any): Team => {
-    const members = membersByTeam.get(row.id) || [];
-    return {
-      id: row.id,
-      name: row.name,
-      supervisor_id: row.supervisor_id || undefined,
-      supervisor_name: row.employees?.full_name || undefined,
-      description: row.description || undefined,
-      status: (row.status as "Active" | "Inactive") || "Active",
-      members,
-      member_count: members.length,
-    };
+export async function insertVaultAuditLogToDb(log: VaultAuditLog): Promise<VaultAuditLog> {
+  return request<VaultAuditLog>("/vault/audit-logs", {
+    method: "POST",
+    body: JSON.stringify(log),
   });
 }
 
-export async function insertTeamToDb(team: Team): Promise<Team> {
-  const supabase = createClient();
-  const id = ensureUuid(team.id);
-  const defaultDeptId = "33333333-3333-3333-3333-333333330001";
-  const { error } = await supabase.from("teams").insert({
-    id,
-    name: team.name,
-    department_id: defaultDeptId,
-    supervisor_id: isUuid(team.supervisor_id) ? team.supervisor_id : null,
-    description: team.description || null,
-    status: team.status || "Active",
+// ----------------------------------------------------------------------------
+// RECYCLE BIN & WHATSAPP TEMPLATES
+// ----------------------------------------------------------------------------
+
+export async function fetchRecycleBinFromDb(): Promise<UniversalRecycleBinItem[]> {
+  return request<UniversalRecycleBinItem[]>("/recycle-bin");
+}
+
+export async function insertRecycleBinItemToDb(item: UniversalRecycleBinItem): Promise<void> {
+  await request("/recycle-bin", {
+    method: "POST",
+    body: JSON.stringify(item),
   });
-  if (error) throw new Error(error.message);
-  return { ...team, id };
 }
 
-export async function updateTeamInDb(id: string, updates: Partial<Team>): Promise<void> {
-  if (!isUuid(id)) return;
-  const supabase = createClient();
-  const dbUpdates: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-  if (updates.name !== undefined) dbUpdates.name = updates.name;
-  if (updates.supervisor_id !== undefined) dbUpdates.supervisor_id = isUuid(updates.supervisor_id) ? updates.supervisor_id : null;
-  if (updates.description !== undefined) dbUpdates.description = updates.description || null;
-  if (updates.status !== undefined) dbUpdates.status = updates.status;
-
-  const { error } = await supabase.from("teams").update(dbUpdates).eq("id", id);
-  if (error) throw new Error(error.message);
+export async function deleteRecycleBinItemFromDb(id: string): Promise<void> {
+  await request(`/recycle-bin/${id}`, {
+    method: "DELETE",
+  });
 }
 
-export async function deleteTeamFromDb(id: string): Promise<void> {
-  if (!isUuid(id)) return;
-  const supabase = createClient();
-  const { error } = await supabase.from("teams").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+export async function fetchWhatsAppTemplatesFromDb(): Promise<WhatsAppTemplate[]> {
+  return request<WhatsAppTemplate[]>("/whatsapp-templates");
 }
 
-// ----------------------------------------------------------------------------
-// DOCUMENT FOLDERS
-// ----------------------------------------------------------------------------
-
-export async function fetchDocumentFoldersFromDb(): Promise<DocumentFolder[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("system_settings")
-    .select("setting_value")
-    .eq("setting_key", "pms_document_folders_v1")
-    .maybeSingle();
-  if (error || !data || !Array.isArray(data.setting_value)) {
-    return [];
-  }
-  return data.setting_value as DocumentFolder[];
+export async function upsertWhatsAppTemplateInDb(template: WhatsAppTemplate): Promise<WhatsAppTemplate> {
+  return request<WhatsAppTemplate>("/whatsapp-templates", {
+    method: "POST",
+    body: JSON.stringify(template),
+  });
 }
 
-export async function saveDocumentFoldersToDb(folders: DocumentFolder[]): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("system_settings").upsert({
-    setting_key: "pms_document_folders_v1",
-    setting_value: folders,
-    description: "Configured document folder structure",
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "setting_key" });
-  if (error) {
-    console.warn("Supabase save document_folders warning:", error.message || error);
-  }
+export async function deleteWhatsAppTemplateFromDb(id: string): Promise<void> {
+  await request(`/whatsapp-templates/${id}`, {
+    method: "DELETE",
+  });
 }
 
 // ----------------------------------------------------------------------------
 // SUPER ADMIN FULL DATABASE RESET
-// Wipes all application transactional data from Supabase PostgreSQL
-// Preserves the Super Admin root account and default system configurations
 // ----------------------------------------------------------------------------
 
 export async function resetFullDatabaseInSupabase(initiator: Employee): Promise<{
@@ -2550,134 +671,8 @@ export async function resetFullDatabaseInSupabase(initiator: Employee): Promise<
   error?: string;
   clearedTablesCount?: number;
 }> {
-  if (!initiator || (initiator.role_code !== "SUPER_ADMIN" && !isSuperAdminEmail(initiator.email))) {
-    throw new Error("Unauthorized: Full database reset is restricted exclusively to the Super Admin.");
-  }
-
-  const supabase = createClient();
-  const nilUuid = "00000000-0000-0000-0000-000000000000";
-
-  // Tables to truncate in foreign-key safe cascade order
-  const tablesToClear = [
-    // 1. Task activity and sub-items
-    "task_comments",
-    "task_attachments",
-    "task_status_history",
-    // 2. Tasks
-    "tasks",
-    // 3. Project mappings & Projects
-    "project_assignments",
-    "project_milestones",
-    "project_workflows",
-    "project_workflow_stages",
-    "projects",
-    // 4. Invoices, Payments, Requests
-    "payment_allocations",
-    "payments",
-    "invoice_items",
-    "invoice_approval_logs",
-    "bulk_invoice_batches",
-    "invoice_request_items",
-    "invoice_requests",
-    "recurring_invoices",
-    "invoices",
-    "credit_notes",
-    "payment_reminders",
-    // 5. Client sub-records & Engagements
-    "service_fee_records",
-    "service_engagements",
-    "client_contacts",
-    "client_addresses",
-    "client_registrations",
-    "client_bank_accounts",
-    "client_documents",
-    // 6. Clients
-    "clients",
-    // 7. Workflows
-    "workflow_tasks",
-    "workflow_subtasks",
-    "workflow_conditions",
-    "workflow_sub_stages",
-    "workflow_stages",
-    "workflow_milestones",
-    "workflow_template_versions",
-    "workflow_templates",
-    // 8. Services
-    "services",
-    // 9. Task categories
-    "task_sub_categories",
-    "task_categories",
-    // 10. Vault, Files & Recycle Bin
-    "universal_recycle_bin",
-    "vault_audit_logs",
-    "vault_credentials",
-    "file_objects",
-    // 11. Notifications, WhatsApp & Activity
-    "whatsapp_templates",
-    "notifications",
-    "activity_logs",
-    "attendance_records",
-    // 12. Teams
-    "team_members",
-    "teams",
-  ];
-
-  let clearedCount = 0;
-  for (const tbl of tablesToClear) {
-    try {
-      const { error } = await supabase.from(tbl).delete().neq("id", nilUuid);
-      if (error) {
-        console.warn(`[Reset] Table ${tbl} deletion notice:`, error.message);
-      } else {
-        clearedCount++;
-      }
-    } catch (e: any) {
-      console.warn(`[Reset] Warning deleting from ${tbl}:`, e.message || e);
-    }
-  }
-
-  // 13. Employees: Delete all non-Super-Admin employee accounts
-  try {
-    const adminEmail = (initiator.email || SUPERADMIN_EMAIL).trim().toLowerCase();
-    await supabase
-      .from("employees")
-      .delete()
-      .neq("id", nilUuid)
-      .neq("email", adminEmail)
-      .neq("role_code", "SUPER_ADMIN");
-    clearedCount++;
-  } catch (e: any) {
-    console.warn("[Reset] Non-superadmin employee deletion notice:", e.message || e);
-  }
-
-  // 14. Reset Task Statuses to core defaults
-  try {
-    await supabase.from("task_statuses").delete().neq("id", nilUuid);
-    const defaultStatuses = [
-      { id: "status-todo", name: "To Do", color: "#64748B", position: 1, is_system: true, is_completed: false },
-      { id: "status-inprogress", name: "In Progress", color: "#3B82F6", position: 2, is_system: true, is_completed: false },
-      { id: "status-review", name: "Review", color: "#F59E0B", position: 3, is_system: true, is_completed: false },
-      { id: "status-completed", name: "Completed", color: "#10B981", position: 4, is_system: true, is_completed: true },
-    ];
-    await supabase.from("task_statuses").upsert(defaultStatuses);
-  } catch (e: any) {
-    console.warn("[Reset] Task statuses re-seed warning:", e.message || e);
-  }
-
-  // 15. Reset system settings to clean defaults
-  try {
-    await supabase.from("system_settings").delete().neq("id", nilUuid);
-    await saveDocumentFoldersToDb([
-      { id: "folder-tax", name: "Tax Filings", path: "/Tax Filings", description: "Direct & Indirect Tax documents", created_at: new Date().toISOString() },
-      { id: "folder-corp", name: "Corporate & ROC", path: "/Corporate & ROC", description: "MCA, ROC filings and certificates", created_at: new Date().toISOString() },
-      { id: "folder-audit", name: "Audit & Assurance", path: "/Audit & Assurance", description: "Statutory & internal audit reports", created_at: new Date().toISOString() },
-      { id: "folder-kyc", name: "Client KYC & Registrations", path: "/Client KYC & Registrations", description: "PAN, Aadhaar, GST & Incorporation", created_at: new Date().toISOString() },
-      { id: "folder-gen", name: "General Correspondence", path: "/General Correspondence", description: "Notices, letters and agreements", created_at: new Date().toISOString() },
-    ]);
-  } catch (e: any) {
-    console.warn("[Reset] System settings reset warning:", e.message || e);
-  }
-
-  return { ok: true, clearedTablesCount: clearedCount };
+  return request<{ ok: boolean; error?: string; clearedTablesCount?: number }>("/system/reset", {
+    method: "POST",
+    body: JSON.stringify(initiator),
+  });
 }
-

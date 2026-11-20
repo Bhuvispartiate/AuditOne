@@ -7,7 +7,6 @@ import {
   Clock,
   FolderGit2,
   Plus,
-  Search,
   Calendar,
   ArrowRight,
   Box,
@@ -48,7 +47,6 @@ function buildSmoothPath(points: { x: number; y: number }[]) {
 }
 
 export default function DashboardPage() {
-  const [serviceSearch, setServiceSearch] = useState("");
   const [showMentionReceiptsModal, setShowMentionReceiptsModal] = useState(false);
   const [selectedCommentTaskId, setSelectedCommentTaskId] = useState<string | null>(null);
   const [, setTick] = useState(0);
@@ -138,11 +136,7 @@ export default function DashboardPage() {
     };
   });
 
-  const filteredServiceStats = serviceClientStats.filter(
-    (item) =>
-      item.service.service_name.toLowerCase().includes(serviceSearch.toLowerCase()) ||
-      item.service.service_code.toLowerCase().includes(serviceSearch.toLowerCase())
-  );
+  const filteredServiceStats = serviceClientStats;
 
   // 4. Trailing 6-Month Performance Series from Real Projects & Tasks
   const performanceSeries = useMemo(() => {
@@ -781,17 +775,6 @@ export default function DashboardPage() {
             <p className="text-xs text-[#55557A] mt-0.5">
               Live distribution showing how many clients are subscribed to each real catalog service.
             </p>
-          </div>
-
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#55557A]" />
-            <Input
-              type="search"
-              placeholder="Filter service..."
-              value={serviceSearch}
-              onChange={(e) => setServiceSearch(e.target.value)}
-              className="pl-9 h-9 rounded-full text-xs border-[#E6E4F0] bg-[#F6F5FB] text-[#1E1E4F]"
-            />
           </div>
         </div>
 

@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Users,
   Check,
+  Lock,
 } from "lucide-react";
 import {
   Dialog,
@@ -32,6 +33,7 @@ import { pmsStore } from "@/lib/data/store";
 import { whatsappClient } from "@/lib/whatsapp-client";
 import { formatDate } from "@/lib/utils";
 import { Client, Project, Task, TaskCategory, TaskSubCategory, WhatsAppTemplate, WorkflowTemplate } from "@/types";
+import { UpgradeModal } from "@/components/subscription/upgrade-modal";
 import { toast } from "sonner";
 
 interface WhatsAppChatDialogProps {
@@ -250,6 +252,7 @@ export function WhatsAppChatDialog({
   const [isBatchSending, setIsBatchSending] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [engineConnected, setEngineConnected] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   const hasInitializedRef = React.useRef(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -490,39 +493,9 @@ export function WhatsAppChatDialog({
 
   // Dispatches via WhatsApp Automation Backend
   const handleSendViaEngine = async () => {
-    const clean = sanitizePhone(phoneNumber);
-    if (!clean || clean.length < 10) {
-      toast.error("Please enter a valid phone number with country code (e.g. 919876543210).");
-      return;
-    }
-    if (!message.trim()) {
-      toast.error("Message body cannot be empty.");
-      return;
-    }
-
-    setIsSending(true);
-    try {
-      const res = await whatsappClient.sendMessage({
-        phone: clean,
-        message: message.trim(),
-      });
-
-      if (res.success && res.status === "SENT") {
-        toast.success(`WhatsApp message delivered to ${recipientName || clean}!`);
-        pmsStore.addActivityLog(
-          `Dispatched WhatsApp update to ${recipientName} (+${clean})`,
-          contextType === "task" ? "task" : contextType === "workflow" ? "workflow" : "client",
-          task?.id || workflow?.id || resolvedClient?.id
-        );
-        onOpenChange(false);
-      } else {
-        toast.error(`WhatsApp send failed: ${res.error || res.status}. You can use "Open in WhatsApp Web" below.`);
-      }
-    } catch (err: any) {
-      toast.error(`Error: ${err?.message || "WhatsApp service unavailable."}`);
-    } finally {
-      setIsSending(false);
-    }
+    toast.error("WhatsApp Automation is closed on the Free Trial Version. Upgrade to Access.");
+    setUpgradeModalOpen(true);
+    return;
   };
 
   const handleOpenWhatsAppWeb = () => {
@@ -548,75 +521,9 @@ export function WhatsAppChatDialog({
 
   // Dispatches to all allocated clients in this category or sub-category
   const handleBatchSendViaEngine = async () => {
-    if (allocatedClients.length === 0) return;
-    if (!message.trim()) {
-      toast.error("Message body cannot be empty.");
-      return;
-    }
-
-    const clientsWithPhone = allocatedClients.filter((item) => {
-      const phone = getClientPhone(item.client);
-      return Boolean(phone && phone.length >= 10);
-    });
-
-    if (clientsWithPhone.length === 0) {
-      toast.error("None of the allocated clients have a valid mobile number registered.");
-      return;
-    }
-
-    setIsBatchSending(true);
-    setBatchProgress({ current: 0, total: clientsWithPhone.length });
-
-    let successCount = 0;
-    let failCount = 0;
-
-    for (let i = 0; i < clientsWithPhone.length; i++) {
-      const item = clientsWithPhone[i];
-      const phone = getClientPhone(item.client);
-      const contactPerson = getClientContactPerson(item.client);
-
-      // Personalize message with client's contact name
-      let personalizedMsg = message;
-      if (recipientName && contactPerson) {
-        personalizedMsg = personalizedMsg.split(recipientName).join(contactPerson);
-      }
-
-      setBatchProgress({ current: i + 1, total: clientsWithPhone.length });
-
-      try {
-        const res = await whatsappClient.sendMessage({
-          phone,
-          message: personalizedMsg.trim(),
-        });
-
-        if (res.success && res.status === "SENT") {
-          successCount++;
-          pmsStore.addActivityLog(
-            `Dispatched batch WhatsApp update to ${contactPerson} (${item.client.client_name}) (+${phone})`,
-            "client",
-            item.client.id
-          );
-        } else {
-          failCount++;
-        }
-      } catch {
-        failCount++;
-      }
-    }
-
-    setIsBatchSending(false);
-    setBatchProgress(null);
-
-    if (successCount > 0) {
-      toast.success(
-        `Batch dispatch complete: ${successCount} message(s) sent successfully${
-          failCount > 0 ? `, ${failCount} failed` : ""
-        }.`
-      );
-      onOpenChange(false);
-    } else {
-      toast.error(`Batch dispatch failed. Please verify WhatsApp engine connection.`);
-    }
+    toast.error("WhatsApp Automation is closed on the Free Trial Version. Upgrade to Access.");
+    setUpgradeModalOpen(true);
+    return;
   };
 
   const contextTitle =
@@ -1075,6 +982,12 @@ export function WhatsAppChatDialog({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
+        feature="whatsapp"
+      />
     </Dialog>
   );
 }

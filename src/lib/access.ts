@@ -18,16 +18,37 @@ export function isSuperAdmin(user?: Employee | null): boolean {
   return user.role_code === "SUPER_ADMIN" || isSuperAdminEmail(user.email);
 }
 
+export function isOwner(user?: Employee | null): boolean {
+  if (!user) return false;
+  if (isSuperAdmin(user)) return false;
+  return (
+    user.role_code === "OWNER" ||
+    user.role_code === "DIRECTOR" ||
+    user.id === "emp-owner-01" ||
+    user.designation_name === "Firm Owner / Managing Director"
+  );
+}
+
+export function canManageAdmins(user?: Employee | null): boolean {
+  // Owner has exclusive CRUD over Admins
+  return isOwner(user);
+}
+
+export function canManageOwnerAccount(user?: Employee | null): boolean {
+  // Super Admin only manages Owner Mail ID and Owner Activities
+  return isSuperAdmin(user);
+}
+
 export function isAdminUser(user?: Employee | null): boolean {
   if (!user) return false;
   const role = user.role_code;
   return (
-    role === "SUPER_ADMIN" ||
+    isSuperAdmin(user) ||
+    isOwner(user) ||
     role === "ADMIN" ||
     role === "DIRECTOR" ||
     role === "HEAD" ||
-    user.id === "emp-admin-01" ||
-    isSuperAdminEmail(user.email)
+    user.id === "emp-admin-01"
   );
 }
 

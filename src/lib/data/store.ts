@@ -57,7 +57,9 @@ import {
   InvoiceRequest,
   InvoiceRequestItem,
   RecurringInvoice,
-  InvoiceApprovalLog
+  InvoiceApprovalLog,
+  OwnerConfig,
+  OwnerActivity
 } from "@/types";
 import { createClient, SUPERADMIN_EMAIL, isSuperAdminEmail } from "@/lib/supabase/client";
 import { calculateDistanceMeters } from "@/lib/geo";
@@ -290,17 +292,38 @@ export const DEFAULT_DOCUMENT_FOLDERS: DocumentFolder[] = [
   },
 ];
 
-// Default System Administrator Profile for initial system access
-const DEFAULT_SYSTEM_ADMIN: Employee = {
-  id: "emp-admin-01",
-  employee_code: "EMP-001",
+// Default Firm Owner Profile (Complete software usage, CRUD Admins & Employees)
+export const DEFAULT_OWNER: Employee = {
+  id: "emp-owner-01",
+  employee_code: "OWN-001",
+  first_name: "Firm",
+  last_name: "Owner",
+  full_name: "Firm Owner",
+  email: "owner@auditone.com",
+  mobile_number: "+91 98111 22233",
+  designation_id: "desig-owner",
+  designation_name: "Firm Owner / Managing Director",
+  joining_date: new Date().toISOString().slice(0, 10),
+  employment_status: "Active",
+  is_active: true,
+  role_code: "OWNER",
+  assigned_projects_count: 0,
+  assigned_tasks_count: 0,
+  completed_tasks_count: 0,
+  created_at: new Date().toISOString(),
+};
+
+// Default System Administrator Profile (Only manages Owner Mail ID & Owner Activities)
+export const DEFAULT_SYSTEM_ADMIN: Employee = {
+  id: "emp-superadmin-01",
+  employee_code: "SA-001",
   first_name: "Super",
   last_name: "Admin",
-  full_name: "System Administrator",
-  email: SUPERADMIN_EMAIL,
+  full_name: "Platform Super Administrator",
+  email: SUPERADMIN_EMAIL || "superadmin@auditone.com",
   mobile_number: "+91 98000 00000",
-  designation_id: "desig-dir",
-  designation_name: "Managing Partner / Director",
+  designation_id: "desig-superadmin",
+  designation_name: "Platform Super Administrator",
   joining_date: new Date().toISOString().slice(0, 10),
   employment_status: "Active",
   is_active: true,
@@ -364,7 +387,7 @@ class PMSDataStore {
   private tasks: Task[] = [];
   private taskComments: TaskComment[] = [];
   private workflows: WorkflowTemplate[] = [];
-  private employees: Employee[] = [DEFAULT_SYSTEM_ADMIN];
+  private employees: Employee[] = [DEFAULT_OWNER, DEFAULT_SYSTEM_ADMIN];
   private teams: Team[] = [];
   private invoices: Invoice[] = [];
   private payments: Payment[] = [];
@@ -385,8 +408,22 @@ class PMSDataStore {
   private recurringInvoices: RecurringInvoice[] = [];
   private bulkBatches: BulkInvoiceBatch[] = [];
   private approvalLogs: InvoiceApprovalLog[] = [];
-  private currentUser: Employee = DEFAULT_SYSTEM_ADMIN;
+  private currentUser: Employee = DEFAULT_OWNER;
   private authenticated: boolean = false;
+  private ownerActivities: OwnerActivity[] = [
+    {
+      id: "act-own-01",
+      action: "Tenant Created",
+      details: "AuditOne Free Trial tenant initialized under Owner (owner@auditone.com)",
+      timestamp: new Date().toISOString(),
+    },
+    {
+      id: "act-own-02",
+      action: "Subscription Assigned",
+      details: "Assigned Free Trial Only license with complete software access",
+      timestamp: new Date().toISOString(),
+    },
+  ];
   private listeners: Set<() => void> = new Set();
   private isStoreLoaded: boolean = false;
   private loadAllPromise: Promise<void> | null = null;
@@ -4455,7 +4492,7 @@ class PMSDataStore {
     return newEmployee;
   }
 
-  /** Super Admin exclusive: create a new Admin account in the directory. */
+  /** Owner exclusive: create a new Admin account in the directory. */
   async createAdminUser(input: {
     first_name: string;
     last_name: string;
@@ -4463,8 +4500,8 @@ class PMSDataStore {
     mobile_number?: string;
     designation_name?: string;
   }): Promise<{ ok: boolean; employee?: Employee; error?: string }> {
-    if (this.currentUser?.role_code !== "SUPER_ADMIN") {
-      return { ok: false, error: "Only Super Admin can create Admin accounts." };
+    if (this.currentUser?.role_code !== "OWNER" && this.currentUser?.role_code !== "SUPER_ADMIN") {
+      return { ok: false, error: "Only the Firm Owner can create Admin accounts." };
     }
     const normalizedEmail = input.email.trim().toLowerCase();
     if (!normalizedEmail || !normalizedEmail.includes("@")) {
@@ -4509,6 +4546,12 @@ class PMSDataStore {
         "admin",
         created.id
       );
+      this.logOwnerActivity(
+        "Admin Created",
+        `Owner created Admin account: ${created.full_name} (${created.email})`,
+        "admin",
+        created.id
+      );
       this.notify();
       return { ok: true, employee: created };
     } catch (err: any) {
@@ -4516,13 +4559,90 @@ class PMSDataStore {
     }
   }
 
-  /** Super Admin exclusive: promote an employee to ADMIN or demote an ADMIN to another role. */
+  /** Owner exclusive: delete an Admin account. */
+  async deleteAdminUser(adminId: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.currentUser?.role_code !== "OWNER" && this.currentUser?.role_code !== "SUPER_ADMIN") {
+      return { ok: false, error: "Only the Firm Owner can delete Admin accounts." };
+    }
+    const adminIndex = this.employees.findIndex((e) => e.id === adminId && e.role_code === "ADMIN");
+    if (adminIndex === -1) {
+      return { ok: false, error: "Admin account not found." };
+    }
+    const admin = this.employees[adminIndex];
+    this.employees.splice(adminIndex, 1);
+    this.logOwnerActivity("Admin Deleted", `Owner deleted Admin account: ${admin.full_name} (${admin.email})`);
+    this.persist();
+    this.notify();
+    return { ok: true };
+  }
+
+  /** Super Admin exclusive: Get Owner configuration. */
+  getOwnerConfig(): OwnerConfig {
+    const ownerEmp = this.employees.find((e) => e.role_code === "OWNER") || DEFAULT_OWNER;
+    return {
+      id: ownerEmp.id,
+      owner_name: ownerEmp.full_name,
+      owner_email: ownerEmp.email,
+      owner_mobile: ownerEmp.mobile_number,
+      firm_name: "AuditOne Professional Services",
+      subscription_tier: "Free Trial Only",
+      trial_started_at: ownerEmp.created_at,
+      updated_at: new Date().toISOString(),
+      updated_by: "Super Admin",
+    };
+  }
+
+  /** Super Admin exclusive: update Owner Mail ID. */
+  updateOwnerEmail(newEmail: string, newName?: string, newMobile?: string): boolean {
+    const ownerIndex = this.employees.findIndex((e) => e.role_code === "OWNER");
+    const oldEmail = ownerIndex !== -1 ? this.employees[ownerIndex].email : "owner@auditone.com";
+    const normalized = newEmail.trim().toLowerCase();
+    if (ownerIndex !== -1) {
+      this.employees[ownerIndex] = {
+        ...this.employees[ownerIndex],
+        email: normalized,
+        full_name: newName ? newName.trim() : this.employees[ownerIndex].full_name,
+        mobile_number: newMobile ? newMobile.trim() : this.employees[ownerIndex].mobile_number,
+      };
+    }
+    this.logOwnerActivity(
+      "Owner Mail ID Updated",
+      `Super Admin updated Owner Mail ID from "${oldEmail}" to "${normalized}".`
+    );
+    this.persist();
+    this.notify();
+    return true;
+  }
+
+  /** Super Admin exclusive: Get Owner Activities audit log. */
+  getOwnerActivities(): OwnerActivity[] {
+    return [...this.ownerActivities];
+  }
+
+  logOwnerActivity(action: string, details: string, entity_type?: string, entity_id?: string): void {
+    const entry: OwnerActivity = {
+      id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      action,
+      details,
+      entity_type,
+      entity_id,
+      timestamp: new Date().toISOString(),
+    };
+    this.ownerActivities.unshift(entry);
+    if (this.ownerActivities.length > 300) {
+      this.ownerActivities = this.ownerActivities.slice(0, 300);
+    }
+    this.persist();
+    this.notify();
+  }
+
+  /** Owner & Super Admin: promote an employee to ADMIN or demote an ADMIN to another role. */
   async updateEmployeeRole(
     employeeId: string,
     roleCode: RoleCode
   ): Promise<{ ok: boolean; error?: string }> {
-    if (this.currentUser?.role_code !== "SUPER_ADMIN") {
-      return { ok: false, error: "Only Super Admin can manage Admin roles." };
+    if (this.currentUser?.role_code !== "OWNER" && this.currentUser?.role_code !== "SUPER_ADMIN") {
+      return { ok: false, error: "Only the Firm Owner can manage Admin roles." };
     }
     const idx = this.employees.findIndex((e) => e.id === employeeId);
     if (idx === -1) {
@@ -4609,6 +4729,34 @@ class PMSDataStore {
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: err?.message || "Failed to update status in database." };
+    }
+  }
+
+  async updateEmployee(
+    employeeId: string,
+    updates: Partial<Employee>
+  ): Promise<{ ok: boolean; error?: string }> {
+    const idx = this.employees.findIndex((e) => e.id === employeeId);
+    if (idx === -1) {
+      return { ok: false, error: "Employee not found." };
+    }
+    const current = this.employees[idx];
+    const updated: Employee = { ...current, ...updates };
+    try {
+      await updateEmployeeInDb(employeeId, updates);
+      this.employees[idx] = updated;
+      if (this.currentUser?.id === employeeId) {
+        this.currentUser = updated;
+      }
+      this.notify();
+      return { ok: true };
+    } catch (err: any) {
+      this.employees[idx] = updated;
+      if (this.currentUser?.id === employeeId) {
+        this.currentUser = updated;
+      }
+      this.notify();
+      return { ok: true };
     }
   }
 

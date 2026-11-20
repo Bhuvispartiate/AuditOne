@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   Zap,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +29,6 @@ import { Badge } from "@/components/ui/badge";
 import { pmsStore } from "@/lib/data/store";
 import { isEmployeeRestricted } from "@/lib/access";
 import { createClient } from "@/lib/supabase/client";
-import { QuickCreateModal } from "@/components/layout/quick-create-modal";
 import { formatDateTime } from "@/lib/utils";
 
 export interface TopNavProps {
@@ -39,7 +39,6 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const currentUser = pmsStore.getCurrentUser();
   const isEmployee = isEmployeeRestricted(currentUser);
   const notifications = pmsStore.getNotifications();
@@ -113,6 +112,12 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
           >
             {mobileSearchOpen ? <X className="h-4 w-4 text-[#1E1E4F]" /> : <Search className="h-4 w-4 text-[#1E1E4F]" />}
           </button>
+          {/* Free Trial Version Pill */}
+          <div className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-full border border-amber-200 bg-amber-50 text-amber-900 text-[11px] font-extrabold shadow-2xs">
+            <Sparkles className="h-3.5 w-3.5 text-[#E0A95C]" />
+            <span>Free Trial Version</span>
+          </div>
+
           {isEmployee && (
             <div className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-full border border-[#E6E4F0] bg-[#F6F5FB] text-[#55557A] text-[11px] font-bold">
               <Eye className="h-3.5 w-3.5" />
@@ -287,17 +292,6 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
           </DropdownMenu>
 
           {/* Quick Create Action Button (Admin Only) */}
-          {!isEmployee && (
-            <button
-              onClick={() => setQuickCreateOpen(true)}
-              className="flex items-center justify-center gap-1.5 h-9 w-9 sm:h-10 sm:w-auto sm:px-4 rounded-full bg-[#272769] hover:bg-[#1E1E4F] !text-white text-xs font-bold transition-all shadow-[0_4px_14px_rgba(39,39,105,0.25)] shrink-0 cursor-pointer"
-              style={{ backgroundColor: "#272769", color: "#FFFFFF" }}
-              title="Quick Action"
-            >
-              <Plus className="h-4 w-4 !text-white" style={{ color: "#FFFFFF", stroke: "#FFFFFF" }} />
-              <span className="hidden sm:inline !text-white" style={{ color: "#FFFFFF" }}>Quick Action</span>
-            </button>
-          )}
         </div>
       </header>
 
@@ -323,14 +317,6 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
             </button>
           </form>
         </div>
-      )}
-
-      {/* Quick Create Modal (Admin Only) */}
-      {!isEmployee && (
-        <QuickCreateModal
-          open={quickCreateOpen}
-          onOpenChange={setQuickCreateOpen}
-        />
       )}
     </>
   );
