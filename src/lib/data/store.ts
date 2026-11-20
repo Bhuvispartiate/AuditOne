@@ -4576,42 +4576,232 @@ class PMSDataStore {
     return { ok: true };
   }
 
-  /** Super Admin exclusive: Get Owner configuration. */
-  getOwnerConfig(): OwnerConfig {
-    const ownerEmp = this.employees.find((e) => e.role_code === "OWNER") || DEFAULT_OWNER;
-    return {
-      id: ownerEmp.id,
-      owner_name: ownerEmp.full_name,
-      owner_email: ownerEmp.email,
-      owner_mobile: ownerEmp.mobile_number,
-      firm_name: "AuditOne Professional Services",
+  /** Super Admin exclusive: Get all Owner configurations in Multi-Owner Model. */
+  getOwners(): OwnerConfig[] {
+    const ownerEmployees = this.employees.filter((e) => e.role_code === "OWNER");
+    if (ownerEmployees.length === 0) {
+      return [
+        {
+          id: DEFAULT_OWNER.id,
+          owner_name: DEFAULT_OWNER.full_name,
+          owner_email: DEFAULT_OWNER.email,
+          owner_mobile: DEFAULT_OWNER.mobile_number,
+          firm_name: "AuditOne Professional Services",
+          subscription_tier: "Free Trial Only",
+          status: "Active",
+          trial_started_at: DEFAULT_OWNER.created_at,
+          updated_at: new Date().toISOString(),
+          updated_by: "Super Admin",
+        },
+      ];
+    }
+    return ownerEmployees.map((e) => ({
+      id: e.id,
+      owner_name: e.full_name,
+      owner_email: e.email,
+      owner_mobile: e.mobile_number,
+      firm_name: e.branch_name || "AuditOne Professional Services",
       subscription_tier: "Free Trial Only",
-      trial_started_at: ownerEmp.created_at,
+      status: e.is_active ? "Active" : "Inactive",
+      trial_started_at: e.created_at,
+      updated_at: new Date().toISOString(),
+      updated_by: "Super Admin",
+    }));
+  }
+
+  /** Super Admin exclusive: Get single Owner configuration by ID or primary. */
+  getOwnerConfig(ownerId?: string): OwnerConfig {
+    const owners = this.getOwners();
+    if (ownerId) {
+      const match = owners.find((o) => o.id === ownerId);
+      if (match) return match;
+    }
+    return owners[0];
+  }
+
+  /** Super Admin exclusive: Onboard a new Owner account in Multi-Owner Model. */
+  async createOwner(data: {
+    name: string;
+    email: string;
+    mobile?: string;
+    firm_name?: string;
+  }): Promise<{ ok: boolean; owner?: OwnerConfig; error?: string }> {
+    const normalizedEmail = data.email.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      return { ok: false, error: "A valid email address is required." };
+    }
+    if (this.employees.some((e) => e.email.toLowerCase() === normalizedEmail)) {
+      return { ok: false, error: "An account with this email address already exists." };
+    }
+
+    const id = `emp-owner-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const ownerCount = this.employees.filter((e) => e.role_code === "OWNER").length + 1;
+    const parts = data.name.trim().split(" ");
+    const firstName = parts[0] || "Firm";
+    const lastName = parts.slice(1).join(" ") || "Owner";
+
+    const newOwner: Employee = {
+      id,
+      employee_code: `OWN-${String(ownerCount).padStart(3, "0")}`,
+      first_name: firstName,
+      last_name: lastName,
+      full_name: data.name.trim(),
+      email: normalizedEmail,
+      mobile_number: data.mobile?.trim() || "+91 98000 00000",
+      designation_id: "desig-owner",
+      designation_name: "Firm Owner / Managing Director",
+      branch_name: data.firm_name?.trim() || "AuditOne Practice",
+      joining_date: new Date().toISOString().slice(0, 10),
+      employment_status: "Active",
+      is_active: true,
+      role_code: "OWNER",
+      assigned_projects_count: 0,
+      assigned_tasks_count: 0,
+      completed_tasks_count: 0,
+      created_at: new Date().toISOString(),
+    };
+
+    try {
+      await insertEmployeeToDb(newOwner);
+    } catch {
+      // Supabase local sync
+    }
+
+    this.employees.push(newOwner);
+    this.persist();
+    this.notify();
+
+    const config: OwnerConfig = {
+      id: newOwner.id,
+      owner_name: newOwner.full_name,
+      owner_email: newOwner.email,
+      owner_mobile: newOwner.mobile_number,
+      firm_name: newOwner.branch_name || "AuditOne Practice",
+      subscription_tier: "Free Trial Only",
+      status: "Active",
+      trial_started_at: newOwner.created_at,
       updated_at: new Date().toISOString(),
       updated_by: "Super Admin",
     };
+
+    return { ok: true, owner: config };
   }
 
-  /** Super Admin exclusive: update Owner Mail ID. */
-  updateOwnerEmail(newEmail: string, newName?: string, newMobile?: string): boolean {
-    const ownerIndex = this.employees.findIndex((e) => e.role_code === "OWNER");
-    const oldEmail = ownerIndex !== -1 ? this.employees[ownerIndex].email : "owner@auditone.com";
-    const normalized = newEmail.trim().toLowerCase();
-    if (ownerIndex !== -1) {
-      this.employees[ownerIndex] = {
-        ...this.employees[ownerIndex],
-        email: normalized,
-        full_name: newName ? newName.trim() : this.employees[ownerIndex].full_name,
-        mobile_number: newMobile ? newMobile.trim() : this.employees[ownerIndex].mobile_number,
-      };
+  /** Super Admin exclusive: update Owner Mail ID & details. */
+  async updateOwner(
+    ownerId: string,
+    updates: {
+      email?: string;
+      name?: string;
+      mobile?: string;
+      firm_name?: string;
     }
-    this.logOwnerActivity(
-      "Owner Mail ID Updated",
-      `Super Admin updated Owner Mail ID from "${oldEmail}" to "${normalized}".`
-    );
+  ): Promise<{ ok: boolean; error?: string }> {
+    const idx = this.employees.findIndex((e) => e.id === ownerId && e.role_code === "OWNER");
+    if (idx === -1) {
+      return { ok: false, error: "Owner account not found." };
+    }
+
+    const current = this.employees[idx];
+    const newEmail = updates.email ? updates.email.trim().toLowerCase() : current.email;
+
+    if (updates.email && newEmail !== current.email.toLowerCase()) {
+      const exists = this.employees.some(
+        (e) => e.id !== ownerId && e.email.toLowerCase() === newEmail
+      );
+      if (exists) {
+        return { ok: false, error: "This email address is already in use by another account." };
+      }
+    }
+
+    const updated: Employee = {
+      ...current,
+      email: newEmail,
+      full_name: updates.name ? updates.name.trim() : current.full_name,
+      mobile_number: updates.mobile !== undefined ? updates.mobile.trim() : current.mobile_number,
+      branch_name: updates.firm_name !== undefined ? updates.firm_name.trim() : current.branch_name,
+    };
+
+    try {
+      await updateEmployeeInDb(ownerId, {
+        email: updated.email,
+        full_name: updated.full_name,
+        mobile_number: updated.mobile_number,
+        branch_name: updated.branch_name,
+      });
+    } catch {
+      // Direct store sync
+    }
+
+    this.employees[idx] = updated;
+    if (this.currentUser?.id === ownerId) {
+      this.currentUser = updated;
+    }
     this.persist();
     this.notify();
-    return true;
+    return { ok: true };
+  }
+
+  /** Backward-compatible helper for single owner email update */
+  updateOwnerEmail(arg1: string, arg2?: string, arg3?: string): boolean {
+    const targetIdx = this.employees.findIndex(
+      (e) => e.id === arg1 || e.role_code === "OWNER"
+    );
+    if (targetIdx !== -1) {
+      const ownerId = this.employees[targetIdx].id;
+      const email = arg1.includes("@") ? arg1 : (arg2 || "");
+      const name = arg1.includes("@") ? arg2 : arg3;
+      void this.updateOwner(ownerId, { email, name });
+      return true;
+    }
+    return false;
+  }
+
+  /** Super Admin exclusive: toggle Owner status (Active / Suspended) */
+  async toggleOwnerStatus(ownerId: string): Promise<{ ok: boolean; error?: string }> {
+    const idx = this.employees.findIndex((e) => e.id === ownerId && e.role_code === "OWNER");
+    if (idx === -1) {
+      return { ok: false, error: "Owner account not found." };
+    }
+    const current = this.employees[idx];
+    const newStatus = !current.is_active;
+    const updated: Employee = {
+      ...current,
+      is_active: newStatus,
+      employment_status: newStatus ? "Active" : "Inactive",
+    };
+    try {
+      await updateEmployeeInDb(ownerId, {
+        is_active: newStatus,
+        employment_status: newStatus ? "Active" : "Inactive",
+      });
+    } catch {
+      // Local sync
+    }
+    this.employees[idx] = updated;
+    this.persist();
+    this.notify();
+    return { ok: true };
+  }
+
+  /** Super Admin exclusive: delete Owner account */
+  async deleteOwner(ownerId: string): Promise<{ ok: boolean; error?: string }> {
+    const ownerCount = this.employees.filter((e) => e.role_code === "OWNER").length;
+    if (ownerCount <= 1) {
+      return { ok: false, error: "At least one Owner account must be maintained in the system." };
+    }
+    if (this.currentUser?.id === ownerId) {
+      return { ok: false, error: "You cannot delete your own active Owner account." };
+    }
+    try {
+      await deleteEmployeeFromDb(ownerId);
+    } catch {
+      // Local sync
+    }
+    this.employees = this.employees.filter((e) => e.id !== ownerId);
+    this.persist();
+    this.notify();
+    return { ok: true };
   }
 
   /** Super Admin exclusive: Get Owner Activities audit log. */

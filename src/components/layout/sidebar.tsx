@@ -259,7 +259,7 @@ export function AppSidebar({ isMobile = false, onClose }: AppSidebarProps = {}) 
       {/* Brand Header */}
       <div className="flex h-[70px] items-center justify-between px-4 border-b border-[#383882]">
         <Link
-          to="/dashboard"
+          to={isSuperAdminUser ? "/admins" : "/dashboard"}
           onClick={() => {
             if (isMobile) onClose?.();
           }}

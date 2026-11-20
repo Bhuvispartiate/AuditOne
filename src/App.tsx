@@ -84,11 +84,20 @@ function EmployeeRouteGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
+  const currentUser = pmsStore.getCurrentUser();
+
   if (isAuthenticated && pathname === "/login") {
+    if (isSuperAdmin(currentUser)) {
+      return <Navigate to="/admins" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
-  const currentUser = pmsStore.getCurrentUser();
+  // Super Admin has NO Dashboard - strictly manages Owners on /admins
+  if (isAuthenticated && isSuperAdmin(currentUser) && (pathname === "/dashboard" || pathname === "/")) {
+    return <Navigate to="/admins" replace />;
+  }
+
   if (isAuthenticated && isEmployeeRestricted(currentUser) && !isAllowedForEmployee(pathname)) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -148,7 +157,13 @@ function RootRedirect() {
   if (hasOAuthCallbackParams(search, hash)) {
     return <AuthCallbackPage />;
   }
-  return <Navigate to={pmsStore.isAuthenticated() ? "/dashboard" : "/login"} replace />;
+  if (pmsStore.isAuthenticated()) {
+    if (isSuperAdmin(pmsStore.getCurrentUser())) {
+      return <Navigate to="/admins" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Navigate to="/login" replace />;
 }
 
 export default function App() {

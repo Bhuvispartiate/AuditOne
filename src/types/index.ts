@@ -19,9 +19,10 @@ export interface OwnerConfig {
   owner_mobile: string;
   firm_name: string;
   subscription_tier: "Free Trial Only";
+  status: "Active" | "Inactive";
   trial_started_at: string;
-  updated_at: string;
-  updated_by: string;
+  updated_at?: string;
+  updated_by?: string;
 }
 
 export interface OwnerActivity {
@@ -82,6 +83,7 @@ export interface Employee {
   assigned_projects_count?: number;
   assigned_tasks_count?: number;
   completed_tasks_count?: number;
+  branch_name?: string;
   created_at: string;
 }
 

@@ -8,20 +8,15 @@ import {
   Lock,
   CheckCircle2,
   Ban,
-  ArrowDownCircle,
-  ArrowUpCircle,
   Mail,
   Phone,
-  Eye,
-  History,
-  X,
   Pencil,
   Trash2,
   Sparkles,
   Building2,
-  Activity,
   Calendar,
   Save,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +36,7 @@ import { pmsStore } from "@/lib/data/store";
 import { isSuperAdmin, isOwner } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
 import { toast } from "sonner";
-import { Employee, OwnerActivity } from "@/types";
+import { Employee, OwnerConfig } from "@/types";
 
 export default function AdminsManagementPage() {
   const [, setTick] = useState(0);
@@ -51,15 +46,28 @@ export default function AdminsManagementPage() {
   const isSuper = isSuperAdmin(currentUser);
   const isFirmOwner = isOwner(currentUser);
 
-  // Super Admin state: Owner Mail ID management
-  const ownerConfig = pmsStore.getOwnerConfig();
-  const ownerActivities = pmsStore.getOwnerActivities();
-  const [isEditOwnerModalOpen, setIsEditOwnerModalOpen] = useState(false);
-  const [newOwnerEmail, setNewOwnerEmail] = useState(ownerConfig.owner_email);
-  const [newOwnerName, setNewOwnerName] = useState(ownerConfig.owner_name);
-  const [newOwnerMobile, setNewOwnerMobile] = useState(ownerConfig.owner_mobile);
+  // ---------------------------------------------------------------------------
+  // Super Admin state: Multi-Owner Model
+  // ---------------------------------------------------------------------------
+  const owners = pmsStore.getOwners();
+  const [ownerSearch, setOwnerSearch] = useState("");
+  const [isAddOwnerModalOpen, setIsAddOwnerModalOpen] = useState(false);
+  const [addOwnerName, setAddOwnerName] = useState("");
+  const [addOwnerEmail, setAddOwnerEmail] = useState("");
+  const [addOwnerMobile, setAddOwnerMobile] = useState("");
+  const [addOwnerFirm, setAddOwnerFirm] = useState("");
 
+  const [editingOwner, setEditingOwner] = useState<OwnerConfig | null>(null);
+  const [editOwnerName, setEditOwnerName] = useState("");
+  const [editOwnerEmail, setEditOwnerEmail] = useState("");
+  const [editOwnerMobile, setEditOwnerMobile] = useState("");
+  const [editOwnerFirm, setEditOwnerFirm] = useState("");
+
+  const [deletingOwnerId, setDeletingOwnerId] = useState<string | null>(null);
+
+  // ---------------------------------------------------------------------------
   // Owner state: Admin CRUD
+  // ---------------------------------------------------------------------------
   const [search, setSearch] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [firstName, setFirstName] = useState("");
@@ -80,18 +88,94 @@ export default function AdminsManagementPage() {
   const [deletingAdminId, setDeletingAdminId] = useState<string | null>(null);
 
   // ---------------------------------------------------------------------------
-  // VIEW A: SUPER ADMIN — ONLY MANAGES OWNER MAIL ID AND OWNER ACTIVITIES
+  // VIEW A: SUPER ADMIN — MULTI-OWNER MODEL (NO DASHBOARD, NO AUDIT LOGS)
   // ---------------------------------------------------------------------------
   if (isSuper) {
-    const handleUpdateOwnerMail = (e: React.FormEvent) => {
+    const filteredOwners = owners.filter((o) => {
+      const q = ownerSearch.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        o.owner_name.toLowerCase().includes(q) ||
+        o.owner_email.toLowerCase().includes(q) ||
+        o.firm_name.toLowerCase().includes(q) ||
+        o.owner_mobile.includes(q)
+      );
+    });
+
+    const handleCreateOwner = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!newOwnerEmail.trim() || !newOwnerEmail.includes("@")) {
+      if (!addOwnerEmail.trim() || !addOwnerEmail.includes("@")) {
         toast.error("Please enter a valid Owner Mail ID.");
         return;
       }
-      pmsStore.updateOwnerEmail(newOwnerEmail, newOwnerName, newOwnerMobile);
-      toast.success("Owner profile & Mail ID updated successfully.");
-      setIsEditOwnerModalOpen(false);
+      if (!addOwnerName.trim()) {
+        toast.error("Please enter the Owner's full name.");
+        return;
+      }
+
+      const res = await pmsStore.createOwner({
+        name: addOwnerName,
+        email: addOwnerEmail,
+        mobile: addOwnerMobile,
+        firm_name: addOwnerFirm,
+      });
+
+      if (!res.ok) {
+        toast.error(res.error || "Failed to onboard Owner.");
+        return;
+      }
+
+      toast.success(`Owner ${addOwnerName} onboarded successfully.`);
+      setAddOwnerName("");
+      setAddOwnerEmail("");
+      setAddOwnerMobile("");
+      setAddOwnerFirm("");
+      setIsAddOwnerModalOpen(false);
+    };
+
+    const handleSaveEditOwner = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingOwner) return;
+      if (!editOwnerEmail.trim() || !editOwnerEmail.includes("@")) {
+        toast.error("Please enter a valid Owner Mail ID.");
+        return;
+      }
+
+      const res = await pmsStore.updateOwner(editingOwner.id, {
+        email: editOwnerEmail,
+        name: editOwnerName,
+        mobile: editOwnerMobile,
+        firm_name: editOwnerFirm,
+      });
+
+      if (!res.ok) {
+        toast.error(res.error || "Failed to update Owner.");
+        return;
+      }
+
+      toast.success("Owner profile and login email updated.");
+      setEditingOwner(null);
+    };
+
+    const handleToggleOwnerStatus = async (ownerId: string, currentStatus: string) => {
+      const res = await pmsStore.toggleOwnerStatus(ownerId);
+      if (!res.ok) {
+        toast.error(res.error || "Failed to update status.");
+        return;
+      }
+      toast.success(
+        currentStatus === "Active" ? "Owner account suspended." : "Owner account activated."
+      );
+    };
+
+    const handleDeleteOwner = async (ownerId: string) => {
+      const res = await pmsStore.deleteOwner(ownerId);
+      if (!res.ok) {
+        toast.error(res.error || "Failed to delete Owner account.");
+        return;
+      }
+      toast.success("Owner account deleted.");
+      setDeletingOwnerId(null);
     };
 
     return (
@@ -101,171 +185,255 @@ export default function AdminsManagementPage() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-2xl sm:text-[28px] font-extrabold tracking-tight text-[#1E1E4F]">
-                Owner Account &amp; Activities
+                Owner Accounts Directory
               </h1>
               <Badge className="bg-[#272769] text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase">
-                Super Admin Exclusive
+                Multi-Owner Model
               </Badge>
             </div>
             <p className="text-xs sm:text-sm text-[#55557A] font-medium">
-              Manage the registered Owner Mail ID and monitor all firm owner administrative activities.
+              Manage registered firm owner accounts and their primary login emails across tenants.
             </p>
           </div>
 
           <Button
             type="button"
-            onClick={() => {
-              setNewOwnerEmail(ownerConfig.owner_email);
-              setNewOwnerName(ownerConfig.owner_name);
-              setNewOwnerMobile(ownerConfig.owner_mobile);
-              setIsEditOwnerModalOpen(true);
-            }}
+            onClick={() => setIsAddOwnerModalOpen(true)}
             className="h-10 px-5 rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-extrabold gap-2 shadow-xs cursor-pointer"
           >
-            <Pencil className="h-3.5 w-3.5" />
-            <span>Update Owner Mail ID</span>
+            <UserPlus className="h-4 w-4" />
+            <span>Onboard New Owner</span>
           </Button>
         </div>
 
-        {/* 1. Registered Owner Capsule Card */}
+        {/* Quick KPI Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="rounded-2xl border-[1.5px] border-[#E6E4F0] bg-white p-4 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#55557A]">
+                  Total Owners
+                </span>
+                <p className="text-2xl font-black text-[#1E1E4F] mt-1">{owners.length}</p>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-[#E3E2F5] text-[#272769] flex items-center justify-center font-bold">
+                <Users className="h-5 w-5" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="rounded-2xl border-[1.5px] border-[#E6E4F0] bg-white p-4 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#55557A]">
+                  Active Owners
+                </span>
+                <p className="text-2xl font-black text-emerald-600 mt-1">
+                  {owners.filter((o) => o.status === "Active").length}
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="rounded-2xl border-[1.5px] border-[#E6E4F0] bg-white p-4 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#55557A]">
+                  License Tier
+                </span>
+                <p className="text-sm font-black text-amber-700 mt-2">Free Trial Only</p>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+                <Sparkles className="h-5 w-5" />
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Search & Actions Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#55557A]" />
+            <Input
+              type="search"
+              placeholder="Search owners by name, email, firm..."
+              value={ownerSearch}
+              onChange={(e) => setOwnerSearch(e.target.value)}
+              className="pl-10 h-10 rounded-xl border-[#E6E4F0] bg-white text-xs text-[#1E1E4F] placeholder:text-[#55557A]"
+            />
+          </div>
+          <span className="text-xs font-semibold text-[#55557A]">
+            Showing {filteredOwners.length} of {owners.length} registered owners
+          </span>
+        </div>
+
+        {/* Multi-Owner Table */}
         <Card className="rounded-[24px] border-[1.5px] border-[#E6E4F0] bg-white shadow-xs overflow-hidden">
-          <CardHeader className="bg-[#F6F5FB] border-b border-[#E6E4F0] p-5 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5">
-                <div className="h-12 w-12 rounded-2xl bg-[#272769] text-white flex items-center justify-center font-extrabold text-lg shadow-sm">
-                  {ownerConfig.owner_name.slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-lg font-extrabold text-[#1E1E4F]">
-                      {ownerConfig.owner_name}
-                    </CardTitle>
-                    <Badge className="bg-[#E0A95C] text-[#1E1E4F] text-[10px] font-extrabold rounded-full px-2">
-                      Owner
-                    </Badge>
-                  </div>
-                  <CardDescription className="text-xs text-[#55557A] font-medium mt-0.5">
-                    Managing Director • {ownerConfig.firm_name}
-                  </CardDescription>
-                </div>
-              </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#F6F5FB] border-b border-[#E6E4F0] text-[11px] font-extrabold uppercase tracking-wider text-[#55557A]">
+                  <th className="py-3 px-4 sm:px-6">Owner &amp; Firm</th>
+                  <th className="py-3 px-4">Login Mail ID</th>
+                  <th className="py-3 px-4">Contact</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Onboarded</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E6E4F0] text-xs">
+                {filteredOwners.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-xs text-[#55557A]">
+                      No owner accounts match your search.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOwners.map((owner) => (
+                    <tr key={owner.id} className="hover:bg-[#F6F5FB]/70 transition-colors">
+                      {/* Owner & Firm */}
+                      <td className="py-3.5 px-4 sm:px-6">
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-xl bg-[#272769] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                            {owner.owner_name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-extrabold text-[#1E1E4F] block truncate text-xs sm:text-[13px]">
+                              {owner.owner_name}
+                            </span>
+                            <span className="text-[11px] text-[#55557A] flex items-center gap-1 mt-0.5 truncate">
+                              <Building2 className="h-3 w-3 shrink-0 text-[#272769]" />
+                              {owner.firm_name}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
 
-              <Badge className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-3 py-1 rounded-full self-start sm:self-auto">
-                {ownerConfig.subscription_tier}
-              </Badge>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#55557A] flex items-center gap-1.5">
-                <Mail className="h-3.5 w-3.5 text-[#272769]" />
-                <span>Owner Mail ID</span>
-              </span>
-              <span className="font-mono text-sm font-bold text-[#1E1E4F] block">
-                {ownerConfig.owner_email}
-              </span>
-              <span className="text-[10px] text-emerald-600 font-semibold block">
-                ✓ Primary Login ID
-              </span>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#55557A] flex items-center gap-1.5">
-                <Phone className="h-3.5 w-3.5 text-[#272769]" />
-                <span>Mobile Number</span>
-              </span>
-              <span className="font-mono text-sm font-bold text-[#1E1E4F] block">
-                {ownerConfig.owner_mobile}
-              </span>
-              <span className="text-[10px] text-[#55557A] block">2FA Authenticated</span>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#55557A] flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-[#272769]" />
-                <span>Registration Date</span>
-              </span>
-              <span className="text-sm font-bold text-[#1E1E4F] block">
-                {formatDateTime(ownerConfig.trial_started_at)}
-              </span>
-              <span className="text-[10px] text-[#55557A] block">Tenant Active</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 2. Owner Activities Audit Log */}
-        <Card className="rounded-[24px] border-[1.5px] border-[#E6E4F0] bg-white shadow-xs">
-          <CardHeader className="pb-3 border-b border-[#E6E4F0] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-[#272769]" />
-                <CardTitle className="text-base font-extrabold text-[#1E1E4F]">
-                  Owner Activities Audit Log
-                </CardTitle>
-                <Badge variant="secondary" className="bg-[#E3E2F5] text-[#272769] text-[10px] font-bold rounded-full">
-                  {ownerActivities.length} Events
-                </Badge>
-              </div>
-              <CardDescription className="text-xs text-[#55557A] mt-0.5">
-                Chronological ledger of Owner actions, admin authorizations, and system operations.
-              </CardDescription>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-0">
-            {ownerActivities.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[#55557A]">
-                No owner activity recorded yet.
-              </div>
-            ) : (
-              <div className="divide-y divide-[#E6E4F0]">
-                {ownerActivities.map((act) => (
-                  <div key={act.id} className="p-4 sm:p-4.5 flex items-start justify-between gap-4 hover:bg-[#F6F5FB]/60 transition-colors">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-extrabold text-[#1E1E4F]">
-                          {act.action}
+                      {/* Login Mail ID */}
+                      <td className="py-3.5 px-4 font-mono font-bold text-[#1E1E4F]">
+                        <div className="flex items-center gap-1.5">
+                          <Mail className="h-3.5 w-3.5 text-[#272769] shrink-0" />
+                          <span className="truncate">{owner.owner_email}</span>
+                        </div>
+                        <span className="text-[9.5px] text-emerald-600 font-semibold block mt-0.5">
+                          ✓ Primary Login
                         </span>
-                        {act.entity_type && (
-                          <Badge variant="outline" className="text-[9px] font-mono uppercase px-1.5 py-0.2 rounded border-[#E6E4F0] text-[#55557A]">
-                            {act.entity_type}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-[#55557A] leading-relaxed">
-                        {act.details}
-                      </p>
-                    </div>
-                    <span className="text-[11px] text-[#55557A] font-mono shrink-0 whitespace-nowrap">
-                      {formatDateTime(act.timestamp)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
+                      </td>
+
+                      {/* Contact */}
+                      <td className="py-3.5 px-4 text-[#55557A] font-mono text-xs">
+                        <div className="flex items-center gap-1">
+                          <Phone className="h-3 w-3 text-[#55557A] shrink-0" />
+                          <span>{owner.owner_mobile || "—"}</span>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3.5 px-4">
+                        <Badge
+                          className={
+                            owner.status === "Active"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                              : "bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          }
+                        >
+                          {owner.status}
+                        </Badge>
+                      </td>
+
+                      {/* Onboarded */}
+                      <td className="py-3.5 px-4 text-[#55557A] text-[11px] whitespace-nowrap">
+                        {formatDateTime(owner.trial_started_at)}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingOwner(owner);
+                              setEditOwnerName(owner.owner_name);
+                              setEditOwnerEmail(owner.owner_email);
+                              setEditOwnerMobile(owner.owner_mobile);
+                              setEditOwnerFirm(owner.firm_name);
+                            }}
+                            className="h-8 px-2.5 rounded-lg border-[#E6E4F0] text-[11px] font-bold text-[#272769] hover:bg-[#F6F5FB] gap-1"
+                            title="Edit Owner Mail ID"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            <span className="hidden sm:inline">Edit Email</span>
+                          </Button>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleToggleOwnerStatus(owner.id, owner.status)}
+                            className={`h-8 px-2 rounded-lg text-[11px] font-bold border-[#E6E4F0] ${
+                              owner.status === "Active"
+                                ? "text-amber-700 hover:bg-amber-50"
+                                : "text-emerald-700 hover:bg-emerald-50"
+                            }`}
+                            title={owner.status === "Active" ? "Suspend Account" : "Activate Account"}
+                          >
+                            {owner.status === "Active" ? (
+                              <Ban className="h-3.5 w-3.5" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDeletingOwnerId(owner.id)}
+                            className="h-8 px-2 rounded-lg text-[11px] font-bold border-[#E6E4F0] text-rose-600 hover:bg-rose-50"
+                            title="Delete Owner Account"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </Card>
 
-        {/* Edit Owner Mail ID Modal */}
-        <Dialog open={isEditOwnerModalOpen} onOpenChange={setIsEditOwnerModalOpen}>
+        {/* Modal: Onboard New Owner */}
+        <Dialog open={isAddOwnerModalOpen} onOpenChange={setIsAddOwnerModalOpen}>
           <DialogContent className="rounded-3xl border border-[#E6E4F0] bg-white p-6 max-w-md shadow-2xl">
             <DialogHeader className="space-y-1.5 pb-2 border-b border-[#E6E4F0]">
               <DialogTitle className="text-lg font-extrabold text-[#1E1E4F]">
-                Update Owner Mail ID
+                Onboard New Firm Owner
               </DialogTitle>
               <DialogDescription className="text-xs text-[#55557A]">
-                Update the primary email address used by the Owner to access AuditOne.
+                Create a new Owner account with authorized login Mail ID for the Free Trial Edition.
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleUpdateOwnerMail} className="space-y-4 pt-3">
+            <form onSubmit={handleCreateOwner} className="space-y-4 pt-3">
               <div className="space-y-1">
-                <Label className="text-xs font-bold text-[#1E1E4F]">Owner Full Name</Label>
+                <Label className="text-xs font-bold text-[#1E1E4F]">Owner Full Name *</Label>
                 <Input
-                  value={newOwnerName}
-                  onChange={(e) => setNewOwnerName(e.target.value)}
-                  placeholder="Firm Owner"
+                  required
+                  value={addOwnerName}
+                  onChange={(e) => setAddOwnerName(e.target.value)}
+                  placeholder="e.g. Ramesh Kumar"
                   className="rounded-xl border-[#E6E4F0] text-xs h-10"
                 />
               </div>
@@ -275,19 +443,29 @@ export default function AdminsManagementPage() {
                 <Input
                   type="email"
                   required
-                  value={newOwnerEmail}
-                  onChange={(e) => setNewOwnerEmail(e.target.value)}
-                  placeholder="owner@auditone.com"
+                  value={addOwnerEmail}
+                  onChange={(e) => setAddOwnerEmail(e.target.value)}
+                  placeholder="e.g. ramesh@firmca.in"
                   className="rounded-xl border-[#E6E4F0] text-xs h-10 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-[#1E1E4F]">Firm / Practice Name</Label>
+                <Input
+                  value={addOwnerFirm}
+                  onChange={(e) => setAddOwnerFirm(e.target.value)}
+                  placeholder="e.g. R. Kumar & Associates Chartered Accountants"
+                  className="rounded-xl border-[#E6E4F0] text-xs h-10"
                 />
               </div>
 
               <div className="space-y-1">
                 <Label className="text-xs font-bold text-[#1E1E4F]">Mobile Number</Label>
                 <Input
-                  value={newOwnerMobile}
-                  onChange={(e) => setNewOwnerMobile(e.target.value)}
-                  placeholder="+91 98111 22233"
+                  value={addOwnerMobile}
+                  onChange={(e) => setAddOwnerMobile(e.target.value)}
+                  placeholder="+91 98000 00000"
                   className="rounded-xl border-[#E6E4F0] text-xs h-10"
                 />
               </div>
@@ -296,7 +474,7 @@ export default function AdminsManagementPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsEditOwnerModalOpen(false)}
+                  onClick={() => setIsAddOwnerModalOpen(false)}
                   className="rounded-xl border-[#E6E4F0] text-xs font-bold h-10"
                 >
                   Cancel
@@ -305,12 +483,129 @@ export default function AdminsManagementPage() {
                   type="submit"
                   className="rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold h-10 gap-2"
                 >
-                  <Save className="h-4 w-4" /> Save Changes
+                  <UserPlus className="h-4 w-4" /> Onboard Owner
                 </Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Modal: Edit Owner Mail ID & Profile */}
+        {editingOwner && (
+          <Dialog open={Boolean(editingOwner)} onOpenChange={(open) => !open && setEditingOwner(null)}>
+            <DialogContent className="rounded-3xl border border-[#E6E4F0] bg-white p-6 max-w-md shadow-2xl">
+              <DialogHeader className="space-y-1.5 pb-2 border-b border-[#E6E4F0]">
+                <DialogTitle className="text-lg font-extrabold text-[#1E1E4F]">
+                  Update Owner Profile &amp; Mail ID
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#55557A]">
+                  Update the primary email address and firm details used by this Owner to access AuditOne.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleSaveEditOwner} className="space-y-4 pt-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-[#1E1E4F]">Owner Full Name</Label>
+                  <Input
+                    value={editOwnerName}
+                    onChange={(e) => setEditOwnerName(e.target.value)}
+                    placeholder="Owner Full Name"
+                    className="rounded-xl border-[#E6E4F0] text-xs h-10"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-[#1E1E4F]">
+                    Owner Mail ID (Login Email) *
+                  </Label>
+                  <Input
+                    type="email"
+                    required
+                    value={editOwnerEmail}
+                    onChange={(e) => setEditOwnerEmail(e.target.value)}
+                    placeholder="owner@auditone.com"
+                    className="rounded-xl border-[#E6E4F0] text-xs h-10 font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-[#1E1E4F]">Firm / Practice Name</Label>
+                  <Input
+                    value={editOwnerFirm}
+                    onChange={(e) => setEditOwnerFirm(e.target.value)}
+                    placeholder="Firm Name"
+                    className="rounded-xl border-[#E6E4F0] text-xs h-10"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-[#1E1E4F]">Mobile Number</Label>
+                  <Input
+                    value={editOwnerMobile}
+                    onChange={(e) => setEditOwnerMobile(e.target.value)}
+                    placeholder="+91 98111 22233"
+                    className="rounded-xl border-[#E6E4F0] text-xs h-10"
+                  />
+                </div>
+
+                <DialogFooter className="pt-3 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditingOwner(null)}
+                    className="rounded-xl border-[#E6E4F0] text-xs font-bold h-10"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold h-10 gap-2"
+                  >
+                    <Save className="h-4 w-4" /> Save Changes
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Modal: Delete Owner Confirmation */}
+        {deletingOwnerId && (
+          <Dialog
+            open={Boolean(deletingOwnerId)}
+            onOpenChange={(open) => !open && setDeletingOwnerId(null)}
+          >
+            <DialogContent className="rounded-3xl border border-rose-200 bg-white p-6 max-w-sm shadow-2xl">
+              <DialogHeader className="space-y-1.5 pb-2">
+                <DialogTitle className="text-base font-extrabold text-rose-950">
+                  Delete Owner Account?
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#55557A]">
+                  Are you sure you want to delete this Owner account? The tenant owner will no longer be
+                  able to access AuditOne with this Mail ID.
+                </DialogDescription>
+              </DialogHeader>
+
+              <DialogFooter className="pt-3 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDeletingOwnerId(null)}
+                  className="rounded-xl border-[#E6E4F0] text-xs font-bold h-9"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => handleDeleteOwner(deletingOwnerId)}
+                  className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold h-9"
+                >
+                  Delete Owner
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     );
   }
@@ -386,21 +681,15 @@ export default function AdminsManagementPage() {
     setShowCreateForm(false);
   };
 
-  const handlePromoteStaff = async () => {
-    if (!promoteEmpId) {
-      toast.error("Select an employee to promote.");
-      return;
-    }
+  const handlePromoteStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoteEmpId) return;
     const target = allEmployees.find((e) => e.id === promoteEmpId);
     const res = await pmsStore.updateEmployeeRole(promoteEmpId, "ADMIN");
     if (!res.ok) {
       toast.error(res.error || "Could not promote employee.");
       return;
     }
-    pmsStore.logOwnerActivity(
-      "Staff Promoted to Admin",
-      `Owner promoted ${target?.full_name || "Employee"} to Admin role.`
-    );
     toast.success(`${target?.full_name || "Employee"} promoted to Admin.`);
     setPromoteEmpId("");
   };
@@ -411,10 +700,6 @@ export default function AdminsManagementPage() {
       is_active: newStatus,
       employment_status: newStatus ? "Active" : "Inactive",
     });
-    pmsStore.logOwnerActivity(
-      newStatus ? "Admin Activated" : "Admin Suspended",
-      `Owner set Admin ${emp.full_name} status to ${newStatus ? "Active" : "Suspended"}.`
-    );
     toast.success(`Admin ${emp.full_name} is now ${newStatus ? "Active" : "Suspended"}.`);
   };
 
@@ -437,10 +722,6 @@ export default function AdminsManagementPage() {
       mobile_number: editAdminMobile.trim(),
       designation_name: editAdminDesignation.trim(),
     });
-    pmsStore.logOwnerActivity(
-      "Admin Updated",
-      `Owner updated Admin details for ${editAdminName} (${editAdminEmail}).`
-    );
     toast.success("Admin details updated successfully.");
     setEditingAdmin(null);
   };
@@ -459,281 +740,287 @@ export default function AdminsManagementPage() {
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-[#55557A] font-medium">
-            Create, view, manage, and assign Administrative roles across your firm.
+            Create, promote, and manage Administrators who oversee operational practice workflows.
           </p>
         </div>
 
         <Button
           type="button"
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="h-10 px-5 rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-extrabold gap-2 shadow-xs cursor-pointer"
+          onClick={() => setShowCreateForm((prev) => !prev)}
+          className="h-10 px-5 rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-extrabold gap-2 shadow-xs cursor-pointer self-start sm:self-auto"
         >
           <UserPlus className="h-4 w-4" />
           <span>{showCreateForm ? "Close Form" : "Create New Admin"}</span>
         </Button>
       </div>
 
-      {/* Quick Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-        <div className="p-4 rounded-2xl bg-white border border-[#E6E4F0] shadow-2xs space-y-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[#55557A]">
-            Total Admins Created
-          </span>
-          <span className="text-2xl font-extrabold text-[#1E1E4F] block">{adminUsers.length}</span>
-          <span className="text-[11px] text-[#55557A]">Created by Owner</span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-[#E6E4F0] shadow-2xs space-y-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[#55557A]">
-            Active Admins
-          </span>
-          <span className="text-2xl font-extrabold text-emerald-600 block">
-            {adminUsers.filter((a) => a.is_active).length}
-          </span>
-          <span className="text-[11px] text-[#55557A]">With operational permissions</span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-[#E6E4F0] shadow-2xs space-y-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[#55557A]">
-            Firm Owner
-          </span>
-          <span className="text-2xl font-extrabold text-[#272769] block">1 Active</span>
-          <span className="text-[11px] text-[#55557A]">Root authority</span>
-        </div>
-      </div>
-
-      {/* CREATE ADMIN FORM */}
+      {/* Form: Create Admin */}
       {showCreateForm && (
-        <Card className="rounded-[24px] border-[1.5px] border-[#272769]/30 bg-white p-6 shadow-sm animate-in fade-in-50 duration-200">
-          <CardHeader className="p-0 pb-4 border-b border-[#E6E4F0]">
-            <CardTitle className="text-base font-extrabold text-[#1E1E4F]">
-              Create Admin Account
+        <Card className="rounded-[24px] border-[1.5px] border-[#272769]/30 bg-white shadow-md animate-in fade-in duration-200">
+          <CardHeader className="bg-[#F6F5FB] border-b border-[#E6E4F0] p-5">
+            <CardTitle className="text-base font-extrabold text-[#1E1E4F] flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[#272769]" />
+              <span>Create Practice Administrator</span>
             </CardTitle>
             <CardDescription className="text-xs text-[#55557A]">
-              Owner creates an Admin account with full operational management capabilities.
+              Provision a new administrative account with permissions to assign tasks, manage teams, and oversee clients.
             </CardDescription>
           </CardHeader>
-
-          <form onSubmit={handleCreateAdmin} className="space-y-4 pt-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-[#1E1E4F]">First Name *</Label>
-                <Input
-                  required
-                  placeholder="e.g. Rahul"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="rounded-xl border-[#E6E4F0] text-xs h-10"
-                />
+          <CardContent className="p-6">
+            <form onSubmit={handleCreateAdmin} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-[#1E1E4F]">First Name *</Label>
+                  <Input
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="e.g. Anand"
+                    className="rounded-xl border-[#E6E4F0] text-xs h-10"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-[#1E1E4F]">Last Name *</Label>
+                  <Input
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="e.g. Verma"
+                    className="rounded-xl border-[#E6E4F0] text-xs h-10"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-[#1E1E4F]">Last Name</Label>
-                <Input
-                  placeholder="e.g. Verma"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="rounded-xl border-[#E6E4F0] text-xs h-10"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-[#1E1E4F]">Official Email ID *</Label>
+                  <Input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@firm.com"
+                    className="rounded-xl border-[#E6E4F0] text-xs h-10 font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-[#1E1E4F]">Mobile Number</Label>
+                  <Input
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value)}
+                    placeholder="+91 98765 43210"
+                    className="rounded-xl border-[#E6E4F0] text-xs h-10"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-[#1E1E4F]">Designation Title</Label>
+                  <Input
+                    value={designationName}
+                    onChange={(e) => setDesignationName(e.target.value)}
+                    placeholder="Practice Administrator"
+                    className="rounded-xl border-[#E6E4F0] text-xs h-10"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-[#1E1E4F]">Official Email ID *</Label>
-                <Input
-                  type="email"
-                  required
-                  placeholder="e.g. rahul.admin@auditone.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="rounded-xl border-[#E6E4F0] text-xs h-10 font-mono"
-                />
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowCreateForm(false)}
+                  className="rounded-xl border-[#E6E4F0] text-xs font-bold h-10"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold h-10 gap-2"
+                >
+                  <UserPlus className="h-4 w-4" /> Provision Admin Account
+                </Button>
               </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-[#1E1E4F]">Mobile Number</Label>
-                <Input
-                  placeholder="+91 98765 43210"
-                  value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value)}
-                  className="rounded-xl border-[#E6E4F0] text-xs h-10"
-                />
-              </div>
-
-              <div className="space-y-1 sm:col-span-2">
-                <Label className="text-xs font-bold text-[#1E1E4F]">Designation Title</Label>
-                <Input
-                  placeholder="e.g. Audit Senior Admin / Practice Head"
-                  value={designationName}
-                  onChange={(e) => setDesignationName(e.target.value)}
-                  className="rounded-xl border-[#E6E4F0] text-xs h-10"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E6E4F0]">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowCreateForm(false)}
-                className="rounded-xl border-[#E6E4F0] text-xs font-bold h-10"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold h-10 gap-2"
-              >
-                <UserPlus className="h-4 w-4" /> Create Admin
-              </Button>
-            </div>
-          </form>
+            </form>
+          </CardContent>
         </Card>
       )}
 
-      {/* Search and Promote Staff bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#55557A]" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search admins by name, email, employee code..."
-            className="pl-10 h-10 rounded-xl bg-white border-[#E6E4F0] text-xs"
-          />
-        </div>
-
-        {eligibleStaff.length > 0 && (
-          <div className="flex items-center gap-2">
+      {/* Promote Existing Staff */}
+      {eligibleStaff.length > 0 && (
+        <Card className="rounded-[20px] border border-[#E6E4F0] bg-white p-4 shadow-2xs">
+          <form onSubmit={handlePromoteStaff} className="flex flex-col sm:flex-row items-center gap-3">
+            <span className="text-xs font-extrabold text-[#1E1E4F] whitespace-nowrap flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-[#272769]" />
+              <span>Promote Existing Employee:</span>
+            </span>
             <select
               value={promoteEmpId}
               onChange={(e) => setPromoteEmpId(e.target.value)}
-              className="h-10 rounded-xl border border-[#E6E4F0] bg-white px-3 text-xs font-medium text-[#1E1E4F]"
+              className="h-9 px-3 rounded-xl border border-[#E6E4F0] bg-[#F6F5FB] text-xs font-medium text-[#1E1E4F] flex-1 w-full sm:w-auto"
             >
-              <option value="">-- Promote Staff to Admin --</option>
-              {eligibleStaff.map((st) => (
-                <option key={st.id} value={st.id}>
-                  {st.full_name} ({st.email})
+              <option value="">Select an employee to elevate to Admin...</option>
+              {eligibleStaff.map((staff) => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.full_name} ({staff.employee_code}) — {staff.designation_name || "Staff"}
                 </option>
               ))}
             </select>
             <Button
-              type="button"
-              onClick={handlePromoteStaff}
+              type="submit"
               disabled={!promoteEmpId}
-              className="h-10 px-4 rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold shrink-0"
+              size="sm"
+              className="h-9 px-4 rounded-xl bg-[#272769] hover:bg-[#1E1E4F] text-white text-xs font-bold whitespace-nowrap cursor-pointer disabled:opacity-50"
             >
-              Promote
+              Elevate to Admin
             </Button>
-          </div>
-        )}
+          </form>
+        </Card>
+      )}
+
+      {/* Search Bar & List Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#55557A]" />
+          <Input
+            type="search"
+            placeholder="Search admins by name, email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 h-10 rounded-xl border-[#E6E4F0] bg-white text-xs text-[#1E1E4F] placeholder:text-[#55557A]"
+          />
+        </div>
+        <span className="text-xs font-semibold text-[#55557A]">
+          {filteredAdmins.length} {filteredAdmins.length === 1 ? "Administrator" : "Administrators"} listed
+        </span>
       </div>
 
-      {/* ADMINS TABLE */}
+      {/* Admins Table */}
       <Card className="rounded-[24px] border-[1.5px] border-[#E6E4F0] bg-white shadow-xs overflow-hidden">
-        <CardHeader className="p-4 sm:p-5 border-b border-[#E6E4F0] bg-[#F6F5FB]/40">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-extrabold text-[#1E1E4F]">
-              Admins Created by Owner ({filteredAdmins.length})
-            </CardTitle>
-          </div>
-        </CardHeader>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-[#F6F5FB] border-b border-[#E6E4F0] text-[11px] font-extrabold uppercase tracking-wider text-[#55557A]">
+                <th className="py-3 px-4 sm:px-6">Administrator</th>
+                <th className="py-3 px-4">Email</th>
+                <th className="py-3 px-4">Designation</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E6E4F0] text-xs">
+              {filteredAdmins.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-xs text-[#55557A]">
+                    No administrators found. Create one using the button above.
+                  </td>
+                </tr>
+              ) : (
+                filteredAdmins.map((emp) => (
+                  <tr key={emp.id} className="hover:bg-[#F6F5FB]/70 transition-colors">
+                    {/* Admin */}
+                    <td className="py-3.5 px-4 sm:px-6">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9 rounded-xl border border-[#E6E4F0]">
+                          <AvatarFallback className="bg-[#272769] text-white font-bold text-xs">
+                            {emp.full_name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <span className="font-extrabold text-[#1E1E4F] block text-xs sm:text-[13px]">
+                            {emp.full_name}
+                          </span>
+                          <span className="text-[10px] text-[#55557A] font-mono">
+                            {emp.employee_code}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
 
-        <CardContent className="p-0">
-          {filteredAdmins.length === 0 ? (
-            <div className="p-8 text-center text-xs text-[#55557A]">
-              No Admins created yet. Click &quot;Create New Admin&quot; above to add your first administrator.
-            </div>
-          ) : (
-            <div className="divide-y divide-[#E6E4F0]">
-              {filteredAdmins.map((adm) => (
-                <div
-                  key={adm.id}
-                  className="p-4 sm:p-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#F6F5FB]/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <Avatar className="h-10 w-10 rounded-xl border border-[#E6E4F0]">
-                      <AvatarFallback className="bg-[#272769] text-white text-xs font-bold rounded-xl">
-                        {adm.full_name.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                    {/* Email */}
+                    <td className="py-3.5 px-4 font-mono text-[#55557A] text-xs">
+                      {emp.email}
+                    </td>
 
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-xs sm:text-sm text-[#1E1E4F] truncate">
-                          {adm.full_name}
-                        </span>
-                        <Badge
+                    {/* Designation */}
+                    <td className="py-3.5 px-4 text-[#1E1E4F] font-semibold text-xs">
+                      {emp.designation_name || "Administrator"}
+                    </td>
+
+                    {/* Status */}
+                    <td className="py-3.5 px-4">
+                      <Badge
+                        className={
+                          emp.is_active
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                            : "bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        }
+                      >
+                        {emp.is_active ? "Active" : "Suspended"}
+                      </Badge>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
                           variant="outline"
-                          className={`text-[9px] font-extrabold px-2 py-0.2 rounded-full ${
-                            adm.is_active
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-rose-50 text-rose-700 border-rose-200"
-                          }`}
+                          onClick={() => {
+                            setEditingAdmin(emp);
+                            setEditAdminName(emp.full_name);
+                            setEditAdminEmail(emp.email);
+                            setEditAdminMobile(emp.mobile_number || "");
+                            setEditAdminDesignation(emp.designation_name || "Administrator");
+                          }}
+                          className="h-8 px-2.5 rounded-lg border-[#E6E4F0] text-[11px] font-bold text-[#272769] hover:bg-[#F6F5FB] gap-1"
+                          title="Edit Details"
                         >
-                          {adm.is_active ? "Active" : "Suspended"}
-                        </Badge>
+                          <Pencil className="h-3 w-3" />
+                          <span className="hidden sm:inline">Edit</span>
+                        </Button>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleToggleAdminStatus(emp)}
+                          className={`h-8 px-2 rounded-lg text-[11px] font-bold border-[#E6E4F0] ${
+                            emp.is_active
+                              ? "text-amber-700 hover:bg-amber-50"
+                              : "text-emerald-700 hover:bg-emerald-50"
+                          }`}
+                          title={emp.is_active ? "Suspend Admin" : "Activate Admin"}
+                        >
+                          {emp.is_active ? (
+                            <Ban className="h-3.5 w-3.5" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDeletingAdminId(emp.id)}
+                          className="h-8 px-2 rounded-lg text-[11px] font-bold border-[#E6E4F0] text-rose-600 hover:bg-rose-50"
+                          title="Delete Admin Account"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
-
-                      <div className="text-[11px] text-[#55557A] flex flex-wrap items-center gap-2 mt-0.5">
-                        <span className="font-mono">{adm.email}</span>
-                        <span>•</span>
-                        <span>{adm.mobile_number || "No Phone"}</span>
-                        <span>•</span>
-                        <span className="text-[#272769] font-medium">{adm.designation_name || "Admin"}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleToggleAdminStatus(adm)}
-                      className="h-8 px-2.5 rounded-xl border-[#E6E4F0] text-xs font-semibold text-[#55557A] hover:text-[#1E1E4F]"
-                    >
-                      {adm.is_active ? (
-                        <span className="text-amber-700 flex items-center gap-1">
-                          <Ban className="h-3.5 w-3.5" /> Suspend
-                        </span>
-                      ) : (
-                        <span className="text-emerald-700 flex items-center gap-1">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Activate
-                        </span>
-                      )}
-                    </Button>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingAdmin(adm);
-                        setEditAdminName(adm.full_name);
-                        setEditAdminEmail(adm.email);
-                        setEditAdminMobile(adm.mobile_number || "");
-                        setEditAdminDesignation(adm.designation_name || "Practice Admin");
-                      }}
-                      className="h-8 px-2.5 rounded-xl border-[#E6E4F0] text-xs font-semibold text-[#272769] hover:bg-[#F6F5FB]"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setDeletingAdminId(adm.id)}
-                      className="h-8 px-2.5 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       {/* Edit Admin Dialog */}
@@ -742,10 +1029,10 @@ export default function AdminsManagementPage() {
           <DialogContent className="rounded-3xl border border-[#E6E4F0] bg-white p-6 max-w-md shadow-2xl">
             <DialogHeader className="space-y-1.5 pb-2 border-b border-[#E6E4F0]">
               <DialogTitle className="text-lg font-extrabold text-[#1E1E4F]">
-                Edit Admin Details
+                Edit Administrator Details
               </DialogTitle>
               <DialogDescription className="text-xs text-[#55557A]">
-                Update details for {editingAdmin.full_name}.
+                Modify contact information and designation for {editingAdmin.full_name}.
               </DialogDescription>
             </DialogHeader>
 
@@ -761,7 +1048,7 @@ export default function AdminsManagementPage() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-bold text-[#1E1E4F]">Email Address</Label>
+                <Label className="text-xs font-bold text-[#1E1E4F]">Official Email ID</Label>
                 <Input
                   type="email"
                   required
@@ -776,15 +1063,17 @@ export default function AdminsManagementPage() {
                 <Input
                   value={editAdminMobile}
                   onChange={(e) => setEditAdminMobile(e.target.value)}
+                  placeholder="+91 98765 43210"
                   className="rounded-xl border-[#E6E4F0] text-xs h-10"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-bold text-[#1E1E4F]">Designation</Label>
+                <Label className="text-xs font-bold text-[#1E1E4F]">Designation Title</Label>
                 <Input
                   value={editAdminDesignation}
                   onChange={(e) => setEditAdminDesignation(e.target.value)}
+                  placeholder="Practice Administrator"
                   className="rounded-xl border-[#E6E4F0] text-xs h-10"
                 />
               </div>
@@ -810,7 +1099,7 @@ export default function AdminsManagementPage() {
         </Dialog>
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Admin Confirmation Dialog */}
       {deletingAdminId && (
         <Dialog open={Boolean(deletingAdminId)} onOpenChange={(open) => !open && setDeletingAdminId(null)}>
           <DialogContent className="rounded-3xl border border-rose-200 bg-white p-6 max-w-sm shadow-2xl">

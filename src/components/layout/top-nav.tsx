@@ -74,32 +74,37 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
             <Menu className="h-5 w-5 text-[#1E1E4F]" />
           </button>
 
-          <Link to="/dashboard" className="flex items-center gap-2 lg:hidden">
+          <Link
+            to={currentUser?.role_code === "SUPER_ADMIN" ? "/admins" : "/dashboard"}
+            className="flex items-center gap-2 lg:hidden"
+          >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#272769] text-white shadow-xs">
               <Zap className="h-4 w-4 fill-white" />
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-[#1E1E4F] tracking-tight text-xs sm:text-sm leading-tight">
-                Linear Audit
+                AuditOne
               </span>
-              <span className="text-[9px] font-bold text-[#E0A95C] tracking-wider uppercase">
-                PMS
+              <span className="text-[9px] font-bold text-[#272769] tracking-wider uppercase">
+                Trial
               </span>
             </div>
           </Link>
         </div>
 
-        {/* Global Search Bar (Desktop) */}
-        <form onSubmit={handleSearch} className="relative w-full max-w-sm hidden md:block ml-4 lg:ml-0">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#55557A]" />
-          <Input
-            type="search"
-            placeholder="Quick search clients, PAN, GSTIN..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-11 pr-4 h-10 w-full bg-[#F6F5FB] border-[#E6E4F0] rounded-full focus:bg-white text-xs font-medium placeholder:text-[#55557A] text-[#1E1E4F] shadow-none transition-all focus:border-[#272769] focus:ring-1 focus:ring-[#272769]"
-          />
-        </form>
+        {/* Global Search Bar (Desktop - Hidden for Super Admin who only manages Owners) */}
+        {currentUser?.role_code !== "SUPER_ADMIN" && (
+          <form onSubmit={handleSearch} className="relative w-full max-w-sm hidden md:block ml-4 lg:ml-0">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#55557A]" />
+            <Input
+              type="search"
+              placeholder="Quick search clients, PAN, GSTIN..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-11 pr-4 h-10 w-full bg-[#F6F5FB] border-[#E6E4F0] rounded-full focus:bg-white text-xs font-medium placeholder:text-[#55557A] text-[#1E1E4F] shadow-none transition-all focus:border-[#272769] focus:ring-1 focus:ring-[#272769]"
+            />
+          </form>
+        )}
 
         {/* Right Nav Utilities */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 ml-auto">
@@ -244,22 +249,31 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
                 <span className="text-[#1E1E4F] font-bold block">
                   {currentUser?.role_code === "SUPER_ADMIN"
                     ? "Super Admin"
-                    : currentUser?.role_code === "ADMIN"
-                      ? "Admin"
-                      : currentUser?.role_code === "DIRECTOR"
-                        ? "Director"
-                        : currentUser?.role_code === "HEAD"
-                          ? "Department Head"
-                          : currentUser?.role_code === "SUPERVISOR"
-                            ? "Supervisor"
-                            : currentUser?.role_code === "TRAINEE"
-                              ? "Trainee"
-                              : "Staff Member"}
+                    : currentUser?.role_code === "OWNER"
+                      ? "Firm Owner"
+                      : currentUser?.role_code === "ADMIN"
+                        ? "Admin"
+                        : currentUser?.role_code === "DIRECTOR"
+                          ? "Director"
+                          : currentUser?.role_code === "HEAD"
+                            ? "Department Head"
+                            : currentUser?.role_code === "SUPERVISOR"
+                              ? "Supervisor"
+                              : currentUser?.role_code === "TRAINEE"
+                                ? "Trainee"
+                                : "Staff Member"}
                   {isEmployee ? " (View Only)" : ""}
                 </span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-[#E6E4F0]" />
-              {!isEmployee && (
+              {currentUser?.role_code === "SUPER_ADMIN" ? (
+                <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium text-[#1E1E4F] hover:bg-[#F6F5FB]">
+                  <Link to="/admins">
+                    <User className="mr-2 h-4 w-4 text-[#272769]" />
+                    <span>Owner Management</span>
+                  </Link>
+                </DropdownMenuItem>
+              ) : !isEmployee && (
                 <>
                   <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium text-[#1E1E4F] hover:bg-[#F6F5FB]">
                     <Link to={`/employees/${currentUser?.id || ""}`}>
@@ -270,7 +284,7 @@ export function TopNav({ onOpenMobileMenu }: TopNavProps = {}) {
                   <DropdownMenuItem asChild className="rounded-xl cursor-pointer text-xs font-medium text-[#1E1E4F] hover:bg-[#F6F5FB]">
                     <Link to="/settings">
                       <Settings className="mr-2 h-4 w-4 text-[#55557A]" />
-                      <span>System Permissions</span>
+                      <span>System Settings</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="bg-[#E6E4F0]" />
