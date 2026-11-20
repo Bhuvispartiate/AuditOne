@@ -168,7 +168,7 @@ function RootRedirect() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <SupabaseAuthListener />
       <AppShell>
         <EmployeeRouteGuard>
