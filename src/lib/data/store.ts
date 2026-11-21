@@ -4665,7 +4665,7 @@ class PMSDataStore {
       return { ok: false, error: "An account with this email address already exists." };
     }
 
-    const id = `emp-owner-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const id = ensureUuid();
     const ownerCount = this.employees.filter((e) => e.role_code === "OWNER").length + 1;
     const parts = data.name.trim().split(" ");
     const firstName = parts[0] || "Firm";
@@ -4679,7 +4679,7 @@ class PMSDataStore {
       full_name: data.name.trim(),
       email: normalizedEmail,
       mobile_number: data.mobile?.trim() || "+91 98000 00000",
-      designation_id: "desig-owner",
+      designation_id: "desig-dir",
       designation_name: "Firm Owner / Managing Director",
       branch_name: data.firm_name?.trim() || "AuditOne Practice",
       joining_date: new Date().toISOString().slice(0, 10),
@@ -4694,8 +4694,9 @@ class PMSDataStore {
 
     try {
       await insertEmployeeToDb(newOwner);
-    } catch {
-      // Supabase local sync
+    } catch (err: any) {
+      console.error("Supabase createOwner error:", err);
+      return { ok: false, error: err?.message || "Failed to persist Owner in Supabase database." };
     }
 
     this.employees.push(newOwner);
@@ -4756,12 +4757,12 @@ class PMSDataStore {
     try {
       await updateEmployeeInDb(ownerId, {
         email: updated.email,
-        full_name: updated.full_name,
         mobile_number: updated.mobile_number,
         branch_name: updated.branch_name,
       });
-    } catch {
-      // Direct store sync
+    } catch (err: any) {
+      console.error("Supabase updateOwner error:", err);
+      return { ok: false, error: err?.message || "Failed to update Owner in Supabase database." };
     }
 
     this.employees[idx] = updated;
@@ -4806,8 +4807,9 @@ class PMSDataStore {
         is_active: newStatus,
         employment_status: newStatus ? "Active" : "Inactive",
       });
-    } catch {
-      // Local sync
+    } catch (err: any) {
+      console.error("Supabase toggleOwnerStatus error:", err);
+      return { ok: false, error: err?.message || "Failed to update Owner status." };
     }
     this.employees[idx] = updated;
     this.persist();
@@ -4826,8 +4828,9 @@ class PMSDataStore {
     }
     try {
       await deleteEmployeeFromDb(ownerId);
-    } catch {
-      // Local sync
+    } catch (err: any) {
+      console.error("Supabase deleteOwner error:", err);
+      return { ok: false, error: err?.message || "Failed to delete Owner from database." };
     }
     this.employees = this.employees.filter((e) => e.id !== ownerId);
     this.persist();

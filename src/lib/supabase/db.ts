@@ -776,25 +776,45 @@ export async function deleteTaskCommentFromDb(id: string): Promise<void> {
 
 export async function fetchTaskStatusesFromDb(): Promise<TaskStatusConfig[]> {
   const supabase = createClient();
-  const res = await supabase.from("task_statuses").select("*").order("order_index", { ascending: true });
+  const res = await supabase.from("task_statuses").select("*").order("status_order", { ascending: true });
   if (res.error) {
     console.warn("Direct Supabase fetchTaskStatuses error:", res.error);
     return [];
   }
-  return res.data || [];
+  return (res.data || []).map((row: any) => ({
+    id: row.id,
+    label: row.label || row.name,
+    color: row.color || "slate",
+    isCompleted: Boolean(row.is_completed),
+  }));
 }
 
 export async function insertTaskStatusToDb(status: TaskStatusConfig): Promise<TaskStatusConfig> {
   const supabase = createClient();
   const sid = ensureUuid(status.id);
-  const row = { ...status, id: sid };
+  const row = {
+    id: sid,
+    name: status.label,
+    label: status.label,
+    color: status.color,
+    is_completed: Boolean(status.isCompleted),
+  };
   await supabase.from("task_statuses").insert(row);
   return { ...status, id: sid };
 }
 
 export async function updateTaskStatusInDb(id: string, updates: Partial<TaskStatusConfig>): Promise<void> {
   const supabase = createClient();
-  await supabase.from("task_statuses").update(updates).eq("id", id);
+  const dbUpdates: Record<string, unknown> = {};
+  if ("label" in updates) {
+    dbUpdates.name = updates.label;
+    dbUpdates.label = updates.label;
+  }
+  if ("color" in updates) dbUpdates.color = updates.color;
+  if ("isCompleted" in updates) dbUpdates.is_completed = updates.isCompleted;
+  if (Object.keys(dbUpdates).length > 0) {
+    await supabase.from("task_statuses").update(dbUpdates).eq("id", id);
+  }
 }
 
 export async function deleteTaskStatusFromDb(id: string): Promise<void> {
@@ -805,8 +825,8 @@ export async function deleteTaskStatusFromDb(id: string): Promise<void> {
 export async function fetchTaskCategoriesFromDb(): Promise<TaskCategory[]> {
   const supabase = createClient();
   const [catRes, subRes] = await Promise.all([
-    supabase.from("task_categories").select("*").order("category_name", { ascending: true }),
-    supabase.from("task_sub_categories").select("*"),
+    supabase.from("task_categories").select("*").order("name", { ascending: true }),
+    supabase.from("task_sub_categories").select("*").order("name", { ascending: true }),
   ]);
 
   if (catRes.error) {
@@ -821,8 +841,10 @@ export async function fetchTaskCategoriesFromDb(): Promise<TaskCategory[]> {
       subsByCat[s.category_id].push({
         id: s.id,
         category_id: s.category_id,
-        name: s.sub_category_name || s.name || "Sub-category",
+        name: s.name || s.sub_category_name || "Sub-category",
+        code: s.code,
         description: s.description,
+        whatsapp_enabled: Boolean(s.whatsapp_enabled ?? true),
         created_at: s.created_at || new Date().toISOString(),
       });
     }
@@ -830,9 +852,12 @@ export async function fetchTaskCategoriesFromDb(): Promise<TaskCategory[]> {
 
   return (catRes.data || []).map((c: any) => ({
     id: c.id,
-    name: c.category_name || c.name || "Category",
-    code: c.category_code || c.code || "CAT",
+    name: c.name || c.category_name || "Category",
+    code: c.code || c.category_code || "CAT",
     description: c.description,
+    color: c.color,
+    icon: c.icon,
+    whatsapp_enabled: Boolean(c.whatsapp_enabled ?? true),
     sub_categories: subsByCat[c.id] || [],
     created_at: c.created_at || new Date().toISOString(),
   }));
@@ -843,9 +868,12 @@ export async function insertTaskCategoryToDb(category: TaskCategory): Promise<Ta
   const cid = ensureUuid(category.id);
   const row = {
     id: cid,
-    category_code: category.code || `CAT-${cid.slice(0, 6).toUpperCase()}`,
-    category_name: category.name || "Category",
+    code: category.code || `CAT-${cid.slice(0, 6).toUpperCase()}`,
+    name: category.name || "Category",
     description: category.description || null,
+    color: category.color || null,
+    icon: category.icon || null,
+    whatsapp_enabled: Boolean(category.whatsapp_enabled ?? true),
   };
   await supabase.from("task_categories").insert(row);
   return { ...category, id: cid };
@@ -854,9 +882,12 @@ export async function insertTaskCategoryToDb(category: TaskCategory): Promise<Ta
 export async function updateTaskCategoryInDb(id: string, updates: Partial<TaskCategory>): Promise<void> {
   const supabase = createClient();
   const dbUpdates: Record<string, unknown> = {};
-  if ("name" in updates) dbUpdates.category_name = updates.name;
-  if ("code" in updates) dbUpdates.category_code = updates.code;
+  if ("name" in updates) dbUpdates.name = updates.name;
+  if ("code" in updates) dbUpdates.code = updates.code;
   if ("description" in updates) dbUpdates.description = updates.description;
+  if ("color" in updates) dbUpdates.color = updates.color;
+  if ("icon" in updates) dbUpdates.icon = updates.icon;
+  if ("whatsapp_enabled" in updates) dbUpdates.whatsapp_enabled = updates.whatsapp_enabled;
 
   if (Object.keys(dbUpdates).length > 0) {
     await supabase.from("task_categories").update(dbUpdates).eq("id", id);
@@ -874,8 +905,10 @@ export async function insertTaskSubCategoryToDb(sub: TaskSubCategory): Promise<T
   const row = {
     id: sid,
     category_id: sub.category_id,
-    sub_category_name: sub.name || "Sub-category",
+    name: sub.name || "Sub-category",
+    code: sub.code || null,
     description: sub.description || null,
+    whatsapp_enabled: Boolean(sub.whatsapp_enabled ?? true),
   };
   await supabase.from("task_sub_categories").insert(row);
   return { ...sub, id: sid };
@@ -884,8 +917,10 @@ export async function insertTaskSubCategoryToDb(sub: TaskSubCategory): Promise<T
 export async function updateTaskSubCategoryInDb(id: string, updates: Partial<TaskSubCategory>): Promise<void> {
   const supabase = createClient();
   const dbUpdates: Record<string, unknown> = {};
-  if ("name" in updates) dbUpdates.sub_category_name = updates.name;
+  if ("name" in updates) dbUpdates.name = updates.name;
+  if ("code" in updates) dbUpdates.code = updates.code;
   if ("description" in updates) dbUpdates.description = updates.description;
+  if ("whatsapp_enabled" in updates) dbUpdates.whatsapp_enabled = updates.whatsapp_enabled;
 
   if (Object.keys(dbUpdates).length > 0) {
     await supabase.from("task_sub_categories").update(dbUpdates).eq("id", id);
@@ -1343,20 +1378,15 @@ export async function fetchEmployeesFromDb(): Promise<Employee[]> {
   const supabase = createClient();
   const res = await supabase
     .from("employees")
-    .select("*, designations(designation_name), teams!employees_team_id_fkey(name)")
+    .select("*")
     .order("created_at", { ascending: true });
 
-  let data = res.data;
   if (res.error) {
-    const fallback = await supabase.from("employees").select("*").order("created_at", { ascending: true });
-    if (fallback.error) {
-      console.warn("Direct Supabase fetchEmployees error:", fallback.error);
-      return [];
-    }
-    data = fallback.data;
+    console.warn("Direct Supabase fetchEmployees error:", res.error);
+    return [];
   }
 
-  return (data || []).map((row: any) => ({
+  return (res.data || []).map((row: any) => ({
     id: row.id,
     employee_code: row.employee_code,
     first_name: row.first_name,
@@ -1365,14 +1395,14 @@ export async function fetchEmployeesFromDb(): Promise<Employee[]> {
     email: row.email,
     mobile_number: row.mobile_number,
     designation_id: row.designation_id,
-    designation_name: row.designations?.designation_name || row.designation_name,
+    designation_name: row.designation_name || (row.role_code === "OWNER" ? "Firm Owner / Managing Director" : "Employee"),
     team_id: row.team_id,
-    team_name: row.teams?.name || row.team_name,
+    team_name: row.team_name,
     joining_date: row.joining_date,
     employment_status: row.employment_status || "Active",
     is_active: Boolean(row.is_active ?? true),
     role_code: row.role_code || "EMPLOYEE",
-    branch_name: row.branch_name,
+    branch_name: row.team_name || "AuditOne Practice",
     created_at: row.created_at || new Date().toISOString(),
   }));
 }
@@ -1380,6 +1410,13 @@ export async function fetchEmployeesFromDb(): Promise<Employee[]> {
 export async function insertEmployeeToDb(emp: Employee): Promise<Employee> {
   const supabase = createClient();
   const eid = ensureUuid(emp.id);
+
+  // Validate designation_id to prevent foreign key violation on designations table
+  const validDesigIds = ["desig-dir", "desig-head", "desig-mgr", "desig-sr-cons", "desig-assoc", "desig-trainee"];
+  const designationId = emp.designation_id && validDesigIds.includes(emp.designation_id)
+    ? emp.designation_id
+    : (emp.role_code === "OWNER" ? "desig-dir" : null);
+
   const row = {
     id: eid,
     employee_code: emp.employee_code || `EMP-${eid.slice(0, 6).toUpperCase()}`,
@@ -1387,25 +1424,29 @@ export async function insertEmployeeToDb(emp: Employee): Promise<Employee> {
     last_name: emp.last_name || "",
     email: (emp.email || "").trim().toLowerCase(),
     mobile_number: emp.mobile_number || null,
-    designation_name: emp.designation_name || null,
-    designation_id: emp.designation_id || null,
+    designation_name: emp.designation_name || (emp.role_code === "OWNER" ? "Firm Owner / Managing Director" : "Employee"),
+    designation_id: designationId,
     team_id: emp.team_id || null,
-    team_name: emp.team_name || null,
-    branch_name: emp.branch_name || null,
+    team_name: emp.branch_name || emp.team_name || null,
     joining_date: emp.joining_date || new Date().toISOString().slice(0, 10),
     employment_status: emp.employment_status || "Active",
     is_active: Boolean(emp.is_active ?? true),
     role_code: emp.role_code || "EMPLOYEE",
   };
-  await supabase.from("employees").insert(row);
-  return { ...emp, id: eid };
+
+  const { error } = await supabase.from("employees").insert(row);
+  if (error) {
+    console.error("Supabase insertEmployee error:", error);
+    throw new Error(error.message || "Failed to save employee to database.");
+  }
+  return { ...emp, id: eid, branch_name: emp.branch_name || row.team_name || undefined };
 }
 
 export async function updateEmployeeInDb(id: string, updates: Partial<Employee>): Promise<void> {
   const supabase = createClient();
   const fields = [
     "first_name", "last_name", "email", "mobile_number", "designation_name",
-    "designation_id", "team_id", "team_name", "branch_name", "employment_status", "is_active", "role_code"
+    "designation_id", "team_id", "team_name", "employment_status", "is_active", "role_code"
   ] as const;
   const dbUpdates: Record<string, unknown> = {};
   for (const f of fields) {
@@ -1417,32 +1458,45 @@ export async function updateEmployeeInDb(id: string, updates: Partial<Employee>)
       }
     }
   }
+  if (updates.branch_name) {
+    dbUpdates.team_name = updates.branch_name;
+  }
+  if ("designation_id" in dbUpdates) {
+    const validDesigIds = ["desig-dir", "desig-head", "desig-mgr", "desig-sr-cons", "desig-assoc", "desig-trainee"];
+    if (dbUpdates.designation_id && !validDesigIds.includes(dbUpdates.designation_id as string)) {
+      dbUpdates.designation_id = dbUpdates.role_code === "OWNER" ? "desig-dir" : null;
+    }
+  }
   if (Object.keys(dbUpdates).length > 0) {
-    await supabase.from("employees").update(dbUpdates).eq("id", id);
+    const { error } = await supabase.from("employees").update(dbUpdates).eq("id", id);
+    if (error) {
+      console.error("Supabase updateEmployee error:", error);
+      throw new Error(error.message || "Failed to update employee in database.");
+    }
   }
 }
 
 export async function deleteEmployeeFromDb(id: string): Promise<void> {
   const supabase = createClient();
-  await supabase.from("employees").delete().eq("id", id);
+  const { error } = await supabase.from("employees").delete().eq("id", id);
+  if (error) {
+    console.error("Supabase deleteEmployee error:", error);
+    throw new Error(error.message || "Failed to delete employee from database.");
+  }
 }
 
 export async function fetchTeamsFromDb(): Promise<Team[]> {
   const supabase = createClient();
   const [teamsRes, membersRes] = await Promise.all([
-    supabase.from("teams").select("*, employees!teams_supervisor_id_fkey(full_name)"),
+    supabase.from("teams").select("*").order("name", { ascending: true }),
     supabase.from("team_members").select("*, employees(full_name, designation_name)"),
   ]);
 
-  let teamsData = teamsRes.data;
   if (teamsRes.error) {
-    const fallback = await supabase.from("teams").select("*");
-    if (fallback.error) {
-      console.warn("Direct Supabase fetchTeams error:", fallback.error);
-      return [];
-    }
-    teamsData = fallback.data;
+    console.warn("Direct Supabase fetchTeams error:", teamsRes.error);
+    return [];
   }
+  const teamsData = teamsRes.data || [];
 
   const membersByTeam: Record<string, any[]> = {};
   for (const m of membersRes.data || []) {
